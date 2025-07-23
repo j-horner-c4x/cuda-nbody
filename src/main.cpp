@@ -1,5 +1,4 @@
 #include "git_commit_id.hpp"
-#include "library/library_impl.hpp"
 
 #include <iostream>
 
@@ -9,11 +8,8 @@
 /// @return int     Returns 0
 ///
 auto main() -> int {
-    const auto lib = jh::library::LibraryClass{};
 
-    const auto message = "Hello from " + lib.get_name() + ", version: " + git_commit_id + " !";
-
-    std::cout << message << '\n';
+    std::cout << git_commit_id << '\n';
 
     return 0;
 }
