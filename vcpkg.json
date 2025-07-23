@@ -1,0 +1,23 @@
+{
+    "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+    "name": "cuda-nbody",
+    "version": "0.1.0",
+    "description": [
+        "An example CMake project with many essential features and recommended practices setup.",
+        "Optionally can be built with unit tests."
+    ],
+    "dependencies": [
+        "fmt"
+    ],
+    "$default-features-explanation": "Users using this library transitively will not include tests.",
+    "default-features": [],
+    "features": {
+        "tests": {
+            "description": "Unit testing",
+            "dependencies": [
+                "catch2"
+            ]
+        }
+    },
+    "builtin-baseline": "ef7dbf94b9198bc58f45951adcf1f041fcbc5ea0"
+}

@@ -1,0 +1,7 @@
+[codespell]
+builtin = clear,rare,names,informal,code
+check-filenames =
+check-hidden =
+skip = */.git,*/build,*/external
+quiet-level = 2
+ignore-words = allowed_words.txt

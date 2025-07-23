@@ -1,0 +1,177 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches:
+      - master
+
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  lint:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@v5
+
+      - name: Install clang-format
+        run: sudo apt-get install clang-format -y -q
+
+      - name: Install codespell
+        run: pip3 install codespell
+
+      - name: Lint
+        run: cmake -D FORMAT_COMMAND=clang-format -P cmake/lint.cmake
+
+      - name: Spell check
+        if: always()
+        run: cmake -P cmake/spell.cmake
+
+  sanitize:
+    needs: [lint]
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: seanmiddleditch/gha-setup-ninja@master
+
+      - run: ninja --version
+
+      - uses: friendlyanon/setup-vcpkg@v1
+        with:
+          path: external/vcpkg
+
+      - name: Configure
+        run: cmake --preset=sanitize-ci
+
+      - name: Build
+        run: cmake --build build/sanitize-ci --target install -j
+
+      - name: Test
+        working-directory: build/sanitize-ci
+        env:
+          ASAN_OPTIONS: "strict_string_checks=1:\
+            detect_stack_use_after_return=1:\
+            check_initialization_order=1:\
+            strict_init_order=1:\
+            detect_leaks=1:\
+            debug=1:\
+            report_globals=1:\
+            alloc_dealloc_mismatch=1:\
+            detect_invalid_pointer_pairs=2:\
+            detect_container_overflow=1:\
+            detect_odr_violation=2:\
+            symbolize=1:\
+            verbosity=2:\
+            disable_coredump=0"
+          UBSAN_OPTIONS: print_stacktrace=1
+        run: ctest --output-on-failure -j
+
+  test:
+    needs: [lint]
+
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - id: get-os-name
+        shell: bash
+        run: |
+          os=$(echo ${{matrix.os}} | cut -d- -f1)
+          echo "os-name=$os" >> $GITHUB_OUTPUT
+      - run: echo "Running on ${{steps.get-os-name.outputs.os-name}}"
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: seanmiddleditch/gha-setup-ninja@master
+
+      - run: ninja --version
+
+      - name: Install OpenMP
+        if: steps.get-os-name.outputs.os-name == 'macos'
+        run: brew install libomp
+
+      - name: Install static analyzers
+        if: steps.get-os-name.outputs.os-name == 'ubuntu'
+        run: sudo apt-get install clang-tidy cppcheck -y -q
+
+      - uses: friendlyanon/setup-vcpkg@v1
+        with:
+          path: external/vcpkg
+
+      - name: Configure
+        run: cmake --preset=${{steps.get-os-name.outputs.os-name}}-ci
+
+      # capture vcpkg logs as build artifacts
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: 'vcpkg-artifacts-${{matrix.os}}'
+          path: build/vcpkg/
+
+      - name: Build
+        run: cmake --build build/${{steps.get-os-name.outputs.os-name}}-ci --config Release -j
+
+      - name: Install
+        run: cmake --install build/${{steps.get-os-name.outputs.os-name}}-ci --config Release
+
+      - name: Test
+        working-directory: build/${{steps.get-os-name.outputs.os-name}}-ci
+        run: ctest --output-on-failure -C Release -j
+
+  docs:
+    # Deploy docs only when builds succeed
+    needs: [test, sanitize]
+
+    runs-on: ubuntu-latest
+
+    # To enable, first you have to create an orphaned gh-pages branch:
+    #
+    #    git switch --orphan gh-pages
+    #    git commit --allow-empty -m "Initial commit"
+    #    git push -u origin gh-pages
+    #
+    # If you do not wish to use GitHub Pages for deploying documentation, then
+    # simply delete this job similarly to the coverage one.
+    if: github.ref == 'refs/heads/master'
+      && github.event_name == 'push'
+      && github.repository_owner == 'j-horner'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@v5
+
+      - name: Install m.css dependencies
+        run: pip3 install jinja2 Pygments
+
+      - name: Install Doxygen
+        run: sudo apt-get update -q
+          && sudo apt-get install doxygen -q -y
+
+      - name: Build docs
+        run: cmake -B build -D "CMAKE_PROJECT_INCLUDE=$PWD/cmake/docs.cmake"
+          && cmake --build build --target docs
+
+      - name: Deploy docs
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: build/docs/html

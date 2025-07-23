@@ -1,0 +1,69 @@
+{
+    "version": 2,
+    "cmakeMinimumRequired": {
+        "major": 3,
+        "minor": 28,
+        "patch": 3
+    },
+    "configurePresets": [
+        {
+            "name": "dev-common",
+            "hidden": true,
+            "inherits": [
+                "dev-mode"
+            ],
+            "cacheVariables": {
+                "BUILD_MCSS_DOCS": "ON"
+            }
+        },
+        {
+            "name": "dev-win64-debug",
+            "inherits": [
+                "dev-common",
+                "windows-debug"
+            ]
+        },
+        {
+            "name": "dev-win64",
+            "inherits": [
+                "dev-common",
+                "windows-release"
+            ]
+        },
+        {
+            "name": "dev-unix-debug",
+            "inherits": [
+                "dev-common",
+                "unix-debug"
+            ],
+            "environment": {
+                "CC": "clang-15",
+                "CXX": "clang++-15"
+            }
+        },
+        {
+            "name": "dev-unix",
+            "inherits": [
+                "dev-common",
+                "unix-release"
+            ],
+            "environment": {
+                "CC": "gcc-12",
+                "CXX": "g++-12"
+            }
+        },
+        {
+            "name": "dev-coverage",
+            "inherits": [
+                "dev-common",
+                "coverage-unix",
+                "clang-tidy",
+                "cppcheck"
+            ],
+            "environment": {
+                "CC": "gcc-12",
+                "CXX": "g++-12"
+            }
+        }
+    ]
+}
