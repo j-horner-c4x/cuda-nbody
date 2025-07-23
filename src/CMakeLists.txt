@@ -3,7 +3,7 @@
 #   e.g. the library_class object defined in src/library/ has the full name jh::library::library_class
 #   for more details see: https://api.csswg.org/bikeshed/?force=1&url=https://raw.githubusercontent.com/vector-of-bool/pitchfork/develop/data/spec.bs#src.header-placement.separate
 #
-add_subdirectory(library)
+add_subdirectory(nbody)
 
 # ---- Declare executable ----
 
