@@ -28,9 +28,9 @@
 // These are helper functions for the SDK samples (string parsing,
 // timers, image helpers, etc)
 
-#ifdef WIN32
-#pragma warning(disable : 4996)
-#endif
+// #ifdef WIN32
+// #pragma warning(disable : 4996)
+// #endif
 
 // includes, project
 #include "exception.hpp"

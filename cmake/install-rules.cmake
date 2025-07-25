@@ -39,10 +39,7 @@ function(install_dependency target)
 endfunction()
 
 install_dependency(OpenGL::GL)
-install_dependency(GLUT::GLUT)
 install_dependency(GLEW::GLEW)
-
-
 
 write_basic_package_version_file("${package}ConfigVersion.cmake" COMPATIBILITY SameMajorVersion)
 

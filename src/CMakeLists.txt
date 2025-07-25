@@ -23,7 +23,6 @@ target_link_libraries(${PROJECT_NAME}_exe
                         PRIVATE
                             OpenGL::GL
                             $<IF:$<TARGET_EXISTS:FreeGLUT::freeglut>,FreeGLUT::freeglut,FreeGLUT::freeglut_static>
-                            GLUT::GLUT
                             GLEW::GLEW
                             CUDA::cudart_static
                             ${PROJECT_NAME}_render_particles
