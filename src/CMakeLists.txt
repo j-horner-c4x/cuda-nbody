@@ -11,7 +11,7 @@ add_subdirectory(nbody)
 #   Target names are global so if this project is included as a subdirectory of another, name clashes can occur.
 #   Therefore consider keeping target names project specific.
 #
-add_executable(${PROJECT_NAME}_exe main.cpp)
+add_executable(${PROJECT_NAME}_exe nbody.cpp)
 
 #
 #   find_package() will import an appropriately namespaced target
