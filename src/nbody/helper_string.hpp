@@ -26,14 +26,13 @@
  */
 
 // These are helper functions for the SDK samples (string parsing, timers, etc)
-#ifndef COMMON_HELPER_STRING_H_
-#define COMMON_HELPER_STRING_H_
-
-#include <stdio.h>
-#include <stdlib.h>
+#pragma once
 
 #include <fstream>
 #include <string>
+
+#include <cstdio>
+#include <cstdlib>
 
 #if defined(WIN32) || defined(_WIN32) || defined(WIN64) || defined(_WIN64)
 #ifndef _CRT_SECURE_NO_DEPRECATE
@@ -416,5 +415,3 @@ inline char* sdkFindFilePath(const char* filename, const char* executable_path) 
     printf("\nerror: sdkFindFilePath: file <%s> not found!\n", filename);
     return 0;
 }
-
-#endif    // COMMON_HELPER_STRING_H_

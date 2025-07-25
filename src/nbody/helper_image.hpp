@@ -26,19 +26,19 @@
  */
 
 // These are helper functions for the SDK samples (image,bitmap)
-#ifndef COMMON_HELPER_IMAGE_H_
-#define COMMON_HELPER_IMAGE_H_
+#pragma once
 
-#include <assert.h>
-#include <exception.h>
-#include <math.h>
-#include <stdint.h>
+#include "exception.hpp"
 
 #include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <string>
 #include <vector>
+
+#include <cassert>
+#include <cmath>
+#include <cstdint>
 
 #ifndef MIN
 #define MIN(a, b) ((a < b) ? a : b)
@@ -51,7 +51,7 @@
 #define EXIT_WAIVED 2
 #endif
 
-#include <helper_string.h>
+#include "helper_string.hpp"
 
 // namespace unnamed (internal)
 namespace helper_image_internal {
@@ -913,5 +913,3 @@ inline bool sdkComparePGM(const char* src_file, const char* ref_file, const floa
     // returns true if all pixels pass
     return (error_count == 0) ? true : false;
 }
-
-#endif    // COMMON_HELPER_IMAGE_H_

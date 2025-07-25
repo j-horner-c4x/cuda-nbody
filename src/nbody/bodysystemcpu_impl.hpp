@@ -25,27 +25,30 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "bodysystemcpu.h"
-#include "tipsy.h"
+#pragma once
 
-#include <assert.h>
-#include <helper_cuda.h>
-#include <math.h>
-#include <memory.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include "bodysystemcpu.hpp"
+#include "helper_cuda.hpp"
+#include "tipsy.hpp"
+
+// #include <memory.h>
 
 #include <algorithm>
+
+#include <cassert>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
 
 #ifdef OPENMP
 #include <omp.h>
 #endif
 
-template <typename T> BodySystemCPU<T>::BodySystemCPU(int numBodies) : m_numBodies(numBodies), m_bInitialized(false), m_force(0), m_softeningSquared(.00125f), m_damping(0.995f) {
+template <typename T> BodySystemCPU<T>::BodySystemCPU(int num_bodies) : m_numBodies(num_bodies), m_bInitialized(false), m_force(0), m_softeningSquared(.00125f), m_damping(0.995f) {
     m_pos = 0;
     m_vel = 0;
 
-    _initialize(numBodies);
+    _initialize(num_bodies);
 }
 
 template <typename T> BodySystemCPU<T>::~BodySystemCPU() {
@@ -53,10 +56,10 @@ template <typename T> BodySystemCPU<T>::~BodySystemCPU() {
     m_numBodies = 0;
 }
 
-template <typename T> void BodySystemCPU<T>::_initialize(int numBodies) {
+template <typename T> void BodySystemCPU<T>::_initialize(int num_bodies) {
     assert(!m_bInitialized);
 
-    m_numBodies = numBodies;
+    m_numBodies = num_bodies;
 
     m_pos   = new T[m_numBodies * 4];
     m_vel   = new T[m_numBodies * 4];

@@ -25,10 +25,12 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BODYSYSTEM_H__
-#define __BODYSYSTEM_H__
+#pragma once
+
+#include <vector_types.h>
 
 #include <algorithm>
+#include <string>
 
 enum NBodyConfig { NBODY_CONFIG_RANDOM, NBODY_CONFIG_SHELL, NBODY_CONFIG_EXPAND, NBODY_NUM_CONFIGS };
 
@@ -276,5 +278,3 @@ template <typename T> void randomizeBodies(NBodyConfig config, T* pos, T* vel, f
         }
     }
 }
-
-#endif    // __BODYSYSTEM_H__

@@ -25,15 +25,18 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <assert.h>
+#pragma once
+
+#include "helper_cuda.hpp"
+
 #include <cuda_gl_interop.h>
-#include <helper_cuda.h>
-#include <math.h>
 #include <memory.h>
 
 #include <algorithm>
 #include <vector>
 
+#include <cassert>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 
@@ -44,14 +47,14 @@ cudaError_t setSofteningSquared(float softeningSq);
 cudaError_t setSofteningSquared(double softeningSq);
 
 template <typename T>
-BodySystemCUDA<T>::BodySystemCUDA(unsigned int numBodies, unsigned int numDevices, unsigned int blockSize, bool usePBO, bool useSysMem, bool useP2P, int deviceId)
-    : m_numBodies(numBodies), m_numDevices(numDevices), m_bInitialized(false), m_bUsePBO(usePBO), m_bUseSysMem(useSysMem), m_bUseP2P(useP2P), m_currentRead(0), m_currentWrite(1), m_blockSize(blockSize), m_devID(deviceId) {
+BodySystemCUDA<T>::BodySystemCUDA(unsigned int num_bodies, unsigned int numDevices, unsigned int block_size, bool usePBO, bool useSysMem, bool use_p2p, int deviceId)
+    : m_numBodies(num_bodies), m_numDevices(numDevices), m_bInitialized(false), m_bUsePBO(usePBO), m_bUseSysMem(useSysMem), m_bUseP2P(use_p2p), m_currentRead(0), m_currentWrite(1), m_blockSize(block_size), m_devID(deviceId) {
     m_hPos[0] = m_hPos[1] = 0;
     m_hVel                = 0;
 
     m_deviceData = 0;
 
-    _initialize(numBodies);
+    _initialize(num_bodies);
     setSoftening(0.00125f);
     setDamping(0.995f);
 }
@@ -61,12 +64,12 @@ template <typename T> BodySystemCUDA<T>::~BodySystemCUDA() {
     m_numBodies = 0;
 }
 
-template <typename T> void BodySystemCUDA<T>::_initialize(int numBodies) {
+template <typename T> void BodySystemCUDA<T>::_initialize(int num_bodies) {
     assert(!m_bInitialized);
 
-    m_numBodies = numBodies;
+    m_numBodies = num_bodies;
 
-    unsigned int memSize = sizeof(T) * 4 * numBodies;
+    unsigned int memSize = sizeof(T) * 4 * num_bodies;
 
     m_deviceData = new DeviceData<T>[m_numDevices];
 
@@ -176,7 +179,6 @@ template <typename T> void BodySystemCUDA<T>::_initialize(int numBodies) {
         // At this point we already know P2P is supported
         if (m_bUseP2P) {
             for (unsigned int i = 1; i < m_numDevices; i++) {
-                int         access = 0;
                 cudaError_t error;
 
                 // Enable access for gpu_i to memory owned by gpu0

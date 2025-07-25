@@ -25,10 +25,9 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BODYSYSTEMCPU_H__
-#define __BODYSYSTEMCPU_H__
+#pragma once
 
-#include "bodysystem.h"
+#include "bodysystem.hpp"
 
 // CPU Body System
 template <typename T> class BodySystemCPU : public BodySystem<T> {
@@ -71,6 +70,4 @@ template <typename T> class BodySystemCPU : public BodySystem<T> {
     T m_damping;
 };
 
-#include "bodysystemcpu_impl.h"
-
-#endif    // __BODYSYSTEMCPU_H__
+#include "bodysystemcpu_impl.hpp"

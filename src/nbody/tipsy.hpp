@@ -1,5 +1,4 @@
-#ifndef __TIPSY_H__
-#define __TIPSY_H__
+#pragma once
 
 #include <string>
 
@@ -147,5 +146,3 @@ template <typename real4> void read_tipsy_file(vector<real4>& bodyPositions, vec
 
     cerr << "Read " << NTotal << " bodies" << endl;
 }
-
-#endif    //__TIPSY_H__

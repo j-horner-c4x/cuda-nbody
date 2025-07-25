@@ -25,8 +25,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __RENDER_PARTICLES__
-#define __RENDER_PARTICLES__
+#pragma once
 
 class ParticleRenderer {
  public:
@@ -74,5 +73,3 @@ class ParticleRenderer {
 
     bool m_bFp64Positions;
 };
-
-#endif    //__ RENDER_PARTICLES__

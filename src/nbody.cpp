@@ -26,8 +26,7 @@
  */
 
 #include "git_commit_id.hpp"
-
-#include <helper_gl.h>
+#include "nbody/helper_gl.hpp"
 #if defined(WIN32) || defined(_WIN32) || defined(WIN64) || defined(_WIN64)
 #include <GL/wglew.h>
 #endif
@@ -39,21 +38,20 @@
 #include <GL/freeglut.h>
 #endif
 
-#include "bodysystemcpu.h"
-#include "bodysystemcuda.h"
-#include "cuda_runtime.h"
-#include "render_particles.h"
+#include "nbody/bodysystemcpu.hpp"
+#include "nbody/bodysystemcuda.hpp"
+#include "nbody/helper_cuda.hpp"
+#include "nbody/helper_functions.hpp"
+#include "nbody/paramgl.hpp"
+#include "nbody/render_particles.hpp"
 
-#include <assert.h>
 #include <cuda_gl_interop.h>
 #include <cuda_runtime.h>
-#include <helper_cuda.h>
-#include <helper_functions.h>
-#include <math.h>
-#include <paramgl.h>
 
 #include <algorithm>
 
+#include <cassert>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 
@@ -157,15 +155,15 @@ template <typename T> class NBodyDemo {
     static void Create() { m_singleton = new NBodyDemo; }
     static void Destroy() { delete m_singleton; }
 
-    static void init(int numBodies, int numDevices, int blockSize, bool usePBO, bool useHostMem, bool useP2P, bool useCpu, int devID) {
-        m_singleton->_init(numBodies, numDevices, blockSize, usePBO, useHostMem, useP2P, useCpu, devID);
+    static void init(int num_bodies, int numDevices, int block_size, bool usePBO, bool use_host_mem, bool use_p2p, bool use_cpu, int devID) {
+        m_singleton->_init(num_bodies, numDevices, block_size, usePBO, use_host_mem, use_p2p, use_cpu, devID);
     }
 
-    static void reset(int numBodies, NBodyConfig config) { m_singleton->_reset(numBodies, config); }
+    static void reset(int num_bodies, NBodyConfig config) { m_singleton->_reset(num_bodies, config); }
 
     static void selectDemo(int index) { m_singleton->_selectDemo(index); }
 
-    static bool compareResults(int numBodies) { return m_singleton->_compareResults(numBodies); }
+    static bool compareResults(int num_bodies) { return m_singleton->_compareResults(num_bodies); }
 
     static void runBenchmark(int iterations) { m_singleton->_runBenchmark(iterations); }
 
@@ -265,26 +263,26 @@ template <typename T> class NBodyDemo {
             delete m_renderer;
     }
 
-    void _init(int numBodies, int numDevices, int blockSize, bool bUsePBO, bool useHostMem, bool useP2P, bool useCpu, int devID) {
-        if (useCpu) {
-            m_nbodyCpu  = new BodySystemCPU<T>(numBodies);
+    void _init(int num_bodies, int numDevices, int block_size, bool bUsePBO, bool use_host_mem, bool use_p2p, bool use_cpu, int devID) {
+        if (use_cpu) {
+            m_nbodyCpu  = new BodySystemCPU<T>(num_bodies);
             m_nbody     = m_nbodyCpu;
             m_nbodyCuda = 0;
         } else {
-            m_nbodyCuda = new BodySystemCUDA<T>(numBodies, numDevices, blockSize, bUsePBO, useHostMem, useP2P, devID);
+            m_nbodyCuda = new BodySystemCUDA<T>(num_bodies, numDevices, block_size, bUsePBO, use_host_mem, use_p2p, devID);
             m_nbody     = m_nbodyCuda;
             m_nbodyCpu  = 0;
         }
 
         // allocate host memory
-        m_hPos   = new T[numBodies * 4];
-        m_hVel   = new T[numBodies * 4];
-        m_hColor = new float[numBodies * 4];
+        m_hPos   = new T[num_bodies * 4];
+        m_hVel   = new T[num_bodies * 4];
+        m_hColor = new float[num_bodies * 4];
 
         m_nbody->setSoftening(activeParams.m_softening);
         m_nbody->setDamping(activeParams.m_damping);
 
-        if (useCpu) {
+        if (use_cpu) {
             sdkCreateTimer(&timer);
             sdkStartTimer(&timer);
         } else {
@@ -302,9 +300,9 @@ template <typename T> class NBodyDemo {
         sdkStartTimer(&demoTimer);
     }
 
-    void _reset(int numBodies, NBodyConfig config) {
+    void _reset(int num_bodies, NBodyConfig config) {
         if (tipsyFile == "") {
-            randomizeBodies(config, m_hPos, m_hVel, m_hColor, activeParams.m_clusterScale, activeParams.m_velocityScale, numBodies, true);
+            randomizeBodies(config, m_hPos, m_hVel, m_hColor, activeParams.m_clusterScale, activeParams.m_velocityScale, num_bodies, true);
             setArrays(m_hPos, m_hVel);
         } else {
             m_nbody->loadTipsyFile(tipsyFile);
@@ -336,7 +334,7 @@ template <typename T> class NBodyDemo {
         sdkResetTimer(&demoTimer);
     }
 
-    bool _compareResults(int numBodies) {
+    bool _compareResults(int num_bodies) {
         assert(m_nbodyCuda);
 
         bool passed = true;
@@ -344,7 +342,7 @@ template <typename T> class NBodyDemo {
         m_nbody->update(0.001f);
 
         {
-            m_nbodyCpu = new BodySystemCPU<T>(numBodies);
+            m_nbodyCpu = new BodySystemCPU<T>(num_bodies);
 
             m_nbodyCpu->setArray(BODYSYSTEM_POSITION, m_hPos);
             m_nbodyCpu->setArray(BODYSYSTEM_VELOCITY, m_hVel);
@@ -356,7 +354,7 @@ template <typename T> class NBodyDemo {
 
             T tolerance = 0.0005f;
 
-            for (int i = 0; i < numBodies; i++) {
+            for (int i = 0; i < num_bodies; i++) {
                 if (fabs(cpuPos[i] - cudaPos[i]) > tolerance) {
                     passed = false;
                     printf("Error: (host)%f != (device)%f\n", cpuPos[i], cudaPos[i]);
@@ -518,11 +516,11 @@ void initParameters() {
     paramlist->AddParam(new Param<float>("Velocity Scale", activeParams.m_velocityScale, 0.0f, 1000.0f, 0.1f, &activeParams.m_velocityScale));
 }
 
-void selectDemo(int activeDemo) {
+void selectDemo(int active_demo) {
     if (fp64) {
-        NBodyDemo<double>::selectDemo(activeDemo);
+        NBodyDemo<double>::selectDemo(active_demo);
     } else {
-        NBodyDemo<float>::selectDemo(activeDemo);
+        NBodyDemo<float>::selectDemo(active_demo);
     }
 }
 
@@ -960,8 +958,8 @@ int main(int argc, char** argv) {
     printf("> %s precision floating point simulation\n", fp64 ? "Double" : "Single");
     printf("> %d Devices used for simulation\n", numDevsRequested);
 
-    int            devID;
-    cudaDeviceProp props;
+    int            devID = 0;
+    cudaDeviceProp props{};
 
     if (useCpu) {
         useHostMem     = true;
@@ -1023,20 +1021,20 @@ int main(int argc, char** argv) {
         }
 
         if (customGPU || numDevsRequested == 1) {
-            cudaDeviceProp props;
-            checkCudaErrors(cudaGetDeviceProperties(&props, devID));
-            printf("> Compute %d.%d CUDA device: [%s]\n", props.major, props.minor, props.name);
+            cudaDeviceProp props1;
+            checkCudaErrors(cudaGetDeviceProperties(&props1, devID));
+            printf("> Compute %d.%d CUDA device: [%s]\n", props1.major, props1.minor, props1.name);
         } else {
             for (int i = 0; i < numDevsRequested; i++) {
-                cudaDeviceProp props;
-                checkCudaErrors(cudaGetDeviceProperties(&props, i));
+                cudaDeviceProp props2;
+                checkCudaErrors(cudaGetDeviceProperties(&props2, i));
 
-                printf("> Compute %d.%d CUDA device: [%s]\n", props.major, props.minor, props.name);
+                printf("> Compute %d.%d CUDA device: [%s]\n", props2.major, props2.minor, props2.name);
 
                 if (useHostMem) {
 #if CUDART_VERSION >= 2020
 
-                    if (!props.canMapHostMemory) {
+                    if (!props2.canMapHostMemory) {
                         fprintf(stderr, "Device %d cannot map host memory!\n", devID);
                         exit(EXIT_SUCCESS);
                     }
@@ -1100,9 +1098,9 @@ int main(int argc, char** argv) {
         numBodies = 0;
 
         for (int i = 0; i < numDevsRequested; i++) {
-            cudaDeviceProp props;
-            checkCudaErrors(cudaGetDeviceProperties(&props, i));
-            numBodies += blockSize * (props.major >= 2 ? 4 : 1) * props.multiProcessorCount;
+            cudaDeviceProp props1;
+            checkCudaErrors(cudaGetDeviceProperties(&props1, i));
+            numBodies += blockSize * (props1.major >= 2 ? 4 : 1) * props1.multiProcessorCount;
         }
     }
 

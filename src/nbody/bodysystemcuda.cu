@@ -25,8 +25,8 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <helper_cuda.h>
-#include <math.h>
+#include "bodysystem.hpp"
+#include "helper_cuda.hpp"
 
 #if defined(__APPLE__) || defined(MACOSX)
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
@@ -40,9 +40,9 @@
 #include <cuda_gl_interop.h>
 #include <cuda_runtime.h>
 
-namespace cg = cooperative_groups;
+#include <cmath>
 
-#include "bodysystem.h"
+namespace cg = cooperative_groups;
 
 __constant__ float  softeningSquared;
 __constant__ double softeningSquared_fp64;

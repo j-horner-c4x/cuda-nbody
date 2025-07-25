@@ -30,8 +30,7 @@
  sgreen@nvidia.com 4/2001
 */
 
-#ifndef PARAM_H
-#define PARAM_H
+#pragma once
 
 #include <iomanip>
 #include <iostream>
@@ -219,5 +218,3 @@ class ParamList : public ParamBase {
     std::map<std::string, ParamBase*>       m_map;
     std::vector<ParamBase*>::const_iterator m_current;
 };
-
-#endif

@@ -31,8 +31,7 @@
    list sgg 8/2001
 */
 
-#ifndef PARAMGL_H
-#define PARAMGL_H
+#pragma once
 
 #if defined(__APPLE__) || defined(MACOSX)
 #include <GLUT/glut.h>
@@ -40,8 +39,9 @@
 #include <GL/freeglut.h>
 #endif
 
-#include <param.h>
-#include <string.h>
+#include "param.hpp"
+
+#include <cstring>
 
 inline void beginWinCoords(void) {
     glMatrixMode(GL_MODELVIEW);
@@ -196,7 +196,7 @@ class ParamListGL : public ParamList {
         return true;
     }
 
-    void Special(int key, int x, int y) {
+    void Special(int key, [[maybe_unused]] int x, [[maybe_unused]] int y) {
         if (!m_active)
             return;
 
@@ -272,5 +272,3 @@ class ParamListGL : public ParamList {
     Color m_bar_color_outer;
     Color m_bar_color_inner;
 };
-
-#endif

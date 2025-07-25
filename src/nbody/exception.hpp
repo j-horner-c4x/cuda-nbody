@@ -26,16 +26,15 @@
  */
 
 /* CUda UTility Library */
-#ifndef COMMON_EXCEPTION_H_
-#define COMMON_EXCEPTION_H_
+#pragma once
 
 // includes, system
-#include <stdlib.h>
-
 #include <exception>
 #include <iostream>
 #include <stdexcept>
 #include <string>
+
+#include <cstdlib>
 
 //! Exception wrapper.
 //! @param Std_Exception Exception out of namespace std for easy typing.
@@ -134,5 +133,3 @@ template <class Std_Exception> Exception<Std_Exception>::Exception(const std::st
 template <class Std_Exception> Exception<Std_Exception>::~Exception() throw() {}
 
 // functions, exported
-
-#endif    // COMMON_EXCEPTION_H_

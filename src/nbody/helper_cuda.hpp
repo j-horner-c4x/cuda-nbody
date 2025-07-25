@@ -28,16 +28,16 @@
 ////////////////////////////////////////////////////////////////////////////////
 // These are CUDA Helper functions for initialization and error checking
 
-#ifndef COMMON_HELPER_CUDA_H_
-#define COMMON_HELPER_CUDA_H_
-
 #pragma once
 
-#include <helper_string.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include "helper_string.hpp"
+
+#include <cuda_runtime.h>
+
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 
 #ifndef EXIT_WAIVED
 #define EXIT_WAIVED 2
@@ -925,5 +925,3 @@ inline bool checkCudaCapabilities(int major_version, int minor_version) {
 #endif
 
 // end of CUDA Helper Functions
-
-#endif    // COMMON_HELPER_CUDA_H_

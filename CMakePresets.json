@@ -27,6 +27,7 @@
                 "CMAKE_CXX_STANDARD_REQUIRED": true,
                 "CMAKE_EXPORT_COMPILE_COMMANDS": true,
                 "CMAKE_INTERPROCEDURAL_OPTIMIZATION": true,
+                "CMAKE_CUDA_ARCHITECTURES": "native",
                 "VCPKG_BOOTSTRAP_OPTIONS": "-disableMetrics",
                 "VCPKG_OVERLAY_PORTS": "",
                 "VCPKG_OVERLAY_TRIPLETS": "",

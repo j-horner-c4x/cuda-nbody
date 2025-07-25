@@ -26,8 +26,7 @@
  */
 
 // These are helper functions for the SDK samples (OpenGL)
-#ifndef HELPER_GL_H
-#define HELPER_GL_H
+#pragma once
 
 #if defined(WIN32) || defined(_WIN32) || defined(WIN64) || defined(_WIN64)
 #include <GL/glew.h>
@@ -39,10 +38,8 @@
 #include <GL/gl.h>
 #ifdef __linux__
 #include <GL/glx.h>
-#endif /* __linux__ */
 #endif
-
-#include <assert.h>
+#endif
 
 #include <algorithm>
 #include <iostream>
@@ -51,12 +48,13 @@
 #include <string>
 #include <vector>
 
+#include <cassert>
 #include <cstdio>
 
 /* Prototypes */
 namespace __HelperGL {
-static int isGLVersionSupported(unsigned reqMajor, unsigned reqMinor);
-static int areGLExtensionsSupported(const std::string&);
+inline int isGLVersionSupported(unsigned reqMajor, unsigned reqMinor);
+inline int areGLExtensionsSupported(const std::string&);
 #ifdef __linux__
 
 #ifndef HELPERGL_EXTERN_GL_FUNC_IMPLEMENTATION
@@ -167,7 +165,7 @@ static std::vector<std::string> getGLExtensions() {
 }
 }    // namespace __Int
 
-static int areGLExtensionsSupported(const std::string& extensions) {
+inline int areGLExtensionsSupported(const std::string& extensions) {
     std::vector<std::string> all = __Int::getGLExtensions();
 
     std::vector<std::string> requested = __Int::split(extensions);
@@ -176,7 +174,7 @@ static int areGLExtensionsSupported(const std::string& extensions) {
     return __Int::equals(matched, requested);
 }
 
-static int isGLVersionSupported(unsigned reqMajor, unsigned reqMinor) {
+inline int isGLVersionSupported(unsigned reqMajor, unsigned reqMinor) {
 #if defined(WIN32) || defined(_WIN32) || defined(WIN64) || defined(_WIN64)
     if (glewInit() != GLEW_OK) {
         std::cerr << "glewInit() failed!" << std::endl;
@@ -254,5 +252,3 @@ inline bool sdkCheckErrorGL(const char* file, const int line) {
 }    // namespace __HelperGL
 
 using namespace __HelperGL;
-
-#endif /*HELPER_GL_H*/

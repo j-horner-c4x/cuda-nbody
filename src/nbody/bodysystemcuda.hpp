@@ -25,10 +25,11 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __BODYSYSTEMCUDA_H__
-#define __BODYSYSTEMCUDA_H__
+#pragma once
 
-#include "bodysystem.h"
+#include "bodysystem.hpp"
+
+#include <cuda_runtime.h>
 
 template <typename T> struct DeviceData {
     T*           dPos[2];    // mapped host pointers
@@ -91,6 +92,4 @@ template <typename T> class BodySystemCUDA : public BodySystem<T> {
     unsigned int m_blockSize;
 };
 
-#include "bodysystemcuda_impl.h"
-
-#endif    // __BODYSYSTEMCUDA_H__
+#include "bodysystemcuda_impl.hpp"

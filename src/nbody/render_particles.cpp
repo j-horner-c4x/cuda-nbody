@@ -25,19 +25,21 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "render_particles.h"
+#include "render_particles.hpp"
 
 #define HELPERGL_EXTERN_GL_FUNC_IMPLEMENTATION
 
 // includes for OpenGL
-#include <helper_gl.h>
+#include "helper_gl.hpp"
 
 // includes
-#include <assert.h>
+#include "helper_cuda.hpp"
+
 #include <cuda_gl_interop.h>
 #include <cuda_runtime.h>
-#include <helper_cuda.h>
-#include <math.h>
+
+#include <cassert>
+#include <cmath>
 
 #define GL_POINT_SPRITE_ARB             0x8861
 #define GL_COORD_REPLACE_ARB            0x8862

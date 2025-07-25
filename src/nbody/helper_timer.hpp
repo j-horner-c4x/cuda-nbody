@@ -26,8 +26,7 @@
  */
 
 // Helper Timing Functions
-#ifndef COMMON_HELPER_TIMER_H_
-#define COMMON_HELPER_TIMER_H_
+#pragma once
 
 #ifndef EXIT_WAIVED
 #define EXIT_WAIVED 2
@@ -37,7 +36,7 @@
 #include <vector>
 
 // includes, project
-#include <exception.h>
+#include "exception.hpp"
 
 // Definition of the StopWatch Interface, this is used if we don't want to use
 // the CUT functions But rather in a self contained class interface
@@ -443,5 +442,3 @@ inline float sdkGetTimerValue(StopWatchInterface** timer_interface) {
         return 0.0f;
     }
 }
-
-#endif    // COMMON_HELPER_TIMER_H_
