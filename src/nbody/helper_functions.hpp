@@ -25,51 +25,32 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#pragma once
+// These are helper functions for the SDK samples (string parsing,
+// timers, image helpers, etc)
 
-class ParticleRenderer {
- public:
-    ParticleRenderer();
-    ~ParticleRenderer();
+#ifdef WIN32
+#pragma warning(disable : 4996)
+#endif
 
-    void setPositions(float* pos, int numParticles);
-    void setPositions(double* pos, int numParticles);
-    void setBaseColor(float color[4]);
-    void setColors(float* color, int numParticles);
-    void setPBO(unsigned int pbo, int numParticles, bool fp64);
+// includes, project
+#include "exception.hpp"
 
-    enum DisplayMode { PARTICLE_POINTS, PARTICLE_SPRITES, PARTICLE_SPRITES_COLOR, PARTICLE_NUM_MODES };
+#include <algorithm>
+#include <fstream>
+#include <iostream>
+#include <string>
+#include <vector>
 
-    void display(DisplayMode mode = PARTICLE_POINTS);
+#include <cassert>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
 
-    void setPointSize(float size) { m_pointSize = size; }
-    void setSpriteSize(float size) { m_spriteSize = size; }
+// includes, timer, string parsing, image helpers
+#include "helper_image.hpp"     // helper functions for image compare, dump, data comparisons
+#include "helper_string.hpp"    // helper functions for string parsing
+#include "helper_timer.hpp"     // helper functions for timers
 
-    void resetPBO();
-
- protected:    // methods
-    void _initGL();
-    void _createTexture(int resolution);
-    void _drawPoints(bool color = false);
-
- protected:    // data
-    float*  m_pos;
-    double* m_pos_fp64;
-    int     m_numParticles;
-
-    float m_pointSize;
-    float m_spriteSize;
-
-    unsigned int m_vertexShader;
-    unsigned int m_vertexShaderPoints;
-    unsigned int m_pixelShader;
-    unsigned int m_programPoints;
-    unsigned int m_programSprites;
-    unsigned int m_texture;
-    unsigned int m_pbo;
-    unsigned int m_vboColor;
-
-    float m_baseColor[4];
-
-    bool m_bFp64Positions;
-};
+#ifndef EXIT_WAIVED
+#define EXIT_WAIVED 2
+#endif

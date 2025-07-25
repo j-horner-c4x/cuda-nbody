@@ -7,7 +7,9 @@
         "Optionally can be built with unit tests."
     ],
     "dependencies": [
-        "fmt"
+        "opengl",
+        "freeglut",
+        "glew"
     ],
     "$default-features-explanation": "Users using this library transitively will not include tests.",
     "default-features": [],

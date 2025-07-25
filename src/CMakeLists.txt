@@ -11,7 +11,7 @@ add_subdirectory(nbody)
 #   Target names are global so if this project is included as a subdirectory of another, name clashes can occur.
 #   Therefore consider keeping target names project specific.
 #
-add_executable(${PROJECT_NAME}_exe main.cpp)
+add_executable(${PROJECT_NAME}_exe nbody.cpp)
 
 #
 #   find_package() will import an appropriately namespaced target
@@ -19,4 +19,13 @@ add_executable(${PROJECT_NAME}_exe main.cpp)
 add_executable(${PROJECT_NAME}::exe ALIAS ${PROJECT_NAME}_exe)
 set_target_properties(${PROJECT_NAME}_exe PROPERTIES OUTPUT_NAME ${PROJECT_NAME} EXPORT_NAME exe)
 
-target_link_libraries(${PROJECT_NAME}_exe PRIVATE ${PROJECT_NAME}_library_impl)
+target_link_libraries(${PROJECT_NAME}_exe
+                        PRIVATE
+                            OpenGL::GL
+                            $<IF:$<TARGET_EXISTS:FreeGLUT::freeglut>,FreeGLUT::freeglut,FreeGLUT::freeglut_static>
+                            GLUT::GLUT
+                            GLEW::GLEW
+                            CUDA::cudart_static
+                            ${PROJECT_NAME}_render_particles
+                            ${PROJECT_NAME}_bodysystemcuda)
+
