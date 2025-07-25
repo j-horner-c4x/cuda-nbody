@@ -9,8 +9,7 @@ using namespace std;
 
 typedef float Real;
 
-struct gas_particle
-{
+struct gas_particle {
     Real mass;
     Real pos[MAXDIM];
     Real vel[MAXDIM];
@@ -23,8 +22,7 @@ struct gas_particle
 
 // struct gas_particle *gas_particles;
 
-struct dark_particle
-{
+struct dark_particle {
     Real mass;
     Real pos[MAXDIM];
     Real vel[MAXDIM];
@@ -34,8 +32,7 @@ struct dark_particle
 
 // struct dark_particle *dark_particles;
 
-struct star_particle
-{
+struct star_particle {
     Real mass;
     Real pos[MAXDIM];
     Real vel[MAXDIM];
@@ -47,8 +44,7 @@ struct star_particle
 
 // struct star_particle *star_particles;
 
-struct dump
-{
+struct dump {
     double time;
     int    nbodies;
     int    ndim;
@@ -59,16 +55,7 @@ struct dump
 
 typedef struct dump header;
 
-template <typename real4>
-void read_tipsy_file(vector<real4>     &bodyPositions,
-                     vector<real4>     &bodyVelocities,
-                     vector<int>       &bodiesIDs,
-                     const std::string &fileName,
-                     int               &NTotal,
-                     int               &NFirst,
-                     int               &NSecond,
-                     int               &NThird)
-{
+template <typename real4> void read_tipsy_file(vector<real4>& bodyPositions, vector<real4>& bodyVelocities, vector<int>& bodiesIDs, const std::string& fileName, int& NTotal, int& NFirst, int& NSecond, int& NThird) {
     /*
        Read in our custom version of the tipsy file format written by
        Jeroen Bedorf.  Most important change is that we store particle id on the
@@ -88,12 +75,11 @@ void read_tipsy_file(vector<real4>     &bodyPositions,
     }
 
     dump h;
-    inputFile.read((char *)&h, sizeof(h));
+    inputFile.read((char*)&h, sizeof(h));
 
     int   idummy;
     real4 positions;
     real4 velocity;
-
 
     // Read tipsy header
     NTotal  = h.nbodies;
@@ -109,7 +95,7 @@ void read_tipsy_file(vector<real4>     &bodyPositions,
 
     for (int i = 0; i < NTotal; i++) {
         if (i < NFirst) {
-            inputFile.read((char *)&d, sizeof(d));
+            inputFile.read((char*)&d, sizeof(d));
             velocity.w  = d.eps;
             positions.w = d.mass;
             positions.x = d.pos[0];
@@ -119,9 +105,8 @@ void read_tipsy_file(vector<real4>     &bodyPositions,
             velocity.y  = d.vel[1];
             velocity.z  = d.vel[2];
             idummy      = d.phi;
-        }
-        else {
-            inputFile.read((char *)&s, sizeof(s));
+        } else {
+            inputFile.read((char*)&s, sizeof(s));
             velocity.w  = s.eps;
             positions.w = s.mass;
             positions.x = s.pos[0];
@@ -138,7 +123,7 @@ void read_tipsy_file(vector<real4>     &bodyPositions,
         bodiesIDs.push_back(idummy);
 
         particleCount++;
-    } // end for
+    }    // end for
 
     // round up to a multiple of 256 bodies since our kernel only supports that...
     int newTotal = NTotal;
@@ -163,4 +148,4 @@ void read_tipsy_file(vector<real4>     &bodyPositions,
     cerr << "Read " << NTotal << " bodies" << endl;
 }
 
-#endif //__TIPSY_H__
+#endif    //__TIPSY_H__

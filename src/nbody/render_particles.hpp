@@ -28,16 +28,15 @@
 #ifndef __RENDER_PARTICLES__
 #define __RENDER_PARTICLES__
 
-class ParticleRenderer
-{
-public:
+class ParticleRenderer {
+ public:
     ParticleRenderer();
     ~ParticleRenderer();
 
-    void setPositions(float *pos, int numParticles);
-    void setPositions(double *pos, int numParticles);
+    void setPositions(float* pos, int numParticles);
+    void setPositions(double* pos, int numParticles);
     void setBaseColor(float color[4]);
-    void setColors(float *color, int numParticles);
+    void setColors(float* color, int numParticles);
     void setPBO(unsigned int pbo, int numParticles, bool fp64);
 
     enum DisplayMode { PARTICLE_POINTS, PARTICLE_SPRITES, PARTICLE_SPRITES_COLOR, PARTICLE_NUM_MODES };
@@ -49,14 +48,14 @@ public:
 
     void resetPBO();
 
-protected: // methods
+ protected:    // methods
     void _initGL();
     void _createTexture(int resolution);
     void _drawPoints(bool color = false);
 
-protected: // data
-    float  *m_pos;
-    double *m_pos_fp64;
+ protected:    // data
+    float*  m_pos;
+    double* m_pos_fp64;
     int     m_numParticles;
 
     float m_pointSize;
@@ -76,4 +75,4 @@ protected: // data
     bool m_bFp64Positions;
 };
 
-#endif //__ RENDER_PARTICLES__
+#endif    //__ RENDER_PARTICLES__

@@ -25,49 +25,27 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <algorithm>
 #include <assert.h>
-#include <cstdio>
-#include <cstdlib>
 #include <cuda_gl_interop.h>
 #include <helper_cuda.h>
 #include <math.h>
 #include <memory.h>
+
+#include <algorithm>
 #include <vector>
 
+#include <cstdio>
+#include <cstdlib>
+
 template <typename T>
-void integrateNbodySystem(DeviceData<T>         *deviceData,
-                          cudaGraphicsResource **pgres,
-                          unsigned int           currentRead,
-                          float                  deltaTime,
-                          float                  damping,
-                          unsigned int           numBodies,
-                          unsigned int           numDevices,
-                          int                    blockSize,
-                          bool                   bUsePBO);
+void integrateNbodySystem(DeviceData<T>* deviceData, cudaGraphicsResource** pgres, unsigned int currentRead, float deltaTime, float damping, unsigned int numBodies, unsigned int numDevices, int blockSize, bool bUsePBO);
 
 cudaError_t setSofteningSquared(float softeningSq);
 cudaError_t setSofteningSquared(double softeningSq);
 
 template <typename T>
-BodySystemCUDA<T>::BodySystemCUDA(unsigned int numBodies,
-                                  unsigned int numDevices,
-                                  unsigned int blockSize,
-                                  bool         usePBO,
-                                  bool         useSysMem,
-                                  bool         useP2P,
-                                  int          deviceId)
-    : m_numBodies(numBodies)
-    , m_numDevices(numDevices)
-    , m_bInitialized(false)
-    , m_bUsePBO(usePBO)
-    , m_bUseSysMem(useSysMem)
-    , m_bUseP2P(useP2P)
-    , m_currentRead(0)
-    , m_currentWrite(1)
-    , m_blockSize(blockSize)
-    , m_devID(deviceId)
-{
+BodySystemCUDA<T>::BodySystemCUDA(unsigned int numBodies, unsigned int numDevices, unsigned int blockSize, bool usePBO, bool useSysMem, bool useP2P, int deviceId)
+    : m_numBodies(numBodies), m_numDevices(numDevices), m_bInitialized(false), m_bUsePBO(usePBO), m_bUseSysMem(useSysMem), m_bUseP2P(useP2P), m_currentRead(0), m_currentWrite(1), m_blockSize(blockSize), m_devID(deviceId) {
     m_hPos[0] = m_hPos[1] = 0;
     m_hVel                = 0;
 
@@ -78,14 +56,12 @@ BodySystemCUDA<T>::BodySystemCUDA(unsigned int numBodies,
     setDamping(0.995f);
 }
 
-template <typename T> BodySystemCUDA<T>::~BodySystemCUDA()
-{
+template <typename T> BodySystemCUDA<T>::~BodySystemCUDA() {
     _finalize();
     m_numBodies = 0;
 }
 
-template <typename T> void BodySystemCUDA<T>::_initialize(int numBodies)
-{
+template <typename T> void BodySystemCUDA<T>::_initialize(int numBodies) {
     assert(!m_bInitialized);
 
     m_numBodies = numBodies;
@@ -95,8 +71,8 @@ template <typename T> void BodySystemCUDA<T>::_initialize(int numBodies)
     m_deviceData = new DeviceData<T>[m_numDevices];
 
     // divide up the workload amongst Devices
-    float *weights = new float[m_numDevices];
-    int   *numSms  = new int[m_numDevices];
+    float* weights = new float[m_numDevices];
+    int*   numSms  = new int[m_numDevices];
     float  total   = 0;
 
     for (unsigned int i = 0; i < m_numDevices; i++) {
@@ -143,9 +119,9 @@ template <typename T> void BodySystemCUDA<T>::_initialize(int numBodies)
     delete[] numSms;
 
     if (m_bUseSysMem) {
-        checkCudaErrors(cudaHostAlloc((void **)&m_hPos[0], memSize, cudaHostAllocMapped | cudaHostAllocPortable));
-        checkCudaErrors(cudaHostAlloc((void **)&m_hPos[1], memSize, cudaHostAllocMapped | cudaHostAllocPortable));
-        checkCudaErrors(cudaHostAlloc((void **)&m_hVel, memSize, cudaHostAllocMapped | cudaHostAllocPortable));
+        checkCudaErrors(cudaHostAlloc((void**)&m_hPos[0], memSize, cudaHostAllocMapped | cudaHostAllocPortable));
+        checkCudaErrors(cudaHostAlloc((void**)&m_hPos[1], memSize, cudaHostAllocMapped | cudaHostAllocPortable));
+        checkCudaErrors(cudaHostAlloc((void**)&m_hVel, memSize, cudaHostAllocMapped | cudaHostAllocPortable));
 
         memset(m_hPos[0], 0, memSize);
         memset(m_hPos[1], 0, memSize);
@@ -157,12 +133,11 @@ template <typename T> void BodySystemCUDA<T>::_initialize(int numBodies)
             }
 
             checkCudaErrors(cudaEventCreate(&m_deviceData[i].event));
-            checkCudaErrors(cudaHostGetDevicePointer((void **)&m_deviceData[i].dPos[0], (void *)m_hPos[0], 0));
-            checkCudaErrors(cudaHostGetDevicePointer((void **)&m_deviceData[i].dPos[1], (void *)m_hPos[1], 0));
-            checkCudaErrors(cudaHostGetDevicePointer((void **)&m_deviceData[i].dVel, (void *)m_hVel, 0));
+            checkCudaErrors(cudaHostGetDevicePointer((void**)&m_deviceData[i].dPos[0], (void*)m_hPos[0], 0));
+            checkCudaErrors(cudaHostGetDevicePointer((void**)&m_deviceData[i].dPos[1], (void*)m_hPos[1], 0));
+            checkCudaErrors(cudaHostGetDevicePointer((void**)&m_deviceData[i].dVel, (void*)m_hVel, 0));
         }
-    }
-    else {
+    } else {
         m_hPos[0] = new T[m_numBodies * 4];
         m_hVel    = new T[m_numBodies * 4];
 
@@ -175,14 +150,14 @@ template <typename T> void BodySystemCUDA<T>::_initialize(int numBodies)
         if (m_bUsePBO) {
             // create the position pixel buffer objects for rendering
             // we will actually compute directly from this memory in CUDA too
-            glGenBuffers(2, (GLuint *)m_pbo);
+            glGenBuffers(2, (GLuint*)m_pbo);
 
             for (int i = 0; i < 2; ++i) {
                 glBindBuffer(GL_ARRAY_BUFFER, m_pbo[i]);
                 glBufferData(GL_ARRAY_BUFFER, memSize, m_hPos[0], GL_DYNAMIC_DRAW);
 
                 int size = 0;
-                glGetBufferParameteriv(GL_ARRAY_BUFFER, GL_BUFFER_SIZE, (GLint *)&size);
+                glGetBufferParameteriv(GL_ARRAY_BUFFER, GL_BUFFER_SIZE, (GLint*)&size);
 
                 if ((unsigned)size != memSize) {
                     fprintf(stderr, "WARNING: Pixel Buffer Object allocation failed!n");
@@ -191,13 +166,12 @@ template <typename T> void BodySystemCUDA<T>::_initialize(int numBodies)
                 glBindBuffer(GL_ARRAY_BUFFER, 0);
                 checkCudaErrors(cudaGraphicsGLRegisterBuffer(&m_pGRes[i], m_pbo[i], cudaGraphicsMapFlagsNone));
             }
-        }
-        else {
-            checkCudaErrors(cudaMalloc((void **)&m_deviceData[0].dPos[0], memSize));
-            checkCudaErrors(cudaMalloc((void **)&m_deviceData[0].dPos[1], memSize));
+        } else {
+            checkCudaErrors(cudaMalloc((void**)&m_deviceData[0].dPos[0], memSize));
+            checkCudaErrors(cudaMalloc((void**)&m_deviceData[0].dPos[1], memSize));
         }
 
-        checkCudaErrors(cudaMalloc((void **)&m_deviceData[0].dVel, memSize));
+        checkCudaErrors(cudaMalloc((void**)&m_deviceData[0].dVel, memSize));
 
         // At this point we already know P2P is supported
         if (m_bUseP2P) {
@@ -209,8 +183,7 @@ template <typename T> void BodySystemCUDA<T>::_initialize(int numBodies)
                 checkCudaErrors(cudaSetDevice(i));
                 if ((error = cudaDeviceEnablePeerAccess(0, 0)) != cudaErrorPeerAccessAlreadyEnabled) {
                     checkCudaErrors(error);
-                }
-                else {
+                } else {
                     // We might have already enabled P2P, so catch this and reset error
                     // code...
                     cudaGetLastError();
@@ -229,8 +202,7 @@ template <typename T> void BodySystemCUDA<T>::_initialize(int numBodies)
     m_bInitialized = true;
 }
 
-template <typename T> void BodySystemCUDA<T>::_finalize()
-{
+template <typename T> void BodySystemCUDA<T>::_finalize() {
     assert(m_bInitialized);
 
     if (m_bUseSysMem) {
@@ -241,22 +213,20 @@ template <typename T> void BodySystemCUDA<T>::_finalize()
         for (unsigned int i = 0; i < m_numDevices; i++) {
             cudaEventDestroy(m_deviceData[i].event);
         }
-    }
-    else {
+    } else {
         delete[] m_hPos[0];
         delete[] m_hPos[1];
         delete[] m_hVel;
 
-        checkCudaErrors(cudaFree((void **)m_deviceData[0].dVel));
+        checkCudaErrors(cudaFree((void**)m_deviceData[0].dVel));
 
         if (m_bUsePBO) {
             checkCudaErrors(cudaGraphicsUnregisterResource(m_pGRes[0]));
             checkCudaErrors(cudaGraphicsUnregisterResource(m_pGRes[1]));
-            glDeleteBuffers(2, (const GLuint *)m_pbo);
-        }
-        else {
-            checkCudaErrors(cudaFree((void **)m_deviceData[0].dPos[0]));
-            checkCudaErrors(cudaFree((void **)m_deviceData[0].dPos[1]));
+            glDeleteBuffers(2, (const GLuint*)m_pbo);
+        } else {
+            checkCudaErrors(cudaFree((void**)m_deviceData[0].dPos[0]));
+            checkCudaErrors(cudaFree((void**)m_deviceData[0].dPos[1]));
 
             checkCudaErrors(cudaEventDestroy(m_deviceData[0].event));
 
@@ -273,8 +243,7 @@ template <typename T> void BodySystemCUDA<T>::_finalize()
     m_bInitialized = false;
 }
 
-template <typename T> void BodySystemCUDA<T>::loadTipsyFile(const std::string &filename)
-{
+template <typename T> void BodySystemCUDA<T>::loadTipsyFile(const std::string& filename) {
     if (m_bInitialized)
         _finalize();
 
@@ -289,12 +258,11 @@ template <typename T> void BodySystemCUDA<T>::loadTipsyFile(const std::string &f
 
     _initialize(nBodies);
 
-    setArray(BODYSYSTEM_POSITION, (T *)&positions[0]);
-    setArray(BODYSYSTEM_VELOCITY, (T *)&velocities[0]);
+    setArray(BODYSYSTEM_POSITION, (T*)&positions[0]);
+    setArray(BODYSYSTEM_VELOCITY, (T*)&velocities[0]);
 }
 
-template <typename T> void BodySystemCUDA<T>::setSoftening(T softening)
-{
+template <typename T> void BodySystemCUDA<T>::setSoftening(T softening) {
     T softeningSq = softening * softening;
 
     for (unsigned int i = 0; i < m_numDevices; i++) {
@@ -306,52 +274,44 @@ template <typename T> void BodySystemCUDA<T>::setSoftening(T softening)
     }
 }
 
-template <typename T> void BodySystemCUDA<T>::setDamping(T damping) { m_damping = damping; }
+template <typename T> void BodySystemCUDA<T>::setDamping(T damping) {
+    m_damping = damping;
+}
 
-template <typename T> void BodySystemCUDA<T>::update(T deltaTime)
-{
+template <typename T> void BodySystemCUDA<T>::update(T deltaTime) {
     assert(m_bInitialized);
 
-    integrateNbodySystem<T>(m_deviceData,
-                            m_pGRes,
-                            m_currentRead,
-                            (float)deltaTime,
-                            (float)m_damping,
-                            m_numBodies,
-                            m_numDevices,
-                            m_blockSize,
-                            m_bUsePBO);
+    integrateNbodySystem<T>(m_deviceData, m_pGRes, m_currentRead, (float)deltaTime, (float)m_damping, m_numBodies, m_numDevices, m_blockSize, m_bUsePBO);
 
     std::swap(m_currentRead, m_currentWrite);
 }
 
-template <typename T> T *BodySystemCUDA<T>::getArray(BodyArray array)
-{
+template <typename T> T* BodySystemCUDA<T>::getArray(BodyArray array) {
     assert(m_bInitialized);
 
-    T *hdata = 0;
-    T *ddata = 0;
+    T* hdata = 0;
+    T* ddata = 0;
 
-    cudaGraphicsResource *pgres = NULL;
+    cudaGraphicsResource* pgres = NULL;
 
     int currentReadHost = m_bUseSysMem ? m_currentRead : 0;
 
     switch (array) {
-    default:
-    case BODYSYSTEM_POSITION:
-        hdata = m_hPos[currentReadHost];
-        ddata = m_deviceData[0].dPos[m_currentRead];
+        default:
+        case BODYSYSTEM_POSITION:
+            hdata = m_hPos[currentReadHost];
+            ddata = m_deviceData[0].dPos[m_currentRead];
 
-        if (m_bUsePBO) {
-            pgres = m_pGRes[m_currentRead];
-        }
+            if (m_bUsePBO) {
+                pgres = m_pGRes[m_currentRead];
+            }
 
-        break;
+            break;
 
-    case BODYSYSTEM_VELOCITY:
-        hdata = m_hVel;
-        ddata = m_deviceData[0].dVel;
-        break;
+        case BODYSYSTEM_VELOCITY:
+            hdata = m_hVel;
+            ddata = m_deviceData[0].dVel;
+            break;
     }
 
     if (!m_bUseSysMem) {
@@ -359,7 +319,7 @@ template <typename T> T *BodySystemCUDA<T>::getArray(BodyArray array)
             checkCudaErrors(cudaGraphicsResourceSetMapFlags(pgres, cudaGraphicsMapFlagsReadOnly));
             checkCudaErrors(cudaGraphicsMapResources(1, &pgres, 0));
             size_t bytes;
-            checkCudaErrors(cudaGraphicsResourceGetMappedPointer((void **)&ddata, &bytes, pgres));
+            checkCudaErrors(cudaGraphicsResourceGetMappedPointer((void**)&ddata, &bytes, pgres));
         }
 
         checkCudaErrors(cudaMemcpy(hdata, ddata, m_numBodies * 4 * sizeof(T), cudaMemcpyDeviceToHost));
@@ -372,47 +332,43 @@ template <typename T> T *BodySystemCUDA<T>::getArray(BodyArray array)
     return hdata;
 }
 
-template <typename T> void BodySystemCUDA<T>::setArray(BodyArray array, const T *data)
-{
+template <typename T> void BodySystemCUDA<T>::setArray(BodyArray array, const T* data) {
     assert(m_bInitialized);
 
     m_currentRead  = 0;
     m_currentWrite = 1;
 
     switch (array) {
-    default:
-    case BODYSYSTEM_POSITION: {
-        if (m_bUsePBO) {
-            glBindBuffer(GL_ARRAY_BUFFER, m_pbo[m_currentRead]);
-            glBufferSubData(GL_ARRAY_BUFFER, 0, 4 * sizeof(T) * m_numBodies, data);
+        default:
+        case BODYSYSTEM_POSITION:
+            {
+                if (m_bUsePBO) {
+                    glBindBuffer(GL_ARRAY_BUFFER, m_pbo[m_currentRead]);
+                    glBufferSubData(GL_ARRAY_BUFFER, 0, 4 * sizeof(T) * m_numBodies, data);
 
-            int size = 0;
-            glGetBufferParameteriv(GL_ARRAY_BUFFER, GL_BUFFER_SIZE, (GLint *)&size);
+                    int size = 0;
+                    glGetBufferParameteriv(GL_ARRAY_BUFFER, GL_BUFFER_SIZE, (GLint*)&size);
 
-            if ((unsigned)size != 4 * (sizeof(T) * m_numBodies)) {
-                fprintf(stderr, "WARNING: Pixel Buffer Object download failed!n");
+                    if ((unsigned)size != 4 * (sizeof(T) * m_numBodies)) {
+                        fprintf(stderr, "WARNING: Pixel Buffer Object download failed!n");
+                    }
+
+                    glBindBuffer(GL_ARRAY_BUFFER, 0);
+                } else {
+                    if (m_bUseSysMem) {
+                        memcpy(m_hPos[m_currentRead], data, m_numBodies * 4 * sizeof(T));
+                    } else
+                        checkCudaErrors(cudaMemcpy(m_deviceData[0].dPos[m_currentRead], data, m_numBodies * 4 * sizeof(T), cudaMemcpyHostToDevice));
+                }
             }
+            break;
 
-            glBindBuffer(GL_ARRAY_BUFFER, 0);
-        }
-        else {
+        case BODYSYSTEM_VELOCITY:
             if (m_bUseSysMem) {
-                memcpy(m_hPos[m_currentRead], data, m_numBodies * 4 * sizeof(T));
-            }
-            else
-                checkCudaErrors(cudaMemcpy(
-                    m_deviceData[0].dPos[m_currentRead], data, m_numBodies * 4 * sizeof(T), cudaMemcpyHostToDevice));
-        }
-    } break;
+                memcpy(m_hVel, data, m_numBodies * 4 * sizeof(T));
+            } else
+                checkCudaErrors(cudaMemcpy(m_deviceData[0].dVel, data, m_numBodies * 4 * sizeof(T), cudaMemcpyHostToDevice));
 
-    case BODYSYSTEM_VELOCITY:
-        if (m_bUseSysMem) {
-            memcpy(m_hVel, data, m_numBodies * 4 * sizeof(T));
-        }
-        else
-            checkCudaErrors(
-                cudaMemcpy(m_deviceData[0].dVel, data, m_numBodies * 4 * sizeof(T), cudaMemcpyHostToDevice));
-
-        break;
+            break;
     }
 }

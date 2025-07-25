@@ -8,7 +8,6 @@
 /// @return int     Returns 0
 ///
 auto main() -> int {
-
     std::cout << git_commit_id << '\n';
 
     return 0;
