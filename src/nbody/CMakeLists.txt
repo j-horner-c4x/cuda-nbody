@@ -10,7 +10,7 @@ target_link_libraries(${PROJECT_NAME}_render_particles PRIVATE CUDA::cudart_stat
 
 target_link_libraries(${PROJECT_NAME}_bodysystemcuda
                             PRIVATE
-                                $<IF:$<TARGET_EXISTS:FreeGLUT::freeglut>,FreeGLUT::freeglut,FreeGLUT::freeglut_static>)
+                                GLUT::GLUT)
 
 #
 # set_cuda_compile_options(<target>)
