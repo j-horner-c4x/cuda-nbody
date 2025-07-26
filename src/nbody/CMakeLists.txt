@@ -29,7 +29,8 @@ function(set_cuda_compile_options target)
     # could be called by other libraries and executables
     set_target_properties(${target} PROPERTIES  CUDA_SEPARABLE_COMPILATION ON
                                                 POSITION_INDEPENDENT_CODE ON
-                                                CUDA_RESOLVE_DEVICE_SYMBOLS ON)
+                                                CUDA_RESOLVE_DEVICE_SYMBOLS ON
+                                                CUDA_STANDARD 20)
 
     # link to cublas
     # target_link_libraries(${target} PRIVATE CUDA::cublas CUDA::curand)
