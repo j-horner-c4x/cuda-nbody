@@ -2,8 +2,8 @@
     "version": 2,
     "cmakeMinimumRequired": {
         "major": 3,
-        "minor": 28,
-        "patch": 3
+        "minor": 31,
+        "patch": 6
     },
     "configurePresets": [
         {
@@ -23,7 +23,7 @@
                 },
                 "CMAKE_INSTALL_PREFIX": "${sourceDir}/build/install/${presetName}",
                 "CMAKE_CXX_EXTENSIONS": false,
-                "CMAKE_CXX_STANDARD": "20",
+                "CMAKE_CXX_STANDARD": "23",
                 "CMAKE_CXX_STANDARD_REQUIRED": true,
                 "CMAKE_EXPORT_COMPILE_COMMANDS": true,
                 "CMAKE_INTERPROCEDURAL_OPTIMIZATION": true,
@@ -116,7 +116,7 @@
             "description": "Enables cppcheck static analyzer.",
             "hidden": true,
             "cacheVariables": {
-                "CMAKE_CXX_CPPCHECK": "cppcheck;--suppressions-list=${sourceDir}/cppcheck_suppressions.txt;--enable=all;--inconclusive;--force;--inline-suppr;--error-exitcode=1;--template=gcc;-I${sourceDir}/build/${presetName}/export/library/"
+                "CMAKE_CXX_CPPCHECK": "cppcheck;--suppressions-list=${sourceDir}/cppcheck_suppressions.txt;--enable=all;--inconclusive;--force;--inline-suppr;--error-exitcode=1;--template=gcc"
             }
         },
         {

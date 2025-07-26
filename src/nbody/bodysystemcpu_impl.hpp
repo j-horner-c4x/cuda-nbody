@@ -31,7 +31,9 @@
 #include "helper_cuda.hpp"
 #include "tipsy.hpp"
 
-// #include <memory.h>
+#ifdef OPENMP
+#include <omp.h>
+#endif
 
 #include <algorithm>
 
@@ -39,10 +41,6 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
-
-#ifdef OPENMP
-#include <omp.h>
-#endif
 
 template <typename T> BodySystemCPU<T>::BodySystemCPU(int num_bodies) : m_numBodies(num_bodies), m_bInitialized(false), m_force(0), m_softeningSquared(.00125f), m_damping(0.995f) {
     m_pos = 0;

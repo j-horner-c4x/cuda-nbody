@@ -3,7 +3,7 @@
 #   Preamble
 #
 # ===================================================================
-cmake_minimum_required(VERSION 3.28.3)
+cmake_minimum_required(VERSION 3.31.6)
 
 #
 #   Don't allow in-source builds
@@ -114,8 +114,6 @@ find_package(Threads REQUIRED)
 # find_package(fmt CONFIG REQUIRED)
 
 find_package(OpenGL REQUIRED)
-
-find_package(FreeGLUT CONFIG REQUIRED)
 
 find_package(GLUT REQUIRED)
 

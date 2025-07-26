@@ -31,13 +31,6 @@
 #include <GL/wglew.h>
 #endif
 
-#if defined(__APPLE__) || defined(MACOSX)
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-#include <GLUT/glut.h>
-#else
-#include <GL/freeglut.h>
-#endif
-
 #include "nbody/bodysystemcpu.hpp"
 #include "nbody/bodysystemcuda.hpp"
 #include "nbody/helper_cuda.hpp"
@@ -45,6 +38,7 @@
 #include "nbody/paramgl.hpp"
 #include "nbody/render_particles.hpp"
 
+#include <GL/freeglut.h>
 #include <cuda_gl_interop.h>
 #include <cuda_runtime.h>
 

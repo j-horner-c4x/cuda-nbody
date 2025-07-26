@@ -33,13 +33,9 @@
 
 #pragma once
 
-#if defined(__APPLE__) || defined(MACOSX)
-#include <GLUT/glut.h>
-#else
-#include <GL/freeglut.h>
-#endif
-
 #include "param.hpp"
+
+#include <GL/freeglut.h>
 
 #include <cstring>
 

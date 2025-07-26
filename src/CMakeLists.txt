@@ -22,7 +22,6 @@ set_target_properties(${PROJECT_NAME}_exe PROPERTIES OUTPUT_NAME ${PROJECT_NAME}
 target_link_libraries(${PROJECT_NAME}_exe
                         PRIVATE
                             OpenGL::GL
-                            $<IF:$<TARGET_EXISTS:FreeGLUT::freeglut>,FreeGLUT::freeglut,FreeGLUT::freeglut_static>
                             GLUT::GLUT
                             GLEW::GLEW
                             CUDA::cudart_static

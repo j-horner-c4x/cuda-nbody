@@ -28,12 +28,7 @@
 #include "bodysystem.hpp"
 #include "helper_cuda.hpp"
 
-#if defined(__APPLE__) || defined(MACOSX)
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-#include <GLUT/glut.h>
-#else
 #include <GL/freeglut.h>
-#endif
 
 // CUDA standard includes
 #include <cooperative_groups.h>
