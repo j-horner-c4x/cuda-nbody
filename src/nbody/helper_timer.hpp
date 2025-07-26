@@ -35,9 +35,6 @@
 // includes, system
 #include <vector>
 
-// includes, project
-#include "exception.hpp"
-
 // Definition of the StopWatch Interface, this is used if we don't want to use
 // the CUT functions But rather in a self contained class interface
 class StopWatchInterface {

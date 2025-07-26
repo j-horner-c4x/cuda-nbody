@@ -28,8 +28,6 @@
 // These are helper functions for the SDK samples (image,bitmap)
 #pragma once
 
-#include "exception.hpp"
-
 #include <algorithm>
 #include <fstream>
 #include <iostream>

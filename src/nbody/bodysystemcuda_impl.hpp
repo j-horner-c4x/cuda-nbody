@@ -30,7 +30,6 @@
 #include "helper_cuda.hpp"
 
 #include <cuda_gl_interop.h>
-#include <memory.h>
 
 #include <algorithm>
 #include <vector>

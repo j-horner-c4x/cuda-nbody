@@ -33,7 +33,6 @@
 // #endif
 
 // includes, project
-#include "exception.hpp"
 
 #include <algorithm>
 #include <fstream>
