@@ -6,14 +6,6 @@ CODE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )/../"
 
 CMAKE=cmake
 
-if [[ -z "${INSTANCE_TYPE+x}" ]]; then
-    # INSTANCE_TYPE is not defined: we are not on an AWS EC2 instance
-    ON_AWS_EC2=false
-else
-    # INSTANCE_TYPE is defined: we are on an AWS EC2 instance
-    ON_AWS_EC2=true
-fi
-
 print_usage() {
 cat <<- EOF
     ** build_script.sh **
@@ -73,8 +65,6 @@ echo -e "-----------------------------------------------------------------------
 echo
 
 cd "${CODE_DIR}" || exit
-
-git fetch --tags --all --quiet --force
 
 # check if either directory doesn't exist, if so we need to run CMake to generate the build system
 if [ ! -d "${BUILD_DIR}" ]; then
