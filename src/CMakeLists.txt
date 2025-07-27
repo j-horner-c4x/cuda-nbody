@@ -21,6 +21,7 @@ set_target_properties(${PROJECT_NAME}_exe PROPERTIES OUTPUT_NAME ${PROJECT_NAME}
 
 target_link_libraries(${PROJECT_NAME}_exe
                         PRIVATE
+                            CLI11::CLI11
                             OpenGL::GL
                             GLUT::GLUT
                             GLEW::GLEW

@@ -30,7 +30,6 @@
 #include "helper_cuda.hpp"
 
 #include <cuda_gl_interop.h>
-#include <memory.h>
 
 #include <algorithm>
 #include <vector>
@@ -245,7 +244,7 @@ template <typename T> void BodySystemCUDA<T>::_finalize() {
     m_bInitialized = false;
 }
 
-template <typename T> void BodySystemCUDA<T>::loadTipsyFile(const std::string& filename) {
+template <typename T> void BodySystemCUDA<T>::loadTipsyFile(const std::filesystem::path& filename) {
     if (m_bInitialized)
         _finalize();
 

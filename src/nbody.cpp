@@ -28,21 +28,26 @@
 #include "git_commit_id.hpp"
 #include "nbody/helper_gl.hpp"
 #if defined(WIN32) || defined(_WIN32) || defined(WIN64) || defined(_WIN64)
+#define NOMINMAX
 #include <GL/wglew.h>
 #endif
 
 #include "nbody/bodysystemcpu.hpp"
 #include "nbody/bodysystemcuda.hpp"
 #include "nbody/helper_cuda.hpp"
-#include "nbody/helper_functions.hpp"
 #include "nbody/paramgl.hpp"
 #include "nbody/render_particles.hpp"
 
+#include <CLI/CLI.hpp>
 #include <GL/freeglut.h>
 #include <cuda_gl_interop.h>
 #include <cuda_runtime.h>
 
 #include <algorithm>
+#include <chrono>
+#include <filesystem>
+#include <format>
+#include <print>
 
 #include <cassert>
 #include <cmath>
@@ -82,7 +87,7 @@ enum { M_VIEW = 0, M_MOVE };
 
 int numBodies = 16384;
 
-std::string tipsyFile = "";
+std::filesystem::path tipsyFile;
 
 int numIterations = 0;    // run until exit
 
@@ -124,18 +129,17 @@ NBodyParams demoParams[] = {
     {0.016000f, 6.040000f, 0.000000f, 1.000000f, 1.000000f, 0.760000f, 0, 0, -50},
 };
 
-int                 numDemos   = sizeof(demoParams) / sizeof(NBodyParams);
-bool                cycleDemo  = true;
-int                 activeDemo = 0;
-float               demoTime   = 10000.0f;    // ms
-StopWatchInterface *demoTimer = NULL, *timer = NULL;
+constexpr int numDemos   = sizeof(demoParams) / sizeof(NBodyParams);
+bool          cycleDemo  = true;
+int           activeDemo = 0;
+float         demoTime   = 10000.0f;    // ms
 
 // run multiple iterations to compute an average sort time
 
 NBodyParams activeParams = demoParams[activeDemo];
 
 // The UI.
-ParamListGL* paramlist;    // parameter list
+ParamListGL* paramlist    = nullptr;    // parameter list
 bool         bShowSliders = true;
 
 // fps
@@ -214,6 +218,16 @@ template <typename T> class NBodyDemo {
         }
     }
 
+    static auto get_demo_time() -> float { return MilliSeconds{Clock::now() - m_singleton->demo_reset_time_}.count(); }
+
+    static auto get_milliseconds_passed() -> float {
+        const auto now           = Clock::now();
+        const auto milliseconds  = MilliSeconds{Clock::now() - m_singleton->reset_time_}.count();
+        m_singleton->reset_time_ = now;
+
+        return milliseconds;
+    }
+
  private:
     static NBodyDemo* m_singleton;
 
@@ -226,6 +240,14 @@ template <typename T> class NBodyDemo {
     T*     m_hPos;
     T*     m_hVel;
     float* m_hColor;
+
+    using Clock        = std::chrono::steady_clock;
+    using TimePoint    = std::chrono::time_point<Clock>;
+    using MilliSeconds = std::chrono::duration<float, std::milli>;
+
+    TimePoint demo_reset_time_;
+
+    TimePoint reset_time_;
 
  private:
     NBodyDemo() : m_nbody(0), m_nbodyCuda(0), m_nbodyCpu(0), m_renderer(0), m_hPos(0), m_hVel(0), m_hColor(0) {}
@@ -251,8 +273,6 @@ template <typename T> class NBodyDemo {
             delete[] m_hColor;
         }
 
-        sdkDeleteTimer(&demoTimer);
-
         if (!benchmark && !compareToCPU)
             delete m_renderer;
     }
@@ -277,8 +297,7 @@ template <typename T> class NBodyDemo {
         m_nbody->setDamping(activeParams.m_damping);
 
         if (use_cpu) {
-            sdkCreateTimer(&timer);
-            sdkStartTimer(&timer);
+            reset_time_ = Clock::now();
         } else {
             checkCudaErrors(cudaEventCreate(&startEvent));
             checkCudaErrors(cudaEventCreate(&stopEvent));
@@ -290,8 +309,7 @@ template <typename T> class NBodyDemo {
             _resetRenderer();
         }
 
-        sdkCreateTimer(&demoTimer);
-        sdkStartTimer(&demoTimer);
+        demo_reset_time_ = Clock::now();
     }
 
     void _reset(int num_bodies, NBodyConfig config) {
@@ -325,7 +343,8 @@ template <typename T> class NBodyDemo {
         camera_trans[1] = camera_trans_lag[1] = activeParams.m_y;
         camera_trans[2] = camera_trans_lag[2] = activeParams.m_z;
         reset(numBodies, NBODY_CONFIG_SHELL);
-        sdkResetTimer(&demoTimer);
+
+        demo_reset_time_ = Clock::now();
     }
 
     bool _compareResults(int num_bodies) {
@@ -367,9 +386,11 @@ template <typename T> class NBodyDemo {
             m_nbody->update(activeParams.m_timestep);
         }
 
+        float milliseconds = 0;
+        auto  start        = TimePoint{};
+
         if (useCpu) {
-            sdkCreateTimer(&timer);
-            sdkStartTimer(&timer);
+            start = Clock::now();
         } else {
             checkCudaErrors(cudaEventRecord(startEvent, 0));
         }
@@ -378,12 +399,8 @@ template <typename T> class NBodyDemo {
             m_nbody->update(activeParams.m_timestep);
         }
 
-        float milliseconds = 0;
-
         if (useCpu) {
-            sdkStopTimer(&timer);
-            milliseconds = sdkGetTimerValue(&timer);
-            sdkStartTimer(&timer);
+            milliseconds = MilliSeconds{Clock::now() - start}.count();
         } else {
             checkCudaErrors(cudaEventRecord(stopEvent, 0));
             checkCudaErrors(cudaEventSynchronize(stopEvent));
@@ -541,7 +558,9 @@ void display() {
 
     // update the simulation
     if (!bPause) {
-        if (cycleDemo && (sdkGetTimerValue(&demoTimer) > demoTime)) {
+        const auto demo_time = fp64 ? NBodyDemo<double>::get_demo_time() : NBodyDemo<float>::get_demo_time();
+
+        if (cycleDemo && (demo_time > demoTime)) {
             activeDemo = (activeDemo + 1) % numDemos;
             selectDemo(activeDemo);
         }
@@ -622,8 +641,7 @@ void display() {
 
         // stop timer
         if (useCpu) {
-            milliseconds = sdkGetTimerValue(&timer);
-            sdkResetTimer(&timer);
+            milliseconds = fp64 ? NBodyDemo<double>::get_milliseconds_passed() : NBodyDemo<float>::get_milliseconds_passed();
         } else {
             checkCudaErrors(cudaEventRecord(stopEvent, 0));
             checkCudaErrors(cudaEventSynchronize(stopEvent));
@@ -847,373 +865,425 @@ void idle(void) {
 
 void showHelp() {
     printf("\t-fullscreen       (run n-body simulation in fullscreen mode)\n");
-    printf("\t-fp64             (use double precision floating point values for "
-           "simulation)\n");
+    printf("\t-fp64             (use double precision floating point values for simulation)\n");
     printf("\t-hostmem          (stores simulation data in host memory)\n");
     printf("\t-benchmark        (run benchmark to measure performance) \n");
     printf("\t-numbodies=<N>    (number of bodies (>= 1) to run in simulation) \n");
     printf("\t-device=<d>       (where d=0,1,2.... for the CUDA device to use)\n");
-    printf("\t-numdevices=<i>   (where i=(number of CUDA devices > 0) to use for "
-           "simulation)\n");
-    printf("\t-compare          (compares simulation results running once on the "
-           "default GPU and once on the CPU)\n");
+    printf("\t-numdevices=<i>   (where i=(number of CUDA devices > 0) to use for simulation)\n");
+    printf("\t-compare          (compares simulation results running once on the default GPU and once on the CPU)\n");
     printf("\t-cpu              (run n-body simulation on the CPU)\n");
     printf("\t-tipsy=<file.bin> (load a tipsy model file for simulation)\n\n");
+}
+
+///
+/// @brief  Describes the various outcomes after parsing the command-line arguments.
+///
+enum class Status {
+    OK = 0,             // Proceed with the rest of the program
+    CleanShutDown,      // Everything was fine but exit the program normally
+    InvalidArguments    // Something went wrong parsing the command-line arguments!
+};
+
+struct Options {
+    bool                  fullscreen = false;
+    bool                  fp64       = false;
+    bool                  hostmem    = false;
+    bool                  benchmark  = false;
+    std::size_t           numbodies  = 0;
+    int                   device     = -1;
+    std::size_t           numdevices = 0;
+    bool                  compare    = false;
+    bool                  qatest     = false;
+    bool                  cpu        = false;
+    std::filesystem::path tipsy;
+    std::size_t           i          = 0;
+    std::size_t           block_size = 0;
+};
+
+auto parse_args(int argc, char** argv) -> std::pair<Status, Options> {
+    auto options = Options{};
+
+    auto app = CLI::App{"The CUDA NBody sample demo.", "cuda-nbody"};
+
+    auto display_version = false;
+
+    app.add_flag("--fullscreen", options.fullscreen, "Run n-body simulation in fullscreen mode");
+    app.add_flag("--fp64", options.fp64, "Use double precision floating point values for simulation");
+    app.add_flag("--hostmem", options.hostmem, "Stores simulation data in host memory");
+    app.add_flag("--benchmark", options.benchmark, "Run benchmark to measure performance");
+    app.add_option("--numbodies", options.numbodies, "Number of bodies (>= 1) to run in simulation")->check(CLI::Range(std::size_t{1u}, std::numeric_limits<std::size_t>::max()));
+    const auto device_opt = app.add_option("--device", options.device, "The CUDA device to use")->check(CLI::Range(0, std::numeric_limits<int>::max()));
+    app.add_option("--numdevices", options.numdevices, "Number of CUDA devices (> 0) to use for simulation")->check(CLI::Range(std::size_t{1u}, std::numeric_limits<std::size_t>::max()))->excludes(device_opt);
+    app.add_flag("--compare", options.compare, "Compares simulation results running once on the default GPU and once on the CPU");
+    app.add_flag("--qatest", options.qatest, "Runs a QA test");
+    app.add_flag("--cpu", options.cpu, "Run n-body simulation on the CPU");
+    app.add_option("--tipsy", options.tipsy, "Load a tipsy model file for simulation")->check(CLI::ExistingFile);
+    app.add_option("-i,--iterations", options.i, "Number of iterations to run in the benchmark")->default_val(10);
+    app.add_option("--blockSize", options.block_size, "The CUDA kernel block size")->default_val(256);
+
+    // cppcheck-suppress unmatchedSuppression
+    // cppcheck-suppress passedByValue
+    auto error = [&](std::string_view message) {
+        std::println(stderr,
+                     "-------------------------------------------\n"
+                     "CRITICAL ERROR:\n"
+                     "{}\n"
+                     "-------------------------------------------\n",
+                     message);
+
+        std::println(stderr, "{}", app.help());
+
+        return std::pair(Status::InvalidArguments, std::move(options));
+    };
+
+    try {
+        app.parse(argc, argv);
+
+        if (display_version) {
+            std::println("cuda-nbody: {}", git_commit_id);
+            return std::pair(Status::CleanShutDown, std::move(options));
+        }
+    } catch (const CLI::CallForHelp&) {
+        std::println("{}", app.help());
+
+        return std::pair(Status::CleanShutDown, std::move(options));
+    } catch (const CLI::ParseError& e) { return error(e.what()); }
+
+    std::println(R"(Run " nbody - benchmark[-numbodies = <numBodies>] " to measure performance)");
+    std::println("{}", app.help());
+
+    return std::pair(Status::OK, std::move(options));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // Program main
 ////////////////////////////////////////////////////////////////////////////////
 int main(int argc, char** argv) {
-    bool bTestResults = true;
+    try {
+        // parse the command-line arguments
+        const auto program_state = parse_args(argc, argv);
+
+        const auto program_status = program_state.first;
+
+        // check the arguments were valid and if we should continue
+        if (Status::InvalidArguments == program_status) {
+            // treat invalid arguments as an error and exit the program
+            return 1;
+        }
+        if (Status::CleanShutDown == program_status) {
+            // shut down the program normally if required (e.g. if --help was requested)
+            return 0;
+        }
+
+        const auto cmd_options = program_state.second;
+
+        bool bTestResults = true;
 
 #if defined(__linux__)
-    setenv("DISPLAY", ":0", 0);
+        setenv("DISPLAY", ":0", 0);
 #endif
 
-    if (checkCmdLineFlag(argc, (const char**)argv, "help")) {
-        printf("\n> Command line options\n");
-        showHelp();
-        return 0;
-    }
+        std::println("NOTE: The CUDA Samples are not meant for performance measurements. Results may vary when GPU Boost is enabled.\n");
 
-    printf("Run \"nbody -benchmark [-numbodies=<numBodies>]\" to measure "
-           "performance.\n");
-    showHelp();
+        bFullscreen = cmd_options.fullscreen;
 
-    printf("NOTE: The CUDA Samples are not meant for performance measurements. "
-           "Results may vary when GPU Boost is enabled.\n\n");
-
-    bFullscreen = (checkCmdLineFlag(argc, (const char**)argv, "fullscreen") != 0);
-
-    if (bFullscreen) {
-        bShowSliders = false;
-    }
-
-    benchmark = (checkCmdLineFlag(argc, (const char**)argv, "benchmark") != 0);
-
-    compareToCPU = ((checkCmdLineFlag(argc, (const char**)argv, "compare") != 0) || (checkCmdLineFlag(argc, (const char**)argv, "qatest") != 0));
-
-    QATest     = (checkCmdLineFlag(argc, (const char**)argv, "qatest") != 0);
-    useHostMem = (checkCmdLineFlag(argc, (const char**)argv, "hostmem") != 0);
-    fp64       = (checkCmdLineFlag(argc, (const char**)argv, "fp64") != 0);
-
-    flopsPerInteraction = fp64 ? 30 : 20;
-
-    useCpu = (checkCmdLineFlag(argc, (const char**)argv, "cpu") != 0);
-
-    if (checkCmdLineFlag(argc, (const char**)argv, "numdevices")) {
-        numDevsRequested = getCmdLineArgumentInt(argc, (const char**)argv, "numdevices");
-
-        if (numDevsRequested < 1) {
-            printf("Error: \"number of CUDA devices\" specified %d is invalid.  Value "
-                   "should be >= 1\n",
-                   numDevsRequested);
-            exit(bTestResults ? EXIT_SUCCESS : EXIT_FAILURE);
-        } else {
-            printf("number of CUDA devices  = %d\n", numDevsRequested);
-        }
-    }
-
-    int  numDevsAvailable = 0;
-    bool customGPU        = false;
-    cudaGetDeviceCount(&numDevsAvailable);
-
-    if (numDevsAvailable < numDevsRequested) {
-        printf("Error: only %d Devices available, %d requested.  Exiting.\n", numDevsAvailable, numDevsRequested);
-        exit(EXIT_FAILURE);
-    }
-
-    if (numDevsRequested > 1) {
-        // If user did not explicitly request host memory to be used, we default to
-        // P2P.
-        // We fallback to host memory, if any of GPUs does not support P2P.
-        bool allGPUsSupportP2P = true;
-        if (!useHostMem) {
-            // Enable P2P only in one direction, as every peer will access gpu0
-            for (int i = 1; i < numDevsRequested; ++i) {
-                int canAccessPeer;
-                checkCudaErrors(cudaDeviceCanAccessPeer(&canAccessPeer, i, 0));
-
-                if (canAccessPeer != 1) {
-                    allGPUsSupportP2P = false;
-                }
-            }
-
-            if (!allGPUsSupportP2P) {
-                useHostMem = true;
-                useP2P     = false;
-            }
-        }
-    }
-
-    printf("> %s mode\n", bFullscreen ? "Fullscreen" : "Windowed");
-    printf("> Simulation data stored in %s memory\n", useHostMem ? "system" : "video");
-    printf("> %s precision floating point simulation\n", fp64 ? "Double" : "Single");
-    printf("> %d Devices used for simulation\n", numDevsRequested);
-
-    int            devID = 0;
-    cudaDeviceProp props{};
-
-    if (useCpu) {
-        useHostMem     = true;
-        compareToCPU   = false;
-        bSupportDouble = true;
-
-#ifdef OPENMP
-        printf("> Simulation with CPU using OpenMP\n");
-#else
-        printf("> Simulation with CPU\n");
-#endif
-    }
-
-    // Initialize GL and GLUT if necessary
-    if (!benchmark && !compareToCPU) {
-        initGL(&argc, argv);
-        initParameters();
-    }
-
-    if (!useCpu) {
-        // Now choose the CUDA Device
-        // Either without GL interop:
-        if (benchmark || compareToCPU || useHostMem) {
-            // Note if we are using host memory for the body system, we
-            // don't use CUDA-GL interop.
-
-            if (checkCmdLineFlag(argc, (const char**)argv, "device")) {
-                customGPU = true;
-            }
-
-            devID = findCudaDevice(argc, (const char**)argv);
-        } else    // or with GL interop:
-        {
-            if (checkCmdLineFlag(argc, (const char**)argv, "device")) {
-                customGPU = true;
-            }
-
-            devID = findCudaDevice(argc, (const char**)argv);
+        if (bFullscreen) {
+            bShowSliders = false;
         }
 
-        checkCudaErrors(cudaGetDevice(&devID));
-        checkCudaErrors(cudaGetDeviceProperties(&props, devID));
+        benchmark = cmd_options.benchmark;
 
-        bSupportDouble = true;
+        compareToCPU = cmd_options.compare || cmd_options.qatest;
 
-#if CUDART_VERSION < 4000
+        QATest     = cmd_options.qatest;
+        useHostMem = cmd_options.hostmem;
+        fp64       = cmd_options.fp64;
+
+        flopsPerInteraction = fp64 ? 30 : 20;
+
+        useCpu = cmd_options.cpu;
+
+        if (cmd_options.numdevices > 0) {
+            numDevsRequested = static_cast<int>(cmd_options.numdevices);
+            std::println("number of CUDA devices  = {}", numDevsRequested);
+        }
+
+        int  numDevsAvailable = 0;
+        bool customGPU        = false;
+        cudaGetDeviceCount(&numDevsAvailable);
+
+        if (numDevsAvailable < numDevsRequested) {
+            throw std::invalid_argument(std::format("Error: only {} Devices available, {} requested.", numDevsAvailable, numDevsRequested));
+        }
 
         if (numDevsRequested > 1) {
-            printf("MultiGPU n-body requires CUDA 4.0 or later\n");
-            exit(EXIT_SUCCESS);
+            // If user did not explicitly request host memory to be used, we default to P2P.
+            // We fallback to host memory, if any of GPUs does not support P2P.
+            bool allGPUsSupportP2P = true;
+            if (!useHostMem) {
+                // Enable P2P only in one direction, as every peer will access gpu0
+                for (int i = 1; i < numDevsRequested; ++i) {
+                    int canAccessPeer;
+                    checkCudaErrors(cudaDeviceCanAccessPeer(&canAccessPeer, i, 0));
+
+                    if (canAccessPeer != 1) {
+                        allGPUsSupportP2P = false;
+                    }
+                }
+
+                if (!allGPUsSupportP2P) {
+                    useHostMem = true;
+                    useP2P     = false;
+                }
+            }
         }
 
-#endif
+        std::println("> {} mode", bFullscreen ? "Fullscreen" : "Windowed");
+        std::println("> Simulation data stored in {} memory", useHostMem ? "system" : "video");
+        std::println("> {} precision floating point simulation", fp64 ? "Double" : "Single");
+        std::println("> {} Devices used for simulation", numDevsRequested);
 
-        // Initialize devices
-        if (numDevsRequested > 1 && customGPU) {
-            printf("You can't use --numdevices and --device at the same time.\n");
-            exit(EXIT_SUCCESS);
-        }
+        int            devID = 0;
+        cudaDeviceProp props{};
 
-        if (customGPU || numDevsRequested == 1) {
-            cudaDeviceProp props1;
-            checkCudaErrors(cudaGetDeviceProperties(&props1, devID));
-            printf("> Compute %d.%d CUDA device: [%s]\n", props1.major, props1.minor, props1.name);
-        } else {
-            for (int i = 0; i < numDevsRequested; i++) {
-                cudaDeviceProp props2;
-                checkCudaErrors(cudaGetDeviceProperties(&props2, i));
+        if (useCpu) {
+            useHostMem     = true;
+            compareToCPU   = false;
+            bSupportDouble = true;
 
-                printf("> Compute %d.%d CUDA device: [%s]\n", props2.major, props2.minor, props2.name);
-
-                if (useHostMem) {
-#if CUDART_VERSION >= 2020
-
-                    if (!props2.canMapHostMemory) {
-                        fprintf(stderr, "Device %d cannot map host memory!\n", devID);
-                        exit(EXIT_SUCCESS);
-                    }
-
-                    if (numDevsRequested > 1) {
-                        checkCudaErrors(cudaSetDevice(i));
-                    }
-
-                    checkCudaErrors(cudaSetDeviceFlags(cudaDeviceMapHost));
+#ifdef OPENMP
+            std::println("> Simulation with CPU using OpenMP");
 #else
-                    fprintf(stderr,
-                            "This CUDART version does not support "
-                            "<cudaDeviceProp.canMapHostMemory> field\n");
-                    exit(EXIT_SUCCESS);
+            std::println("> Simulation with CPU");
 #endif
+        }
+
+        // Initialize GL and GLUT if necessary
+        if (!benchmark && !compareToCPU) {
+            initGL(&argc, argv);
+            initParameters();
+        }
+
+        if (!useCpu) {
+            if (cmd_options.device != -1) {
+                customGPU = true;
+            }
+
+            // If the command-line has a device number specified, use it
+            if (customGPU) {
+                devID = cmd_options.device;
+                assert(devID >= 0);
+
+                const auto new_dev_ID = gpuDeviceInit(devID);
+
+                if (new_dev_ID < 0) {
+                    throw std::invalid_argument(std::format("Could not use custom CUDA device: {}", devID));
+                }
+
+                devID = new_dev_ID;
+
+            } else {
+                // Otherwise pick the device with highest Gflops/s
+                devID = gpuGetMaxGflopsDeviceId();
+                checkCudaErrors(cudaSetDevice(devID));
+                int major = 0, minor = 0;
+                checkCudaErrors(cudaDeviceGetAttribute(&major, cudaDevAttrComputeCapabilityMajor, devID));
+                checkCudaErrors(cudaDeviceGetAttribute(&minor, cudaDevAttrComputeCapabilityMinor, devID));
+                std::println(R"(GPU Device {}: "{}" with compute capability {}.{}\n)", devID, _ConvertSMVer2ArchName(major, minor), major, minor);
+            }
+
+            checkCudaErrors(cudaGetDevice(&devID));
+            checkCudaErrors(cudaGetDeviceProperties(&props, devID));
+
+            bSupportDouble = true;
+
+            // Initialize devices
+            assert(!(customGPU && (numDevsRequested > 1)));
+
+            if (customGPU || numDevsRequested == 1) {
+                cudaDeviceProp props1;
+                checkCudaErrors(cudaGetDeviceProperties(&props1, devID));
+                std::println("> Compute {}.{} CUDA device: [{}]", props1.major, props1.minor, props1.name);
+                // CC 1.2 and earlier do not support double precision
+                if (props1.major * 10 + props1.minor <= 12) {
+                    bSupportDouble = false;
+                }
+
+            } else {
+                for (int i = 0; i < numDevsRequested; i++) {
+                    cudaDeviceProp props2;
+                    checkCudaErrors(cudaGetDeviceProperties(&props2, i));
+
+                    std::println("> Compute {}.{} CUDA device: [{}]", props2.major, props2.minor, props2.name);
+
+                    if (useHostMem) {
+                        if (!props2.canMapHostMemory) {
+                            throw std::invalid_argument(std::format("Device {} cannot map host memory!", i));
+                        }
+
+                        if (numDevsRequested > 1) {
+                            checkCudaErrors(cudaSetDevice(i));
+                        }
+
+                        checkCudaErrors(cudaSetDeviceFlags(cudaDeviceMapHost));
+                    }
+
+                    // CC 1.2 and earlier do not support double precision
+                    if (props2.major * 10 + props2.minor <= 12) {
+                        bSupportDouble = false;
+                    }
                 }
             }
 
-            // CC 1.2 and earlier do not support double precision
-            if (props.major * 10 + props.minor <= 12) {
-                bSupportDouble = false;
+            if (fp64 && !bSupportDouble) {
+                throw std::invalid_argument("One or more of the requested devices does not support double precision floating-point");
             }
         }
 
-        // if(numDevsRequested > 1)
-        //    checkCudaErrors(cudaSetDevice(devID));
+        numIterations = static_cast<int>(cmd_options.i);
+        blockSize     = static_cast<int>(cmd_options.block_size);
 
-        if (fp64 && !bSupportDouble) {
-            fprintf(stderr,
-                    "One or more of the requested devices does not support double "
-                    "precision floating-point\n");
-            exit(EXIT_SUCCESS);
-        }
-    }
-
-    numIterations = 0;
-    blockSize     = 0;
-
-    if (checkCmdLineFlag(argc, (const char**)argv, "i")) {
-        numIterations = getCmdLineArgumentInt(argc, (const char**)argv, "i");
-    }
-
-    if (checkCmdLineFlag(argc, (const char**)argv, "blockSize")) {
-        blockSize = getCmdLineArgumentInt(argc, (const char**)argv, "blockSize");
-    }
-
-    if (blockSize == 0)    // blockSize not set on command line
-        blockSize = 256;
-
-    // default number of bodies is #SMs * 4 * CTA size
-    if (useCpu)
+        // default number of bodies is #SMs * 4 * CTA size
+        if (useCpu) {
 #ifdef OPENMP
-        numBodies = 8192;
-
+            numBodies = 8192;
 #else
-        numBodies = 4096;
+            numBodies = 4096;
 #endif
-    else if (numDevsRequested == 1) {
-        numBodies = compareToCPU ? 4096 : blockSize * 4 * props.multiProcessorCount;
-    } else {
-        numBodies = 0;
-
-        for (int i = 0; i < numDevsRequested; i++) {
-            cudaDeviceProp props1;
-            checkCudaErrors(cudaGetDeviceProperties(&props1, i));
-            numBodies += blockSize * (props1.major >= 2 ? 4 : 1) * props1.multiProcessorCount;
-        }
-    }
-
-    if (checkCmdLineFlag(argc, (const char**)argv, "numbodies")) {
-        numBodies = getCmdLineArgumentInt(argc, (const char**)argv, "numbodies");
-
-        if (numBodies < 1) {
-            printf("Error: \"number of bodies\" specified %d is invalid.  Value should "
-                   "be >= 1\n",
-                   numBodies);
-            exit(bTestResults ? EXIT_SUCCESS : EXIT_FAILURE);
-        } else if (numBodies % blockSize) {
-            int newNumBodies = ((numBodies / blockSize) + 1) * blockSize;
-            printf("Warning: \"number of bodies\" specified %d is not a multiple of "
-                   "%d.\n",
-                   numBodies,
-                   blockSize);
-            printf("Rounding up to the nearest multiple: %d.\n", newNumBodies);
-            numBodies = newNumBodies;
+        } else if (numDevsRequested == 1) {
+            numBodies = compareToCPU ? 4096 : blockSize * 4 * props.multiProcessorCount;
         } else {
-            printf("number of bodies = %d\n", numBodies);
-        }
-    }
-
-    char* fname;
-
-    if (getCmdLineArgumentString(argc, (const char**)argv, "tipsy", &fname)) {
-        tipsyFile.assign(fname, strlen(fname));
-        cycleDemo    = false;
-        bShowSliders = false;
-    }
-
-    if (numBodies <= 1024) {
-        activeParams.m_clusterScale  = 1.52f;
-        activeParams.m_velocityScale = 2.f;
-    } else if (numBodies <= 2048) {
-        activeParams.m_clusterScale  = 1.56f;
-        activeParams.m_velocityScale = 2.64f;
-    } else if (numBodies <= 4096) {
-        activeParams.m_clusterScale  = 1.68f;
-        activeParams.m_velocityScale = 2.98f;
-    } else if (numBodies <= 8192) {
-        activeParams.m_clusterScale  = 1.98f;
-        activeParams.m_velocityScale = 2.9f;
-    } else if (numBodies <= 16384) {
-        activeParams.m_clusterScale  = 1.54f;
-        activeParams.m_velocityScale = 8.f;
-    } else if (numBodies <= 32768) {
-        activeParams.m_clusterScale  = 1.44f;
-        activeParams.m_velocityScale = 11.f;
-    }
-
-    // Create the demo -- either double (fp64) or float (fp32, default)
-    // implementation
-    NBodyDemo<float>::Create();
-
-    NBodyDemo<float>::init(numBodies, numDevsRequested, blockSize, !(benchmark || compareToCPU || useHostMem), useHostMem, useP2P, useCpu, devID);
-    NBodyDemo<float>::reset(numBodies, NBODY_CONFIG_SHELL);
-
-    if (bSupportDouble) {
-        NBodyDemo<double>::Create();
-        NBodyDemo<double>::init(numBodies, numDevsRequested, blockSize, !(benchmark || compareToCPU || useHostMem), useHostMem, useP2P, useCpu, devID);
-        NBodyDemo<double>::reset(numBodies, NBODY_CONFIG_SHELL);
-    }
-
-    if (fp64) {
-        if (benchmark) {
-            if (numIterations <= 0) {
-                numIterations = 10;
-            } else if (numIterations > 10) {
-                printf("Advisory: setting a high number of iterations\n");
-                printf("in benchmark mode may cause failure on Windows\n");
-                printf("Vista and Win7. On these OSes, set iterations <= 10\n");
+            numBodies = 0;
+            for (int i = 0; i < numDevsRequested; i++) {
+                cudaDeviceProp props1;
+                checkCudaErrors(cudaGetDeviceProperties(&props1, i));
+                numBodies += blockSize * (props1.major >= 2 ? 4 : 1) * props1.multiProcessorCount;
             }
+        }
 
-            NBodyDemo<double>::runBenchmark(numIterations);
-        } else if (compareToCPU) {
-            bTestResults = NBodyDemo<double>::compareResults(numBodies);
+        if (cmd_options.numbodies != 0u) {
+            numBodies = static_cast<int>(cmd_options.numbodies);
+
+            assert(numBodies >= 1);
+
+            if (numBodies % blockSize) {
+                int newNumBodies = ((numBodies / blockSize) + 1) * blockSize;
+                std::println(R"(Warning: "number of bodies" specified {} is not a multiple of {}.)", numBodies, blockSize);
+                std::println("Rounding up to the nearest multiple: {}.", newNumBodies);
+                numBodies = newNumBodies;
+            } else {
+                std::println("number of bodies = {}", numBodies);
+            }
+        }
+
+        if (!cmd_options.tipsy.empty()) {
+            tipsyFile    = cmd_options.tipsy;
+            cycleDemo    = false;
+            bShowSliders = false;
+        }
+
+        if (numBodies <= 1024) {
+            activeParams.m_clusterScale  = 1.52f;
+            activeParams.m_velocityScale = 2.f;
+        } else if (numBodies <= 2048) {
+            activeParams.m_clusterScale  = 1.56f;
+            activeParams.m_velocityScale = 2.64f;
+        } else if (numBodies <= 4096) {
+            activeParams.m_clusterScale  = 1.68f;
+            activeParams.m_velocityScale = 2.98f;
+        } else if (numBodies <= 8192) {
+            activeParams.m_clusterScale  = 1.98f;
+            activeParams.m_velocityScale = 2.9f;
+        } else if (numBodies <= 16384) {
+            activeParams.m_clusterScale  = 1.54f;
+            activeParams.m_velocityScale = 8.f;
+        } else if (numBodies <= 32768) {
+            activeParams.m_clusterScale  = 1.44f;
+            activeParams.m_velocityScale = 11.f;
+        }
+
+        // Create the demo -- either double (fp64) or float (fp32, default)
+        // implementation
+        NBodyDemo<float>::Create();
+
+        NBodyDemo<float>::init(numBodies, numDevsRequested, blockSize, !(benchmark || compareToCPU || useHostMem), useHostMem, useP2P, useCpu, devID);
+        NBodyDemo<float>::reset(numBodies, NBODY_CONFIG_SHELL);
+
+        if (bSupportDouble) {
+            NBodyDemo<double>::Create();
+            NBodyDemo<double>::init(numBodies, numDevsRequested, blockSize, !(benchmark || compareToCPU || useHostMem), useHostMem, useP2P, useCpu, devID);
+            NBodyDemo<double>::reset(numBodies, NBODY_CONFIG_SHELL);
+        }
+
+        if (fp64) {
+            if (benchmark) {
+                if (numIterations <= 0) {
+                    numIterations = 10;
+                } else if (numIterations > 10) {
+                    printf("Advisory: setting a high number of iterations\n");
+                    printf("in benchmark mode may cause failure on Windows\n");
+                    printf("Vista and Win7. On these OSes, set iterations <= 10\n");
+                }
+
+                NBodyDemo<double>::runBenchmark(numIterations);
+            } else if (compareToCPU) {
+                bTestResults = NBodyDemo<double>::compareResults(numBodies);
+            } else {
+                glutDisplayFunc(display);
+                glutReshapeFunc(reshape);
+                glutMouseFunc(mouse);
+                glutMotionFunc(motion);
+                glutKeyboardFunc(key);
+                glutSpecialFunc(special);
+                glutIdleFunc(idle);
+
+                if (!useCpu) {
+                    checkCudaErrors(cudaEventRecord(startEvent, 0));
+                }
+
+                glutMainLoop();
+            }
         } else {
-            glutDisplayFunc(display);
-            glutReshapeFunc(reshape);
-            glutMouseFunc(mouse);
-            glutMotionFunc(motion);
-            glutKeyboardFunc(key);
-            glutSpecialFunc(special);
-            glutIdleFunc(idle);
+            if (benchmark) {
+                if (numIterations <= 0) {
+                    numIterations = 10;
+                }
 
-            if (!useCpu) {
-                checkCudaErrors(cudaEventRecord(startEvent, 0));
+                NBodyDemo<float>::runBenchmark(numIterations);
+            } else if (compareToCPU) {
+                bTestResults = NBodyDemo<float>::compareResults(numBodies);
+            } else {
+                glutDisplayFunc(display);
+                glutReshapeFunc(reshape);
+                glutMouseFunc(mouse);
+                glutMotionFunc(motion);
+                glutKeyboardFunc(key);
+                glutSpecialFunc(special);
+                glutIdleFunc(idle);
+
+                if (!useCpu) {
+                    checkCudaErrors(cudaEventRecord(startEvent, 0));
+                }
+
+                glutMainLoop();
             }
-
-            glutMainLoop();
         }
-    } else {
-        if (benchmark) {
-            if (numIterations <= 0) {
-                numIterations = 10;
-            }
 
-            NBodyDemo<float>::runBenchmark(numIterations);
-        } else if (compareToCPU) {
-            bTestResults = NBodyDemo<float>::compareResults(numBodies);
-        } else {
-            glutDisplayFunc(display);
-            glutReshapeFunc(reshape);
-            glutMouseFunc(mouse);
-            glutMotionFunc(motion);
-            glutKeyboardFunc(key);
-            glutSpecialFunc(special);
-            glutIdleFunc(idle);
+        finalize();
+        exit(bTestResults ? EXIT_SUCCESS : EXIT_FAILURE);
 
-            if (!useCpu) {
-                checkCudaErrors(cudaEventRecord(startEvent, 0));
-            }
-
-            glutMainLoop();
-        }
+    } catch (const std::invalid_argument& e) {
+        std::println(stderr, "ERROR: {}", e.what());
+        return 1;
+    } catch (const std::bad_alloc&) {
+        std::println(stderr, "ERROR: Unable to allocate memory!");
+        return 3;
+    } catch (const std::exception& e) {
+        std::println(stderr, "ERROR: ", e.what());
+        return 2;
+    } catch (...) {
+        std::println("ERROR: An unknown error occurred! Please inform your local developer!");
+        return 4;
     }
-
-    finalize();
-    exit(bTestResults ? EXIT_SUCCESS : EXIT_FAILURE);
 }

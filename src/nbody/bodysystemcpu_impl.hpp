@@ -36,6 +36,7 @@
 #endif
 
 #include <algorithm>
+#include <vector>
 
 #include <cassert>
 #include <cmath>
@@ -80,13 +81,13 @@ template <typename T> void BodySystemCPU<T>::_finalize() {
     m_bInitialized = false;
 }
 
-template <typename T> void BodySystemCPU<T>::loadTipsyFile(const std::string& filename) {
+template <typename T> void BodySystemCPU<T>::loadTipsyFile(const std::filesystem::path& filename) {
     if (m_bInitialized)
         _finalize();
 
-    vector<typename vec4<T>::Type> positions;
-    vector<typename vec4<T>::Type> velocities;
-    vector<int>                    ids;
+    std::vector<typename vec4<T>::Type> positions;
+    std::vector<typename vec4<T>::Type> velocities;
+    std::vector<int>                    ids;
 
     int nBodies = 0;
     int nFirst = 0, nSecond = 0, nThird = 0;
@@ -95,8 +96,8 @@ template <typename T> void BodySystemCPU<T>::loadTipsyFile(const std::string& fi
 
     _initialize(nBodies);
 
-    memcpy(m_pos, &positions[0], sizeof(vec4<T>) * nBodies);
-    memcpy(m_vel, &velocities[0], sizeof(vec4<T>) * nBodies);
+    std::memcpy(m_pos, &positions[0], sizeof(vec4<T>) * nBodies);
+    std::memcpy(m_vel, &velocities[0], sizeof(vec4<T>) * nBodies);
 }
 
 template <typename T> void BodySystemCPU<T>::update(T deltaTime) {
@@ -142,7 +143,7 @@ template <typename T> void BodySystemCPU<T>::setArray(BodyArray array, const T* 
             break;
     }
 
-    memcpy(target, data, m_numBodies * 4 * sizeof(T));
+    std::memcpy(target, data, m_numBodies * 4 * sizeof(T));
 }
 
 template <typename T> T sqrt_T(T x) {

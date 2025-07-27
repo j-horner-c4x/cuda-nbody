@@ -111,7 +111,7 @@ find_package(Threads REQUIRED)
 #
 # e.g. find_package(nlohmann_json CONFIG REQUIRED)
 
-# find_package(fmt CONFIG REQUIRED)
+find_package(CLI11 CONFIG REQUIRED)
 
 find_package(OpenGL REQUIRED)
 
