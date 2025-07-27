@@ -30,7 +30,7 @@
 #include <vector_types.h>
 
 #include <algorithm>
-#include <string>
+#include <filesystem>
 
 enum NBodyConfig { NBODY_CONFIG_RANDOM, NBODY_CONFIG_SHELL, NBODY_CONFIG_EXPAND, NBODY_NUM_CONFIGS };
 
@@ -59,15 +59,13 @@ template <> struct vec4<double> {
     typedef double4 Type;
 };
 
-class string;
-
 // BodySystem abstract base class
 template <typename T> class BodySystem {
  public:    // methods
     BodySystem(int numBodies) {}
     virtual ~BodySystem() {}
 
-    virtual void loadTipsyFile(const std::string& filename) = 0;
+    virtual void loadTipsyFile(const std::filesystem::path& filename) = 0;
 
     virtual void update(T deltaTime) = 0;
 

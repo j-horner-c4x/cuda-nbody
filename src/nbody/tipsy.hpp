@@ -1,8 +1,10 @@
 #pragma once
 
-#include <string>
-
-using namespace std;
+#include <filesystem>
+#include <fstream>
+#include <ios>
+#include <print>
+#include <vector>
 
 #define MAXDIM 3
 
@@ -54,23 +56,20 @@ struct dump {
 
 typedef struct dump header;
 
-template <typename real4> void read_tipsy_file(vector<real4>& bodyPositions, vector<real4>& bodyVelocities, vector<int>& bodiesIDs, const std::string& fileName, int& NTotal, int& NFirst, int& NSecond, int& NThird) {
+template <typename real4>
+void read_tipsy_file(std::vector<real4>& bodyPositions, std::vector<real4>& bodyVelocities, std::vector<int>& bodiesIDs, const std::filesystem::path& fileName, int& NTotal, int& NFirst, int& NSecond, int& NThird) {
     /*
        Read in our custom version of the tipsy file format written by
        Jeroen Bedorf.  Most important change is that we store particle id on the
        location where previously the potential was stored.
     */
 
-    char fullFileName[256];
-    sprintf(fullFileName, "%s", fileName.c_str());
+    std::println("Trying to read file: {}", fileName.string());
 
-    cout << "Trying to read file: " << fullFileName << endl;
-
-    ifstream inputFile(fullFileName, ios::in | ios::binary);
+    std::ifstream inputFile(fileName, std::ios::in | std::ios::binary);
 
     if (!inputFile.is_open()) {
-        cout << "Can't open input file \n";
-        exit(EXIT_SUCCESS);
+        throw std::runtime_error("Can't open input file");
     }
 
     dump h;
@@ -144,5 +143,5 @@ template <typename real4> void read_tipsy_file(vector<real4>& bodyPositions, vec
 
     inputFile.close();
 
-    cerr << "Read " << NTotal << " bodies" << endl;
+    std::println(stderr, "Read {} bodies", NTotal);
 }

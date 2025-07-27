@@ -3,10 +3,11 @@
     "name": "cuda-nbody",
     "version": "0.1.0",
     "description": [
-        "An example CMake project with many essential features and recommended practices setup.",
+        "The CUDA NBody sample demo.",
         "Optionally can be built with unit tests."
     ],
     "dependencies": [
+        "cli11",
         "opengl",
         "freeglut",
         "glew"

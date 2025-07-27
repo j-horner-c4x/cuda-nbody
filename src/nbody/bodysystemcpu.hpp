@@ -35,7 +35,7 @@ template <typename T> class BodySystemCPU : public BodySystem<T> {
     BodySystemCPU(int numBodies);
     virtual ~BodySystemCPU();
 
-    virtual void loadTipsyFile(const std::string& filename);
+    virtual void loadTipsyFile(const std::filesystem::path& filename);
 
     virtual void update(T deltaTime);
 

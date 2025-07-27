@@ -45,7 +45,7 @@ template <typename T> class BodySystemCUDA : public BodySystem<T> {
     BodySystemCUDA(unsigned int numBodies, unsigned int numDevices, unsigned int blockSize, bool usePBO, bool useSysMem = false, bool useP2P = true, int deviceId = 0);
     virtual ~BodySystemCUDA();
 
-    virtual void loadTipsyFile(const std::string& filename);
+    virtual void loadTipsyFile(const std::filesystem::path& filename);
 
     virtual void update(T deltaTime);
 
