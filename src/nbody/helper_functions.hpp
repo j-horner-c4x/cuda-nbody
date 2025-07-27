@@ -46,7 +46,7 @@
 #include <cstdlib>
 
 // includes, timer, string parsing, image helpers
-#include "helper_image.hpp"    // helper functions for image compare, dump, data comparisons
+// #include "helper_image.hpp"    // helper functions for image compare, dump, data comparisons
 #include "helper_timer.hpp"    // helper functions for timers
 
 #ifndef EXIT_WAIVED
