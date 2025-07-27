@@ -34,7 +34,7 @@
 #include "nbody/bodysystemcpu.hpp"
 #include "nbody/bodysystemcuda.hpp"
 #include "nbody/helper_cuda.hpp"
-#include "nbody/helper_functions.hpp"
+#include "nbody/helper_timer.hpp"
 #include "nbody/paramgl.hpp"
 #include "nbody/render_particles.hpp"
 
