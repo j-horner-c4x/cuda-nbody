@@ -49,8 +49,6 @@
 #define EXIT_WAIVED 2
 #endif
 
-#include "helper_string.hpp"
-
 // namespace unnamed (internal)
 namespace helper_image_internal {
 //! size of PGM file header

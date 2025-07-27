@@ -30,8 +30,6 @@
 
 #pragma once
 
-#include "helper_string.hpp"
-
 #include <cuda_runtime.h>
 
 #include <cstdint>
@@ -823,38 +821,6 @@ inline int gpuGetMaxGflopsDeviceId() {
     }
 
     return max_perf_device;
-}
-
-// Initialization code to find the best CUDA Device
-inline int findCudaDevice(int argc, const char** argv) {
-    int devID = 0;
-
-    // If the command-line has a device number specified, use it
-    if (checkCmdLineFlag(argc, argv, "device")) {
-        devID = getCmdLineArgumentInt(argc, argv, "device=");
-
-        if (devID < 0) {
-            printf("Invalid command line parameter\n ");
-            exit(EXIT_FAILURE);
-        } else {
-            devID = gpuDeviceInit(devID);
-
-            if (devID < 0) {
-                printf("exiting...\n");
-                exit(EXIT_FAILURE);
-            }
-        }
-    } else {
-        // Otherwise pick the device with highest Gflops/s
-        devID = gpuGetMaxGflopsDeviceId();
-        checkCudaErrors(cudaSetDevice(devID));
-        int major = 0, minor = 0;
-        checkCudaErrors(cudaDeviceGetAttribute(&major, cudaDevAttrComputeCapabilityMajor, devID));
-        checkCudaErrors(cudaDeviceGetAttribute(&minor, cudaDevAttrComputeCapabilityMinor, devID));
-        printf("GPU Device %d: \"%s\" with compute capability %d.%d\n\n", devID, _ConvertSMVer2ArchName(major, minor), major, minor);
-    }
-
-    return devID;
 }
 
 inline int findIntegratedGPU() {
