@@ -28,13 +28,13 @@
 #include "git_commit_id.hpp"
 #include "nbody/helper_gl.hpp"
 #if defined(WIN32) || defined(_WIN32) || defined(WIN64) || defined(_WIN64)
+#define NOMINMAX
 #include <GL/wglew.h>
 #endif
 
 #include "nbody/bodysystemcpu.hpp"
 #include "nbody/bodysystemcuda.hpp"
 #include "nbody/helper_cuda.hpp"
-#include "nbody/helper_timer.hpp"
 #include "nbody/paramgl.hpp"
 #include "nbody/render_particles.hpp"
 
@@ -44,6 +44,7 @@
 #include <cuda_runtime.h>
 
 #include <algorithm>
+#include <chrono>
 #include <filesystem>
 #include <format>
 #include <print>
@@ -128,11 +129,10 @@ NBodyParams demoParams[] = {
     {0.016000f, 6.040000f, 0.000000f, 1.000000f, 1.000000f, 0.760000f, 0, 0, -50},
 };
 
-constexpr int       numDemos   = sizeof(demoParams) / sizeof(NBodyParams);
-bool                cycleDemo  = true;
-int                 activeDemo = 0;
-float               demoTime   = 10000.0f;    // ms
-StopWatchInterface *demoTimer = nullptr, *timer = nullptr;
+constexpr int numDemos   = sizeof(demoParams) / sizeof(NBodyParams);
+bool          cycleDemo  = true;
+int           activeDemo = 0;
+float         demoTime   = 10000.0f;    // ms
 
 // run multiple iterations to compute an average sort time
 
@@ -218,6 +218,16 @@ template <typename T> class NBodyDemo {
         }
     }
 
+    static auto get_demo_time() -> float { return MilliSeconds{Clock::now() - m_singleton->demo_reset_time_}.count(); }
+
+    static auto get_milliseconds_passed() -> float {
+        const auto now           = Clock::now();
+        const auto milliseconds  = MilliSeconds{Clock::now() - m_singleton->reset_time_}.count();
+        m_singleton->reset_time_ = now;
+
+        return milliseconds;
+    }
+
  private:
     static NBodyDemo* m_singleton;
 
@@ -230,6 +240,14 @@ template <typename T> class NBodyDemo {
     T*     m_hPos;
     T*     m_hVel;
     float* m_hColor;
+
+    using Clock        = std::chrono::steady_clock;
+    using TimePoint    = std::chrono::time_point<Clock>;
+    using MilliSeconds = std::chrono::duration<float, std::milli>;
+
+    TimePoint demo_reset_time_;
+
+    TimePoint reset_time_;
 
  private:
     NBodyDemo() : m_nbody(0), m_nbodyCuda(0), m_nbodyCpu(0), m_renderer(0), m_hPos(0), m_hVel(0), m_hColor(0) {}
@@ -255,8 +273,6 @@ template <typename T> class NBodyDemo {
             delete[] m_hColor;
         }
 
-        sdkDeleteTimer(&demoTimer);
-
         if (!benchmark && !compareToCPU)
             delete m_renderer;
     }
@@ -281,8 +297,7 @@ template <typename T> class NBodyDemo {
         m_nbody->setDamping(activeParams.m_damping);
 
         if (use_cpu) {
-            sdkCreateTimer(&timer);
-            sdkStartTimer(&timer);
+            reset_time_ = Clock::now();
         } else {
             checkCudaErrors(cudaEventCreate(&startEvent));
             checkCudaErrors(cudaEventCreate(&stopEvent));
@@ -294,8 +309,7 @@ template <typename T> class NBodyDemo {
             _resetRenderer();
         }
 
-        sdkCreateTimer(&demoTimer);
-        sdkStartTimer(&demoTimer);
+        demo_reset_time_ = Clock::now();
     }
 
     void _reset(int num_bodies, NBodyConfig config) {
@@ -329,7 +343,8 @@ template <typename T> class NBodyDemo {
         camera_trans[1] = camera_trans_lag[1] = activeParams.m_y;
         camera_trans[2] = camera_trans_lag[2] = activeParams.m_z;
         reset(numBodies, NBODY_CONFIG_SHELL);
-        sdkResetTimer(&demoTimer);
+
+        demo_reset_time_ = Clock::now();
     }
 
     bool _compareResults(int num_bodies) {
@@ -371,9 +386,11 @@ template <typename T> class NBodyDemo {
             m_nbody->update(activeParams.m_timestep);
         }
 
+        float milliseconds = 0;
+        auto  start        = TimePoint{};
+
         if (useCpu) {
-            sdkCreateTimer(&timer);
-            sdkStartTimer(&timer);
+            start = Clock::now();
         } else {
             checkCudaErrors(cudaEventRecord(startEvent, 0));
         }
@@ -382,12 +399,8 @@ template <typename T> class NBodyDemo {
             m_nbody->update(activeParams.m_timestep);
         }
 
-        float milliseconds = 0;
-
         if (useCpu) {
-            sdkStopTimer(&timer);
-            milliseconds = sdkGetTimerValue(&timer);
-            sdkStartTimer(&timer);
+            milliseconds = MilliSeconds{Clock::now() - start}.count();
         } else {
             checkCudaErrors(cudaEventRecord(stopEvent, 0));
             checkCudaErrors(cudaEventSynchronize(stopEvent));
@@ -545,7 +558,9 @@ void display() {
 
     // update the simulation
     if (!bPause) {
-        if (cycleDemo && (sdkGetTimerValue(&demoTimer) > demoTime)) {
+        const auto demo_time = fp64 ? NBodyDemo<double>::get_demo_time() : NBodyDemo<float>::get_demo_time();
+
+        if (cycleDemo && (demo_time > demoTime)) {
             activeDemo = (activeDemo + 1) % numDemos;
             selectDemo(activeDemo);
         }
@@ -626,8 +641,7 @@ void display() {
 
         // stop timer
         if (useCpu) {
-            milliseconds = sdkGetTimerValue(&timer);
-            sdkResetTimer(&timer);
+            milliseconds = fp64 ? NBodyDemo<double>::get_milliseconds_passed() : NBodyDemo<float>::get_milliseconds_passed();
         } else {
             checkCudaErrors(cudaEventRecord(stopEvent, 0));
             checkCudaErrors(cudaEventSynchronize(stopEvent));
