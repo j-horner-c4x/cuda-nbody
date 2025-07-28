@@ -35,6 +35,7 @@
 #include <iomanip>
 #include <iostream>
 #include <map>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -130,8 +131,6 @@ template <class T> class Param : public ParamBase {
     int m_precision;    // number of digits after decimal point in string output
 };
 
-const Param<int> dummy("error");
-
 // list of parameters
 class ParamList : public ParamBase {
  public:
@@ -141,26 +140,26 @@ class ParamList : public ParamBase {
     float GetFloatValue() { return 0.0f; }
     int   GetIntValue() { return 0; }
 
-    void AddParam(ParamBase* param) {
-        m_params.push_back(param);
-        m_map[param->GetName()] = param;
-        m_current               = m_params.begin();
+    void AddParam(std::unique_ptr<ParamBase> param) {
+        m_params.push_back(std::move(param));
+        auto& p = m_params.back();
+
+        m_map[p->GetName()] = p.get();
+        m_current           = m_params.begin();
     }
 
     // look-up parameter based on name
     ParamBase* GetParam(char* name) {
-        ParamBase* p = m_map[name];
+        const auto p_itr = m_map.find(name);
 
-        if (p) {
-            return p;
-        } else {
-            return (ParamBase*)&dummy;
-        }
+        assert(p_itr != m_map.end());
+
+        return p_itr->second;
     }
 
-    ParamBase* GetParam(int i) { return m_params[i]; }
+    ParamBase* GetParam(int i) { return m_params[i].get(); }
 
-    ParamBase* GetCurrent() { return *m_current; }
+    ParamBase* GetCurrent() { return m_current->get(); }
 
     int GetSize() { return (int)m_params.size(); }
 
@@ -191,30 +190,30 @@ class ParamList : public ParamBase {
     void Write(std::ostream& stream) {
         stream << m_name << '\n';
 
-        for (std::vector<ParamBase*>::const_iterator p = m_params.begin(); p != m_params.end(); ++p) {
-            (*p)->Write(stream);
+        for (auto& p : m_params) {
+            p->Write(stream);
         }
     }
 
     void Read(std::istream& stream) {
         stream >> m_name;
 
-        for (std::vector<ParamBase*>::const_iterator p = m_params.begin(); p != m_params.end(); ++p) {
-            (*p)->Read(stream);
+        for (auto& p : m_params) {
+            p->Read(stream);
         }
     }
 
     bool IsList() { return true; }
 
     void ResetAll() {
-        for (std::vector<ParamBase*>::const_iterator p = m_params.begin(); p != m_params.end(); ++p) {
-            (*p)->Reset();
+        for (auto& p : m_params) {
+            p->Reset();
         }
     }
 
  protected:
-    bool                                    active;
-    std::vector<ParamBase*>                 m_params;
-    std::map<std::string, ParamBase*>       m_map;
-    std::vector<ParamBase*>::const_iterator m_current;
+    bool                                                    active;
+    std::vector<std::unique_ptr<ParamBase>>                 m_params;
+    std::map<std::string, ParamBase*>                       m_map;
+    std::vector<std::unique_ptr<ParamBase>>::const_iterator m_current;
 };

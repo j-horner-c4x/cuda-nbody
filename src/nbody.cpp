@@ -140,8 +140,8 @@ float         demoTime   = 10000.0f;    // ms
 NBodyParams activeParams = demoParams[activeDemo];
 
 // The UI.
-ParamListGL* paramlist    = nullptr;    // parameter list
-bool         bShowSliders = true;
+std::unique_ptr<ParamListGL> paramlist;    // parameter list
+bool                         bShowSliders = true;
 
 // fps
 static int  fpsCount = 0;
@@ -474,25 +474,25 @@ void initGL(int* argc, char** argv) {
 
 void initParameters() {
     // create a new parameter list
-    paramlist = new ParamListGL("sliders");
+    paramlist = std::make_unique<ParamListGL>("sliders");
     paramlist->SetBarColorInner(0.8f, 0.8f, 0.0f);
 
     // add some parameters to the list
 
     // Point Size
-    paramlist->AddParam(new Param<float>("Point Size", activeParams.m_pointSize, 0.001f, 10.0f, 0.01f, &activeParams.m_pointSize));
+    paramlist->AddParam(std::make_unique<Param<float>>("Point Size", activeParams.m_pointSize, 0.001f, 10.0f, 0.01f, &activeParams.m_pointSize));
 
     // Velocity Damping
-    paramlist->AddParam(new Param<float>("Velocity Damping", activeParams.m_damping, 0.5f, 1.0f, .0001f, &(activeParams.m_damping)));
+    paramlist->AddParam(std::make_unique<Param<float>>("Velocity Damping", activeParams.m_damping, 0.5f, 1.0f, .0001f, &(activeParams.m_damping)));
     // Softening Factor
-    paramlist->AddParam(new Param<float>("Softening Factor", activeParams.m_softening, 0.001f, 1.0f, .0001f, &(activeParams.m_softening)));
+    paramlist->AddParam(std::make_unique<Param<float>>("Softening Factor", activeParams.m_softening, 0.001f, 1.0f, .0001f, &(activeParams.m_softening)));
     // Time step size
-    paramlist->AddParam(new Param<float>("Time Step", activeParams.m_timestep, 0.0f, 1.0f, .0001f, &(activeParams.m_timestep)));
+    paramlist->AddParam(std::make_unique<Param<float>>("Time Step", activeParams.m_timestep, 0.0f, 1.0f, .0001f, &(activeParams.m_timestep)));
     // Cluster scale (only affects starting configuration
-    paramlist->AddParam(new Param<float>("Cluster Scale", activeParams.m_clusterScale, 0.0f, 10.0f, 0.01f, &(activeParams.m_clusterScale)));
+    paramlist->AddParam(std::make_unique<Param<float>>("Cluster Scale", activeParams.m_clusterScale, 0.0f, 10.0f, 0.01f, &(activeParams.m_clusterScale)));
 
     // Velocity scale (only affects starting configuration)
-    paramlist->AddParam(new Param<float>("Velocity Scale", activeParams.m_velocityScale, 0.0f, 1000.0f, 0.1f, &activeParams.m_velocityScale));
+    paramlist->AddParam(std::make_unique<Param<float>>("Velocity Scale", activeParams.m_velocityScale, 0.0f, 1000.0f, 0.1f, &activeParams.m_velocityScale));
 }
 
 void selectDemo(int active_demo) {
