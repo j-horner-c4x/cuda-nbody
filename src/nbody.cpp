@@ -47,6 +47,7 @@
 #include <chrono>
 #include <filesystem>
 #include <format>
+#include <memory>
 #include <print>
 
 #include <cassert>
@@ -148,10 +149,12 @@ static int  fpsLimit = 5;
 cudaEvent_t startEvent, stopEvent;
 cudaEvent_t hostMemSyncEvent;
 
+using std::ranges::copy;
+
 template <typename T> class NBodyDemo {
  public:
-    static void Create() { m_singleton = new NBodyDemo; }
-    static void Destroy() { delete m_singleton; }
+    static void Create() { m_singleton = std::make_unique<NBodyDemo>(); }
+    static void Destroy() { m_singleton.reset(); }
 
     static void init(int num_bodies, int numDevices, int block_size, bool usePBO, bool use_host_mem, bool use_p2p, bool use_cpu, int devID) {
         m_singleton->_init(num_bodies, numDevices, block_size, usePBO, use_host_mem, use_p2p, use_cpu, devID);
@@ -194,24 +197,24 @@ template <typename T> class NBodyDemo {
         m_singleton->m_renderer->display(displayMode);
     }
 
-    static void getArrays(T* pos, T* vel) {
+    static void getArrays(std::vector<T>& pos, std::vector<T>& vel) {
         T* _pos = m_singleton->m_nbody->getArray(BODYSYSTEM_POSITION);
         T* _vel = m_singleton->m_nbody->getArray(BODYSYSTEM_VELOCITY);
-        memcpy(pos, _pos, m_singleton->m_nbody->getNumBodies() * 4 * sizeof(T));
-        memcpy(vel, _vel, m_singleton->m_nbody->getNumBodies() * 4 * sizeof(T));
+        copy(_pos, _pos + m_singleton->m_nbody->getNumBodies() * 4, pos.begin());
+        copy(_vel, _vel + m_singleton->m_nbody->getNumBodies() * 4, vel.begin());
     }
 
-    static void setArrays(const T* pos, const T* vel) {
-        if (pos != m_singleton->m_hPos) {
-            memcpy(m_singleton->m_hPos, pos, numBodies * 4 * sizeof(T));
+    static void setArrays(const std::vector<T>& pos, const std::vector<T>& vel) {
+        if (pos.data() != m_singleton->m_hPos.data()) {
+            copy(pos, m_singleton->m_hPos.begin());
         }
 
-        if (vel != m_singleton->m_hVel) {
-            memcpy(m_singleton->m_hVel, vel, numBodies * 4 * sizeof(T));
+        if (vel.data() != m_singleton->m_hVel.data()) {
+            copy(vel, m_singleton->m_hVel.begin());
         }
 
-        m_singleton->m_nbody->setArray(BODYSYSTEM_POSITION, m_singleton->m_hPos);
-        m_singleton->m_nbody->setArray(BODYSYSTEM_VELOCITY, m_singleton->m_hVel);
+        m_singleton->m_nbody->setArray(BODYSYSTEM_POSITION, m_singleton->m_hPos.data());
+        m_singleton->m_nbody->setArray(BODYSYSTEM_VELOCITY, m_singleton->m_hVel.data());
 
         if (!benchmark && !useCpu && !compareToCPU) {
             m_singleton->_resetRenderer();
@@ -229,17 +232,17 @@ template <typename T> class NBodyDemo {
     }
 
  private:
-    static NBodyDemo* m_singleton;
+    static std::unique_ptr<NBodyDemo> m_singleton;
 
-    BodySystem<T>*     m_nbody;
-    BodySystemCUDA<T>* m_nbodyCuda;
-    BodySystemCPU<T>*  m_nbodyCpu;
+    BodySystem<T>*                     m_nbody = nullptr;
+    std::unique_ptr<BodySystemCUDA<T>> m_nbodyCuda;
+    std::unique_ptr<BodySystemCPU<T>>  m_nbodyCpu;
 
-    ParticleRenderer* m_renderer;
+    std::unique_ptr<ParticleRenderer> m_renderer;
 
-    T*     m_hPos;
-    T*     m_hVel;
-    float* m_hColor;
+    std::vector<T>     m_hPos;
+    std::vector<T>     m_hVel;
+    std::vector<float> m_hColor;
 
     using Clock        = std::chrono::steady_clock;
     using TimePoint    = std::chrono::time_point<Clock>;
@@ -250,48 +253,19 @@ template <typename T> class NBodyDemo {
     TimePoint reset_time_;
 
  private:
-    NBodyDemo() : m_nbody(0), m_nbodyCuda(0), m_nbodyCpu(0), m_renderer(0), m_hPos(0), m_hVel(0), m_hColor(0) {}
-
-    ~NBodyDemo() {
-        if (m_nbodyCpu) {
-            delete m_nbodyCpu;
-        }
-
-        if (m_nbodyCuda) {
-            delete m_nbodyCuda;
-        }
-
-        if (m_hPos) {
-            delete[] m_hPos;
-        }
-
-        if (m_hVel) {
-            delete[] m_hVel;
-        }
-
-        if (m_hColor) {
-            delete[] m_hColor;
-        }
-
-        if (!benchmark && !compareToCPU)
-            delete m_renderer;
-    }
-
     void _init(int num_bodies, int numDevices, int block_size, bool bUsePBO, bool use_host_mem, bool use_p2p, bool use_cpu, int devID) {
         if (use_cpu) {
-            m_nbodyCpu  = new BodySystemCPU<T>(num_bodies);
-            m_nbody     = m_nbodyCpu;
-            m_nbodyCuda = 0;
+            m_nbodyCpu = std::make_unique<BodySystemCPU<T>>(num_bodies);
+            m_nbody    = m_nbodyCpu.get();
         } else {
-            m_nbodyCuda = new BodySystemCUDA<T>(num_bodies, numDevices, block_size, bUsePBO, use_host_mem, use_p2p, devID);
-            m_nbody     = m_nbodyCuda;
-            m_nbodyCpu  = 0;
+            m_nbodyCuda = std::make_unique<BodySystemCUDA<T>>(num_bodies, numDevices, block_size, bUsePBO, use_host_mem, use_p2p, devID);
+            m_nbody     = m_nbodyCuda.get();
         }
 
         // allocate host memory
-        m_hPos   = new T[num_bodies * 4];
-        m_hVel   = new T[num_bodies * 4];
-        m_hColor = new float[num_bodies * 4];
+        m_hPos.resize(num_bodies * 4);
+        m_hVel.resize(num_bodies * 4);
+        m_hColor.resize(num_bodies * 4);
 
         m_nbody->setSoftening(activeParams.m_softening);
         m_nbody->setDamping(activeParams.m_damping);
@@ -305,7 +279,7 @@ template <typename T> class NBodyDemo {
         }
 
         if (!benchmark && !compareToCPU) {
-            m_renderer = new ParticleRenderer;
+            m_renderer = std::make_unique<ParticleRenderer>();
             _resetRenderer();
         }
 
@@ -314,7 +288,7 @@ template <typename T> class NBodyDemo {
 
     void _reset(int num_bodies, NBodyConfig config) {
         if (tipsyFile == "") {
-            randomizeBodies(config, m_hPos, m_hVel, m_hColor, activeParams.m_clusterScale, activeParams.m_velocityScale, num_bodies, true);
+            randomizeBodies(config, m_hPos.data(), m_hVel.data(), m_hColor.data(), activeParams.m_clusterScale, activeParams.m_velocityScale, num_bodies, true);
             setArrays(m_hPos, m_hVel);
         } else {
             m_nbody->loadTipsyFile(tipsyFile);
@@ -331,7 +305,7 @@ template <typename T> class NBodyDemo {
             m_renderer->setBaseColor(color);
         }
 
-        m_renderer->setColors(m_hColor, m_nbody->getNumBodies());
+        m_renderer->setColors(m_hColor.data(), m_nbody->getNumBodies());
         m_renderer->setSpriteSize(activeParams.m_pointSize);
     }
 
@@ -355,10 +329,10 @@ template <typename T> class NBodyDemo {
         m_nbody->update(0.001f);
 
         {
-            m_nbodyCpu = new BodySystemCPU<T>(num_bodies);
+            m_nbodyCpu = std::make_unique<BodySystemCPU<T>>(num_bodies);
 
-            m_nbodyCpu->setArray(BODYSYSTEM_POSITION, m_hPos);
-            m_nbodyCpu->setArray(BODYSYSTEM_VELOCITY, m_hVel);
+            m_nbodyCpu->setArray(BODYSYSTEM_POSITION, m_hPos.data());
+            m_nbodyCpu->setArray(BODYSYSTEM_VELOCITY, m_hVel.data());
 
             m_nbodyCpu->update(0.001f);
 
@@ -430,8 +404,8 @@ void finalize() {
         NBodyDemo<double>::Destroy();
 }
 
-template <> NBodyDemo<double>* NBodyDemo<double>::m_singleton = 0;
-template <> NBodyDemo<float>*  NBodyDemo<float>::m_singleton  = 0;
+template <> std::unique_ptr<NBodyDemo<double>> NBodyDemo<double>::m_singleton = nullptr;
+template <> std::unique_ptr<NBodyDemo<float>>  NBodyDemo<float>::m_singleton  = nullptr;
 
 template <typename T_new, typename T_old> void switchDemoPrecision() {
     cudaDeviceSynchronize();
@@ -439,28 +413,23 @@ template <typename T_new, typename T_old> void switchDemoPrecision() {
     fp64                = !fp64;
     flopsPerInteraction = fp64 ? 30 : 20;
 
-    T_old* oldPos = new T_old[numBodies * 4];
-    T_old* oldVel = new T_old[numBodies * 4];
+    auto oldPos = std::vector<T_old>(numBodies * 4);
+    auto oldVel = std::vector<T_old>(numBodies * 4);
 
     NBodyDemo<T_old>::getArrays(oldPos, oldVel);
 
     // convert float to double
-    T_new* newPos = new T_new[numBodies * 4];
-    T_new* newVel = new T_new[numBodies * 4];
+    auto newPos = std::vector<T_new>(numBodies * 4);
+    auto newVel = std::vector<T_new>(numBodies * 4);
 
     for (int i = 0; i < numBodies * 4; i++) {
-        newPos[i] = (T_new)oldPos[i];
-        newVel[i] = (T_new)oldVel[i];
+        newPos[i] = static_cast<T_new>(oldPos[i]);
+        newVel[i] = static_cast<T_new>(oldVel[i]);
     }
 
     NBodyDemo<T_new>::setArrays(newPos, newVel);
 
     cudaDeviceSynchronize();
-
-    delete[] oldPos;
-    delete[] oldVel;
-    delete[] newPos;
-    delete[] newVel;
 }
 
 // check for OpenGL errors
