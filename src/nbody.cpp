@@ -44,6 +44,7 @@
 #include <cuda_runtime.h>
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <filesystem>
 #include <format>
@@ -52,39 +53,30 @@
 
 #include <cassert>
 #include <cmath>
+#include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 
 // view params
-int         ox = 0, oy = 0;
-int         buttonState        = 0;
-float       camera_trans[]     = {0, -2, -150};
-float       camera_rot[]       = {0, 0, 0};
-float       camera_trans_lag[] = {0, -2, -150};
-float       camera_rot_lag[]   = {0, 0, 0};
-const float inertia            = 0.1f;
+int   ox = 0, oy = 0;
+int   buttonState        = 0;
+float camera_trans[]     = {0, -2, -150};
+float camera_rot[]       = {0, 0, 0};
+float camera_trans_lag[] = {0, -2, -150};
 
 ParticleRenderer::DisplayMode displayMode = ParticleRenderer::PARTICLE_SPRITES_COLOR;
 
 bool benchmark           = false;
 bool compareToCPU        = false;
-bool QATest              = false;
-int  blockSize           = 256;
 bool useHostMem          = false;
-bool useP2P              = true;    // this is always optimal to use P2P path when available
 bool fp64                = false;
 bool useCpu              = false;
-int  numDevsRequested    = 1;
 bool displayEnabled      = true;
 bool bPause              = false;
 bool bFullscreen         = false;
 bool bDispInteractions   = false;
 bool bSupportDouble      = false;
 int  flopsPerInteraction = 20;
-
-char deviceName[100];
-
-enum { M_VIEW = 0, M_MOVE };
 
 int numBodies = 16384;
 
@@ -113,23 +105,23 @@ struct NBodyParams {
     float m_pointSize;
     float m_x, m_y, m_z;
 
-    void print() { printf("{ %f, %f, %f, %f, %f, %f, %f, %f, %f },\n", m_timestep, m_clusterScale, m_velocityScale, m_softening, m_damping, m_pointSize, m_x, m_y, m_z); }
+    void print() { std::println("{{ {}, {}, {}, {}, {}, {}, {}, {}, {} }},", m_timestep, m_clusterScale, m_velocityScale, m_softening, m_damping, m_pointSize, m_x, m_y, m_z); }
 };
 
-NBodyParams demoParams[] = {
-    {0.016f, 1.54f, 8.0f, 0.1f, 1.0f, 1.0f, 0, -2, -100},
-    {0.016f, 0.68f, 20.0f, 0.1f, 1.0f, 0.8f, 0, -2, -30},
-    {0.0006f, 0.16f, 1000.0f, 1.0f, 1.0f, 0.07f, 0, 0, -1.5f},
-    {0.0006f, 0.16f, 1000.0f, 1.0f, 1.0f, 0.07f, 0, 0, -1.5f},
-    {0.0019f, 0.32f, 276.0f, 1.0f, 1.0f, 0.07f, 0, 0, -5},
-    {0.0016f, 0.32f, 272.0f, 0.145f, 1.0f, 0.08f, 0, 0, -5},
-    {0.016000f, 6.040000f, 0.000000f, 1.000000f, 1.000000f, 0.760000f, 0, 0, -50},
-};
+constexpr static auto demoParams = std::array{
+    NBodyParams{0.016f, 1.54f, 8.0f, 0.1f, 1.0f, 1.0f, 0, -2, -100},
+    NBodyParams{0.016f, 0.68f, 20.0f, 0.1f, 1.0f, 0.8f, 0, -2, -30},
+    NBodyParams{0.0006f, 0.16f, 1000.0f, 1.0f, 1.0f, 0.07f, 0, 0, -1.5f},
+    NBodyParams{0.0006f, 0.16f, 1000.0f, 1.0f, 1.0f, 0.07f, 0, 0, -1.5f},
+    NBodyParams{0.0019f, 0.32f, 276.0f, 1.0f, 1.0f, 0.07f, 0, 0, -5},
+    NBodyParams{0.0016f, 0.32f, 272.0f, 0.145f, 1.0f, 0.08f, 0, 0, -5},
+    NBodyParams{0.016000f, 6.040000f, 0.000000f, 1.000000f, 1.000000f, 0.760000f, 0, 0, -50}};
 
-constexpr int numDemos   = sizeof(demoParams) / sizeof(NBodyParams);
-bool          cycleDemo  = true;
-int           activeDemo = 0;
-float         demoTime   = 10000.0f;    // ms
+constexpr static auto numDemos = demoParams.size();
+
+constexpr static auto demoTime   = 10000.0f;    // ms
+bool                  cycleDemo  = true;
+int                   activeDemo = 0;
 
 // run multiple iterations to compute an average sort time
 
@@ -140,8 +132,6 @@ std::unique_ptr<ParamListGL> paramlist;    // parameter list
 bool                         bShowSliders = true;
 
 // fps
-static int  fpsCount = 0;
-static int  fpsLimit = 5;
 cudaEvent_t startEvent, stopEvent;
 cudaEvent_t hostMemSyncEvent;
 
@@ -544,10 +534,14 @@ void display() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     if (displayEnabled) {
+        constexpr static auto inertia = 0.1f;
+
         // view transform
         {
             glMatrixMode(GL_MODELVIEW);
             glLoadIdentity();
+
+            static auto camera_rot_lag = std::array{0.f, 0.f, 0.f};
 
             for (int c = 0; c < 3; ++c) {
                 camera_trans_lag[c] += (camera_trans[c] - camera_trans_lag[c]) * inertia;
@@ -571,7 +565,9 @@ void display() {
 
         if (bFullscreen) {
             beginWinCoords();
-            char msg0[256], msg1[256], msg2[256];
+            constexpr static auto& msg0 = "some_temp_device_name";
+            char                   msg1[256], msg2[256];
+            // char deviceName[100];
 
             if (bDispInteractions) {
                 sprintf(msg1, "%0.2f billion interactions per second", interactionsPerSecond);
@@ -579,7 +575,7 @@ void display() {
                 sprintf(msg1, "%0.2f GFLOP/s", gflops);
             }
 
-            sprintf(msg0, "%s", deviceName);
+            // sprintf(msg0, "%s", deviceName);
             sprintf(msg2, "%0.2f FPS [%s | %d bodies]", ifps, fp64 ? "double precision" : "single precision", numBodies);
 
             glBlendFunc(GL_ONE_MINUS_DST_COLOR, GL_ZERO);    // invert color
@@ -597,6 +593,9 @@ void display() {
 
         glutSwapBuffers();
     }
+
+    static int fpsCount = 0;
+    static int fpsLimit = 5;
 
     fpsCount++;
 
@@ -950,13 +949,15 @@ int main(int argc, char** argv) {
 
         compareToCPU = cmd_options.compare || cmd_options.qatest;
 
-        QATest     = cmd_options.qatest;
-        useHostMem = cmd_options.hostmem;
-        fp64       = cmd_options.fp64;
+        [[maybe_unused]] const auto QATest = cmd_options.qatest;
+        useHostMem                         = cmd_options.hostmem;
+        fp64                               = cmd_options.fp64;
 
         flopsPerInteraction = fp64 ? 30 : 20;
 
         useCpu = cmd_options.cpu;
+
+        auto numDevsRequested = 1;
 
         if (cmd_options.numdevices > 0) {
             numDevsRequested = static_cast<int>(cmd_options.numdevices);
@@ -970,6 +971,8 @@ int main(int argc, char** argv) {
         if (numDevsAvailable < numDevsRequested) {
             throw std::invalid_argument(std::format("Error: only {} Devices available, {} requested.", numDevsAvailable, numDevsRequested));
         }
+
+        auto useP2P = true;    // this is always optimal to use P2P path when available
 
         if (numDevsRequested > 1) {
             // If user did not explicitly request host memory to be used, we default to P2P.
@@ -1096,7 +1099,7 @@ int main(int argc, char** argv) {
         }
 
         auto numIterations = static_cast<int>(cmd_options.i);
-        blockSize          = static_cast<int>(cmd_options.block_size);
+        auto blockSize     = static_cast<int>(cmd_options.block_size);
 
         // default number of bodies is #SMs * 4 * CTA size
         if (useCpu) {
