@@ -447,7 +447,7 @@ void initGL(int* argc, char** argv) {
     // interop.
     glutInit(argc, argv);
     glutInitDisplayMode(GLUT_RGB | GLUT_DEPTH | GLUT_DOUBLE);
-    glutInitWindowSize(720, 480);
+    glutInitWindowSize(1920, 1080);
     glutCreateWindow("CUDA n-body system");
 
     if (bFullscreen) {
@@ -457,8 +457,7 @@ void initGL(int* argc, char** argv) {
     else if (!isGLVersionSupported(2, 0)
              || !areGLExtensionsSupported("GL_ARB_multitexture "
                                           "GL_ARB_vertex_buffer_object")) {
-        fprintf(stderr, "Required OpenGL extensions missing.");
-        exit(EXIT_FAILURE);
+        throw std::runtime_error("Required OpenGL extensions missing.");
     } else {
 #if defined(WIN32)
         wglSwapIntervalEXT(0);
@@ -601,8 +600,7 @@ void display() {
 
     fpsCount++;
 
-    // this displays the frame rate updated every second (independent of frame
-    // rate)
+    // this displays the frame rate updated every second (independent of frame rate)
     if (fpsCount >= fpsLimit) {
         char fps[256];
 
@@ -830,19 +828,6 @@ void special(int key, int x, int y) {
 
 void idle(void) {
     glutPostRedisplay();
-}
-
-void showHelp() {
-    printf("\t-fullscreen       (run n-body simulation in fullscreen mode)\n");
-    printf("\t-fp64             (use double precision floating point values for simulation)\n");
-    printf("\t-hostmem          (stores simulation data in host memory)\n");
-    printf("\t-benchmark        (run benchmark to measure performance) \n");
-    printf("\t-numbodies=<N>    (number of bodies (>= 1) to run in simulation) \n");
-    printf("\t-device=<d>       (where d=0,1,2.... for the CUDA device to use)\n");
-    printf("\t-numdevices=<i>   (where i=(number of CUDA devices > 0) to use for simulation)\n");
-    printf("\t-compare          (compares simulation results running once on the default GPU and once on the CPU)\n");
-    printf("\t-cpu              (run n-body simulation on the CPU)\n");
-    printf("\t-tipsy=<file.bin> (load a tipsy model file for simulation)\n\n");
 }
 
 ///
