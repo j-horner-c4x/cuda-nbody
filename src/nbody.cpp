@@ -88,10 +88,6 @@ enum { M_VIEW = 0, M_MOVE };
 
 int numBodies = 16384;
 
-std::filesystem::path tipsyFile;
-
-int numIterations = 0;    // run until exit
-
 void computePerfStats(double& interactionsPerSecond, double& gflops, float milliseconds, int iterations) {
     // double precision uses intrinsic operation followed by refinement,
     // resulting in higher operation count per interaction.
@@ -153,7 +149,7 @@ using std::ranges::copy;
 
 template <typename T> class NBodyDemo {
  public:
-    static void Create() { m_singleton = std::make_unique<NBodyDemo>(); }
+    static void Create(const std::filesystem::path& tipsy_file) { m_singleton = std::make_unique<NBodyDemo>(tipsy_file); }
     static void Destroy() { m_singleton.reset(); }
 
     static void init(int num_bodies, int numDevices, int block_size, bool usePBO, bool use_host_mem, bool use_p2p, bool use_cpu, int devID) {
@@ -231,6 +227,8 @@ template <typename T> class NBodyDemo {
         return milliseconds;
     }
 
+    NBodyDemo(std::filesystem::path tipsy_file) : tipsy_file_(std::move(tipsy_file)) {}
+
  private:
     static std::unique_ptr<NBodyDemo> m_singleton;
 
@@ -251,6 +249,8 @@ template <typename T> class NBodyDemo {
     TimePoint demo_reset_time_;
 
     TimePoint reset_time_;
+
+    std::filesystem::path tipsy_file_;
 
  private:
     void _init(int num_bodies, int numDevices, int block_size, bool bUsePBO, bool use_host_mem, bool use_p2p, bool use_cpu, int devID) {
@@ -287,11 +287,11 @@ template <typename T> class NBodyDemo {
     }
 
     void _reset(int num_bodies, NBodyConfig config) {
-        if (tipsyFile == "") {
+        if (tipsy_file_.empty()) {
             randomizeBodies(config, m_hPos.data(), m_hVel.data(), m_hColor.data(), activeParams.m_clusterScale, activeParams.m_velocityScale, num_bodies, true);
             setArrays(m_hPos, m_hVel);
         } else {
-            m_nbody->loadTipsyFile(tipsyFile);
+            m_nbody->loadTipsyFile(tipsy_file_);
             ::numBodies = m_nbody->getNumBodies();
         }
     }
@@ -1095,8 +1095,8 @@ int main(int argc, char** argv) {
             }
         }
 
-        numIterations = static_cast<int>(cmd_options.i);
-        blockSize     = static_cast<int>(cmd_options.block_size);
+        auto numIterations = static_cast<int>(cmd_options.i);
+        blockSize          = static_cast<int>(cmd_options.block_size);
 
         // default number of bodies is #SMs * 4 * CTA size
         if (useCpu) {
@@ -1131,8 +1131,10 @@ int main(int argc, char** argv) {
             }
         }
 
+        auto tipsy_file = std::filesystem::path{};
+
         if (!cmd_options.tipsy.empty()) {
-            tipsyFile    = cmd_options.tipsy;
+            tipsy_file   = cmd_options.tipsy;
             cycleDemo    = false;
             bShowSliders = false;
         }
@@ -1159,13 +1161,13 @@ int main(int argc, char** argv) {
 
         // Create the demo -- either double (fp64) or float (fp32, default)
         // implementation
-        NBodyDemo<float>::Create();
+        NBodyDemo<float>::Create(tipsy_file);
 
         NBodyDemo<float>::init(numBodies, numDevsRequested, blockSize, !(benchmark || compareToCPU || useHostMem), useHostMem, useP2P, useCpu, devID);
         NBodyDemo<float>::reset(numBodies, NBODY_CONFIG_SHELL);
 
         if (bSupportDouble) {
-            NBodyDemo<double>::Create();
+            NBodyDemo<double>::Create(tipsy_file);
             NBodyDemo<double>::init(numBodies, numDevsRequested, blockSize, !(benchmark || compareToCPU || useHostMem), useHostMem, useP2P, useCpu, devID);
             NBodyDemo<double>::reset(numBodies, NBODY_CONFIG_SHELL);
         }
