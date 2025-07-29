@@ -523,7 +523,10 @@ void display(bool                        paused,
              ParamListGL&                param_list,
              bool                        full_screen,
              bool                        display_interactions,
-             int                         nb_bodies) {
+             int                         nb_bodies,
+             cudaEvent_t                 host_mem_sync_event,
+             cudaEvent_t                 start_event,
+             cudaEvent_t                 stop_event) {
     static double gflops                = 0;
     static double ifps                  = 0;
     static double interactionsPerSecond = 0;
@@ -540,8 +543,7 @@ void display(bool                        paused,
         updateSimulation();
 
         if (!use_cpu) {
-            cudaEventRecord(hostMemSyncEvent,
-                            0);    // insert an event to wait on before rendering
+            cudaEventRecord(host_mem_sync_event, 0);    // insert an event to wait on before rendering
         }
     }
 
@@ -623,9 +625,9 @@ void display(bool                        paused,
         if (use_cpu) {
             milliseconds = fp64_enabled ? NBodyDemo<double>::get_milliseconds_passed() : NBodyDemo<float>::get_milliseconds_passed();
         } else {
-            checkCudaErrors(cudaEventRecord(stopEvent, 0));
-            checkCudaErrors(cudaEventSynchronize(stopEvent));
-            checkCudaErrors(cudaEventElapsedTime(&milliseconds, startEvent, stopEvent));
+            checkCudaErrors(cudaEventRecord(stop_event, 0));
+            checkCudaErrors(cudaEventSynchronize(stop_event));
+            checkCudaErrors(cudaEventElapsedTime(&milliseconds, start_event, stop_event));
         }
 
         milliseconds /= (float)fpsCount;
@@ -635,7 +637,7 @@ void display(bool                        paused,
         sprintf(fps,
                 "CUDA N-Body (%d bodies): "
                 "%0.1f fps | %0.1f BIPS | %0.1f GFLOP/s | %s",
-                numBodies,
+                nb_bodies,
                 ifps,
                 interactionsPerSecond,
                 gflops,
@@ -651,7 +653,7 @@ void display(bool                        paused,
 
         // restart timer
         if (!use_cpu) {
-            checkCudaErrors(cudaEventRecord(startEvent, 0));
+            checkCudaErrors(cudaEventRecord(start_event, 0));
         }
     }
 
@@ -790,7 +792,7 @@ void key(unsigned char                  key,
         case 'c':
         case 'C':
             cycle_demo = !cycle_demo;
-            std::println("Cycle Demo Parameters: {}\n", cycleDemo ? "ON" : "OFF");
+            std::println("Cycle Demo Parameters: {}\n", cycle_demo ? "ON" : "OFF");
             break;
 
         case '[':
@@ -934,7 +936,26 @@ auto parse_args(int argc, char** argv) -> std::pair<Status, Options> {
 }
 
 auto execute_graphics_loop() -> void {
-    auto display_ = []() { display(bPause, fp64, cycleDemo, activeDemo, useCpu, displayEnabled, camera_trans_lag, camera_trans, camera_rot, bShowSliders, *paramlist, bFullscreen, bDispInteractions, numBodies); };
+    auto display_ = []() {
+        display(
+            bPause,
+            fp64,
+            cycleDemo,
+            activeDemo,
+            useCpu,
+            displayEnabled,
+            camera_trans_lag,
+            camera_trans,
+            camera_rot,
+            bShowSliders,
+            *paramlist,
+            bFullscreen,
+            bDispInteractions,
+            numBodies,
+            hostMemSyncEvent,
+            startEvent,
+            stopEvent);
+    };
     auto reshape_ = [](int w, int h) { reshape(w, h); };
     auto mouse_   = [](int button, int state, int x, int y) { mouse(button, state, x, y, bShowSliders, *paramlist, buttonState, ox, oy); };
     auto motion_  = [](int x, int y) { motion(x, y, bShowSliders, *paramlist, ox, oy, buttonState, camera_trans, camera_rot); };
