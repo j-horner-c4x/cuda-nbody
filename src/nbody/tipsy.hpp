@@ -1,51 +1,44 @@
 #pragma once
 
+#include <array>
 #include <filesystem>
 #include <fstream>
 #include <ios>
 #include <print>
 #include <vector>
 
-#define MAXDIM 3
+using Vector3D = std::array<float, 3>;
 
-typedef float Real;
-
-struct gas_particle {
-    Real mass;
-    Real pos[MAXDIM];
-    Real vel[MAXDIM];
-    Real rho;
-    Real temp;
-    Real hsmooth;
-    Real metals;
-    Real phi;
+struct GasParticle {
+    float    mass;
+    Vector3D pos;
+    Vector3D vel;
+    float    rho;
+    float    temp;
+    float    hsmooth;
+    float    metals;
+    float    phi;
 };
 
-// struct gas_particle *gas_particles;
-
-struct dark_particle {
-    Real mass;
-    Real pos[MAXDIM];
-    Real vel[MAXDIM];
-    Real eps;
-    int  phi;
+struct DarkParticle {
+    float    mass;
+    Vector3D pos;
+    Vector3D vel;
+    float    eps;
+    int      phi;
 };
 
-// struct dark_particle *dark_particles;
-
-struct star_particle {
-    Real mass;
-    Real pos[MAXDIM];
-    Real vel[MAXDIM];
-    Real metals;
-    Real tform;
-    Real eps;
-    int  phi;
+struct StarParticle {
+    float    mass;
+    Vector3D pos;
+    Vector3D vel;
+    float    metals;
+    float    tform;
+    float    eps;
+    int      phi;
 };
 
-// struct star_particle *star_particles;
-
-struct dump {
+struct Dump {
     double time;
     int    nbodies;
     int    ndim;
@@ -54,15 +47,9 @@ struct dump {
     int    nstar;
 };
 
-typedef struct dump header;
-
-template <typename real4>
-void read_tipsy_file(std::vector<real4>& bodyPositions, std::vector<real4>& bodyVelocities, std::vector<int>& bodiesIDs, const std::filesystem::path& fileName, int& NTotal, int& NFirst, int& NSecond, int& NThird) {
-    /*
-       Read in our custom version of the tipsy file format written by
-       Jeroen Bedorf.  Most important change is that we store particle id on the
-       location where previously the potential was stored.
-    */
+template <typename real4> void read_tipsy_file(std::vector<real4>& bodyPositions, std::vector<real4>& bodyVelocities, const std::filesystem::path& fileName) {
+    // Read in our custom version of the tipsy file format written by Jeroen Bedorf.
+    // Most important change is that we store particle id on the location where previously the potential was stored.
 
     std::println("Trying to read file: {}", fileName.string());
 
@@ -72,28 +59,25 @@ void read_tipsy_file(std::vector<real4>& bodyPositions, std::vector<real4>& body
         throw std::runtime_error("Can't open input file");
     }
 
-    dump h;
-    inputFile.read((char*)&h, sizeof(h));
+    auto read_data = [&](auto& data) { inputFile.read(reinterpret_cast<char*>(&data), sizeof(data)); };
+
+    Dump h;
+    read_data(h);
 
     int   idummy;
     real4 positions;
     real4 velocity;
 
     // Read tipsy header
-    NTotal  = h.nbodies;
-    NFirst  = h.ndark;
-    NSecond = h.nstar;
-    NThird  = h.nsph;
+    auto NTotal = h.nbodies;
+    auto NFirst = h.ndark;
 
-    // Start reading
-    int particleCount = 0;
-
-    dark_particle d;
-    star_particle s;
+    DarkParticle d;
+    StarParticle s;
 
     for (int i = 0; i < NTotal; i++) {
         if (i < NFirst) {
-            inputFile.read((char*)&d, sizeof(d));
+            read_data(d);
             velocity.w  = d.eps;
             positions.w = d.mass;
             positions.x = d.pos[0];
@@ -104,7 +88,7 @@ void read_tipsy_file(std::vector<real4>& bodyPositions, std::vector<real4>& body
             velocity.z  = d.vel[2];
             idummy      = d.phi;
         } else {
-            inputFile.read((char*)&s, sizeof(s));
+            read_data(s);
             velocity.w  = s.eps;
             positions.w = s.mass;
             positions.x = s.pos[0];
@@ -118,10 +102,7 @@ void read_tipsy_file(std::vector<real4>& bodyPositions, std::vector<real4>& body
 
         bodyPositions.push_back(positions);
         bodyVelocities.push_back(velocity);
-        bodiesIDs.push_back(idummy);
-
-        particleCount++;
-    }    // end for
+    }
 
     // round up to a multiple of 256 bodies since our kernel only supports that...
     int newTotal = NTotal;
@@ -135,13 +116,10 @@ void read_tipsy_file(std::vector<real4>& bodyPositions, std::vector<real4>& body
         velocity.x = velocity.y = velocity.z = 0;
         bodyPositions.push_back(positions);
         bodyVelocities.push_back(velocity);
-        bodiesIDs.push_back(i);
-        NFirst++;
     }
 
-    NTotal = newTotal;
+    assert(bodyPositions.size() == newTotal);
+    assert(bodyVelocities.size() == newTotal);
 
-    inputFile.close();
-
-    std::println(stderr, "Read {} bodies", NTotal);
+    std::println("Read {} bodies", newTotal);
 }
