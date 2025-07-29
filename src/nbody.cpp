@@ -46,6 +46,7 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <concepts>
 #include <filesystem>
 #include <format>
 #include <memory>
@@ -58,11 +59,11 @@
 #include <cstdlib>
 
 // view params
-int   ox = 0, oy = 0;
-int   buttonState        = 0;
-float camera_trans[]     = {0, -2, -150};
-float camera_rot[]       = {0, 0, 0};
-float camera_trans_lag[] = {0, -2, -150};
+int  ox = 0, oy = 0;
+int  buttonState      = 0;
+auto camera_trans     = std::array{0.f, -2.f, -150.f};
+auto camera_rot       = std::array{0.f, 0.f, 0.f};
+auto camera_trans_lag = std::array{0.f, -2.f, -150.f};
 
 ParticleRenderer::DisplayMode displayMode = ParticleRenderer::PARTICLE_SPRITES_COLOR;
 
@@ -105,7 +106,7 @@ struct NBodyParams {
     float m_pointSize;
     float m_x, m_y, m_z;
 
-    void print() { std::println("{{ {}, {}, {}, {}, {}, {}, {}, {}, {} }},", m_timestep, m_clusterScale, m_velocityScale, m_softening, m_damping, m_pointSize, m_x, m_y, m_z); }
+    auto print() const -> void { std::println("{{ {}, {}, {}, {}, {}, {}, {}, {}, {} }},", m_timestep, m_clusterScale, m_velocityScale, m_softening, m_damping, m_pointSize, m_x, m_y, m_z); }
 };
 
 constexpr static auto demoParams = std::array{
@@ -509,23 +510,36 @@ void displayNBodySystem() {
     }
 }
 
-void display() {
+void display(bool                        paused,
+             bool                        fp64_enabled,
+             bool                        cycle_demo,
+             int&                        active_demo,
+             bool                        use_cpu,
+             bool                        display_enabled,
+             std::array<float, 3>&       camera_translation_lag,
+             const std::array<float, 3>& camera_translation,
+             const std::array<float, 3>& camera_rotation,
+             bool                        display_sliders,
+             ParamListGL&                param_list,
+             bool                        full_screen,
+             bool                        display_interactions,
+             int                         nb_bodies) {
     static double gflops                = 0;
     static double ifps                  = 0;
     static double interactionsPerSecond = 0;
 
     // update the simulation
-    if (!bPause) {
-        const auto demo_time = fp64 ? NBodyDemo<double>::get_demo_time() : NBodyDemo<float>::get_demo_time();
+    if (!paused) {
+        const auto demo_time = fp64_enabled ? NBodyDemo<double>::get_demo_time() : NBodyDemo<float>::get_demo_time();
 
-        if (cycleDemo && (demo_time > demoTime)) {
-            activeDemo = (activeDemo + 1) % numDemos;
-            selectDemo(activeDemo);
+        if (cycle_demo && (demo_time > demoTime)) {
+            active_demo = (active_demo + 1) % numDemos;
+            selectDemo(active_demo);
         }
 
         updateSimulation();
 
-        if (!useCpu) {
+        if (!use_cpu) {
             cudaEventRecord(hostMemSyncEvent,
                             0);    // insert an event to wait on before rendering
         }
@@ -533,7 +547,7 @@ void display() {
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    if (displayEnabled) {
+    if (display_enabled) {
         constexpr static auto inertia = 0.1f;
 
         // view transform
@@ -544,11 +558,11 @@ void display() {
             static auto camera_rot_lag = std::array{0.f, 0.f, 0.f};
 
             for (int c = 0; c < 3; ++c) {
-                camera_trans_lag[c] += (camera_trans[c] - camera_trans_lag[c]) * inertia;
-                camera_rot_lag[c] += (camera_rot[c] - camera_rot_lag[c]) * inertia;
+                camera_translation_lag[c] += (camera_translation[c] - camera_translation_lag[c]) * inertia;
+                camera_rot_lag[c] += (camera_rotation[c] - camera_rot_lag[c]) * inertia;
             }
 
-            glTranslatef(camera_trans_lag[0], camera_trans_lag[1], camera_trans_lag[2]);
+            glTranslatef(camera_translation_lag[0], camera_translation_lag[1], camera_translation_lag[2]);
             glRotatef(camera_rot_lag[0], 1.0, 0.0, 0.0);
             glRotatef(camera_rot_lag[1], 0.0, 1.0, 0.0);
         }
@@ -556,27 +570,27 @@ void display() {
         displayNBodySystem();
 
         // display user interface
-        if (bShowSliders) {
+        if (display_sliders) {
             glBlendFunc(GL_ONE_MINUS_DST_COLOR, GL_ZERO);    // invert color
             glEnable(GL_BLEND);
-            paramlist->Render(0, 0);
+            param_list.Render(0, 0);
             glDisable(GL_BLEND);
         }
 
-        if (bFullscreen) {
+        if (full_screen) {
             beginWinCoords();
             constexpr static auto& msg0 = "some_temp_device_name";
             char                   msg1[256], msg2[256];
             // char deviceName[100];
 
-            if (bDispInteractions) {
+            if (display_interactions) {
                 sprintf(msg1, "%0.2f billion interactions per second", interactionsPerSecond);
             } else {
                 sprintf(msg1, "%0.2f GFLOP/s", gflops);
             }
 
             // sprintf(msg0, "%s", deviceName);
-            sprintf(msg2, "%0.2f FPS [%s | %d bodies]", ifps, fp64 ? "double precision" : "single precision", numBodies);
+            sprintf(msg2, "%0.2f FPS [%s | %d bodies]", ifps, fp64_enabled ? "double precision" : "single precision", nb_bodies);
 
             glBlendFunc(GL_ONE_MINUS_DST_COLOR, GL_ZERO);    // invert color
             glEnable(GL_BLEND);
@@ -606,8 +620,8 @@ void display() {
         float milliseconds = 1;
 
         // stop timer
-        if (useCpu) {
-            milliseconds = fp64 ? NBodyDemo<double>::get_milliseconds_passed() : NBodyDemo<float>::get_milliseconds_passed();
+        if (use_cpu) {
+            milliseconds = fp64_enabled ? NBodyDemo<double>::get_milliseconds_passed() : NBodyDemo<float>::get_milliseconds_passed();
         } else {
             checkCudaErrors(cudaEventRecord(stopEvent, 0));
             checkCudaErrors(cudaEventSynchronize(stopEvent));
@@ -625,18 +639,18 @@ void display() {
                 ifps,
                 interactionsPerSecond,
                 gflops,
-                fp64 ? "double precision" : "single precision");
+                fp64_enabled ? "double precision" : "single precision");
 
         glutSetWindowTitle(fps);
         fpsCount = 0;
         fpsLimit = (ifps > 1.f) ? (int)ifps : 1;
 
-        if (bPause) {
+        if (paused) {
             fpsLimit = 0;
         }
 
         // restart timer
-        if (!useCpu) {
+        if (!use_cpu) {
             checkCudaErrors(cudaEventRecord(startEvent, 0));
         }
     }
@@ -661,72 +675,82 @@ void updateParams() {
     }
 }
 
-void mouse(int button, int state, int x, int y) {
-    if (bShowSliders) {
+void mouse(int button, int state, int x, int y, bool show_sliders, ParamListGL& param_lis, int& button_state, int& old_x, int& old_y) {
+    if (show_sliders) {
         // call list mouse function
-        if (paramlist->Mouse(x, y, button, state)) {
+        if (param_lis.Mouse(x, y, button, state)) {
             updateParams();
         }
     }
 
-    int mods;
-
     if (state == GLUT_DOWN) {
-        buttonState |= 1 << button;
+        button_state |= 1 << button;
     } else if (state == GLUT_UP) {
-        buttonState = 0;
+        button_state = 0;
     }
 
-    mods = glutGetModifiers();
+    const auto mods = glutGetModifiers();
 
     if (mods & GLUT_ACTIVE_SHIFT) {
-        buttonState = 2;
+        button_state = 2;
     } else if (mods & GLUT_ACTIVE_CTRL) {
-        buttonState = 3;
+        button_state = 3;
     }
 
-    ox = x;
-    oy = y;
+    old_x = x;
+    old_y = y;
 
     glutPostRedisplay();
 }
 
-void motion(int x, int y) {
-    if (bShowSliders) {
+void motion(int x, int y, bool show_sliders, ParamListGL& param_list, int& old_x, int& old_y, int button_state, std::array<float, 3>& camera_translation, std::array<float, 3>& camera_rotation) {
+    if (show_sliders) {
         // call parameter list motion function
-        if (paramlist->Motion(x, y)) {
+        if (param_list.Motion(x, y)) {
             updateParams();
             glutPostRedisplay();
             return;
         }
     }
 
-    float dx = (float)(x - ox);
-    float dy = (float)(y - oy);
+    const auto dx = static_cast<float>(x - old_x);
+    const auto dy = static_cast<float>(y - old_y);
 
-    if (buttonState == 3) {
+    if (button_state == 3) {
         // left+middle = zoom
-        camera_trans[2] += (dy / 100.0f) * 0.5f * fabs(camera_trans[2]);
-    } else if (buttonState & 2) {
+        camera_translation[2] += (dy / 100.0f) * 0.5f * std::abs(camera_translation[2]);
+    } else if (button_state & 2) {
         // middle = translate
-        camera_trans[0] += dx / 100.0f;
-        camera_trans[1] -= dy / 100.0f;
-    } else if (buttonState & 1) {
+        camera_translation[0] += dx / 100.0f;
+        camera_translation[1] -= dy / 100.0f;
+    } else if (button_state & 1) {
         // left = rotate
-        camera_rot[0] += dy / 5.0f;
-        camera_rot[1] += dx / 5.0f;
+        camera_rotation[0] += dy / 5.0f;
+        camera_rotation[1] += dx / 5.0f;
     }
 
-    ox = x;
-    oy = y;
+    old_x = x;
+    old_y = y;
     glutPostRedisplay();
 }
 
-// commented out to remove unused parameter warnings in Linux
-void key(unsigned char key, int /*x*/, int /*y*/) {
+void key(unsigned char                  key,
+         [[maybe_unused]] int           x,
+         [[maybe_unused]] int           y,
+         bool&                          paused,
+         bool                           double_supported,
+         bool                           fp64_enabled,
+         bool&                          show_sliders,
+         bool&                          display_interactions,
+         ParticleRenderer::DisplayMode& display_mode,
+         bool&                          cycle_demo,
+         int&                           active_demo,
+         bool&                          display_enabled,
+         const NBodyParams&             active_params,
+         int                            nb_bodies) {
     switch (key) {
         case ' ':
-            bPause = !bPause;
+            paused = !paused;
             break;
 
         case 27:    // escape
@@ -737,81 +761,81 @@ void key(unsigned char key, int /*x*/, int /*y*/) {
             break;
 
         case 13:    // return
-            if (bSupportDouble) {
-                if (fp64) {
+            if (double_supported) {
+                if (fp64_enabled) {
                     switchDemoPrecision<float, double>();
+                    std::println("> Double precision floating point simulation");
                 } else {
                     switchDemoPrecision<double, float>();
+                    std::println("> Single precision floating point simulation");
                 }
-
-                printf("> %s precision floating point simulation\n", fp64 ? "Double" : "Single");
             }
 
             break;
 
         case '`':
-            bShowSliders = !bShowSliders;
+            show_sliders = !show_sliders;
             break;
 
         case 'g':
         case 'G':
-            bDispInteractions = !bDispInteractions;
+            display_interactions = !display_interactions;
             break;
 
         case 'p':
         case 'P':
-            displayMode = (ParticleRenderer::DisplayMode)((displayMode + 1) % ParticleRenderer::PARTICLE_NUM_MODES);
+            display_mode = (ParticleRenderer::DisplayMode)((display_mode + 1) % ParticleRenderer::PARTICLE_NUM_MODES);
             break;
 
         case 'c':
         case 'C':
-            cycleDemo = !cycleDemo;
-            printf("Cycle Demo Parameters: %s\n", cycleDemo ? "ON" : "OFF");
+            cycle_demo = !cycle_demo;
+            std::println("Cycle Demo Parameters: {}\n", cycleDemo ? "ON" : "OFF");
             break;
 
         case '[':
-            activeDemo = (activeDemo == 0) ? numDemos - 1 : (activeDemo - 1) % numDemos;
-            selectDemo(activeDemo);
+            active_demo = (active_demo == 0) ? numDemos - 1 : (active_demo - 1) % numDemos;
+            selectDemo(active_demo);
             break;
 
         case ']':
-            activeDemo = (activeDemo + 1) % numDemos;
-            selectDemo(activeDemo);
+            active_demo = (active_demo + 1) % numDemos;
+            selectDemo(active_demo);
             break;
 
         case 'd':
         case 'D':
-            displayEnabled = !displayEnabled;
+            display_enabled = !display_enabled;
             break;
 
         case 'o':
         case 'O':
-            activeParams.print();
+            active_params.print();
             break;
 
         case '1':
-            if (fp64) {
-                NBodyDemo<double>::reset(numBodies, NBODY_CONFIG_SHELL);
+            if (fp64_enabled) {
+                NBodyDemo<double>::reset(nb_bodies, NBODY_CONFIG_SHELL);
             } else {
-                NBodyDemo<float>::reset(numBodies, NBODY_CONFIG_SHELL);
+                NBodyDemo<float>::reset(nb_bodies, NBODY_CONFIG_SHELL);
             }
 
             break;
 
         case '2':
-            if (fp64) {
-                NBodyDemo<double>::reset(numBodies, NBODY_CONFIG_RANDOM);
+            if (fp64_enabled) {
+                NBodyDemo<double>::reset(nb_bodies, NBODY_CONFIG_RANDOM);
             } else {
-                NBodyDemo<float>::reset(numBodies, NBODY_CONFIG_RANDOM);
+                NBodyDemo<float>::reset(nb_bodies, NBODY_CONFIG_RANDOM);
             }
 
             break;
 
         case '3':
-            if (fp64) {
-                NBodyDemo<double>::reset(numBodies, NBODY_CONFIG_EXPAND);
+            if (fp64_enabled) {
+                NBodyDemo<double>::reset(nb_bodies, NBODY_CONFIG_EXPAND);
             } else {
-                NBodyDemo<float>::reset(numBodies, NBODY_CONFIG_EXPAND);
+                NBodyDemo<float>::reset(nb_bodies, NBODY_CONFIG_EXPAND);
             }
 
             break;
@@ -820,12 +844,12 @@ void key(unsigned char key, int /*x*/, int /*y*/) {
     glutPostRedisplay();
 }
 
-void special(int key, int x, int y) {
-    paramlist->Special(key, x, y);
+auto special(int key, int x, int y, ParamListGL& param_list) -> void {
+    param_list.Special(key, x, y);
     glutPostRedisplay();
 }
 
-void idle(void) {
+void idle() {
     glutPostRedisplay();
 }
 
@@ -907,6 +931,50 @@ auto parse_args(int argc, char** argv) -> std::pair<Status, Options> {
     std::println("{}", app.help());
 
     return std::pair(Status::OK, std::move(options));
+}
+
+auto execute_graphics_loop() -> void {
+    auto display_ = []() { display(bPause, fp64, cycleDemo, activeDemo, useCpu, displayEnabled, camera_trans_lag, camera_trans, camera_rot, bShowSliders, *paramlist, bFullscreen, bDispInteractions, numBodies); };
+    auto reshape_ = [](int w, int h) { reshape(w, h); };
+    auto mouse_   = [](int button, int state, int x, int y) { mouse(button, state, x, y, bShowSliders, *paramlist, buttonState, ox, oy); };
+    auto motion_  = [](int x, int y) { motion(x, y, bShowSliders, *paramlist, ox, oy, buttonState, camera_trans, camera_rot); };
+    auto key_     = [](unsigned char k, int x, int y) { key(k, x, y, bPause, bSupportDouble, fp64, bShowSliders, bDispInteractions, displayMode, cycleDemo, activeDemo, displayEnabled, activeParams, numBodies); };
+    auto special_ = [](int key, int x, int y) { special(key, x, y, *paramlist); };
+    auto idle_    = []() { idle(); };
+
+    // TODO: replace with glutXYZFuncUcall(XYZfunc, data)
+    glutDisplayFunc(display_);
+    glutReshapeFunc(reshape_);
+    glutMouseFunc(mouse_);
+    glutMotionFunc(motion_);
+    glutKeyboardFunc(key_);
+    glutSpecialFunc(special_);
+    glutIdleFunc(idle_);
+
+    if (!useCpu) {
+        checkCudaErrors(cudaEventRecord(startEvent, 0));
+    }
+
+    glutMainLoop();
+}
+
+template <std::floating_point T> auto run_program(int nb_iterations) -> bool {
+    if (benchmark) {
+        if (nb_iterations <= 0) {
+            nb_iterations = 10;
+        }
+
+        NBodyDemo<T>::runBenchmark(nb_iterations);
+
+        return true;
+    }
+    if (compareToCPU) {
+        return NBodyDemo<T>::compareResults(numBodies);
+    }
+
+    execute_graphics_loop();
+
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1176,62 +1244,17 @@ int main(int argc, char** argv) {
         }
 
         if (fp64) {
-            if (benchmark) {
-                if (numIterations <= 0) {
-                    numIterations = 10;
-                } else if (numIterations > 10) {
-                    printf("Advisory: setting a high number of iterations\n");
-                    printf("in benchmark mode may cause failure on Windows\n");
-                    printf("Vista and Win7. On these OSes, set iterations <= 10\n");
-                }
-
-                NBodyDemo<double>::runBenchmark(numIterations);
-            } else if (compareToCPU) {
-                bTestResults = NBodyDemo<double>::compareResults(numBodies);
-            } else {
-                glutDisplayFunc(display);
-                glutReshapeFunc(reshape);
-                glutMouseFunc(mouse);
-                glutMotionFunc(motion);
-                glutKeyboardFunc(key);
-                glutSpecialFunc(special);
-                glutIdleFunc(idle);
-
-                if (!useCpu) {
-                    checkCudaErrors(cudaEventRecord(startEvent, 0));
-                }
-
-                glutMainLoop();
-            }
+            bTestResults = run_program<double>(numIterations);
         } else {
-            if (benchmark) {
-                if (numIterations <= 0) {
-                    numIterations = 10;
-                }
-
-                NBodyDemo<float>::runBenchmark(numIterations);
-            } else if (compareToCPU) {
-                bTestResults = NBodyDemo<float>::compareResults(numBodies);
-            } else {
-                glutDisplayFunc(display);
-                glutReshapeFunc(reshape);
-                glutMouseFunc(mouse);
-                glutMotionFunc(motion);
-                glutKeyboardFunc(key);
-                glutSpecialFunc(special);
-                glutIdleFunc(idle);
-
-                if (!useCpu) {
-                    checkCudaErrors(cudaEventRecord(startEvent, 0));
-                }
-
-                glutMainLoop();
-            }
+            bTestResults = run_program<float>(numIterations);
         }
 
         finalize();
-        exit(bTestResults ? EXIT_SUCCESS : EXIT_FAILURE);
 
+        if (!bTestResults) {
+            return 1;
+        }
+        return 0;
     } catch (const std::invalid_argument& e) {
         std::println(stderr, "ERROR: {}", e.what());
         return 1;
