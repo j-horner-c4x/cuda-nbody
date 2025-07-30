@@ -27,5 +27,6 @@ target_link_libraries(${PROJECT_NAME}_exe
                             GLEW::GLEW
                             CUDA::cudart_static
                             ${PROJECT_NAME}_render_particles
+                            ${PROJECT_NAME}_tipsy
                             ${PROJECT_NAME}_bodysystemcuda)
 

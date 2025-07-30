@@ -3,10 +3,13 @@
 #   Consider keeping all implementation libraries static for simplicity.
 #
 add_library(${PROJECT_NAME}_render_particles STATIC render_particles.cpp)
+add_library(${PROJECT_NAME}_tipsy STATIC tipsy.cpp)
 
 add_library(${PROJECT_NAME}_bodysystemcuda STATIC bodysystemcuda.cu)
 
 target_link_libraries(${PROJECT_NAME}_render_particles PRIVATE CUDA::cudart_static OpenGL::GL GLEW::GLEW)
+
+target_link_libraries(${PROJECT_NAME}_tipsy PRIVATE CUDA::cudart_static)
 
 target_link_libraries(${PROJECT_NAME}_bodysystemcuda
                             PRIVATE
