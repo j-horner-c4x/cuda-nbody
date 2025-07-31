@@ -510,46 +510,65 @@ void displayNBodySystem() {
     }
 }
 
-void display(bool                        paused,
-             bool                        fp64_enabled,
-             bool                        cycle_demo,
-             int&                        active_demo,
-             bool                        use_cpu,
-             bool                        display_enabled,
-             std::array<float, 3>&       camera_translation_lag,
-             const std::array<float, 3>& camera_translation,
-             const std::array<float, 3>& camera_rotation,
-             bool                        display_sliders,
-             ParamListGL&                param_list,
-             bool                        full_screen,
-             bool                        display_interactions,
-             int                         nb_bodies,
-             cudaEvent_t                 host_mem_sync_event,
-             cudaEvent_t                 start_event,
-             cudaEvent_t                 stop_event) {
+struct ComputeConfig {
+    bool        paused;
+    bool        fp64_enabled;
+    bool        cycle_demo;
+    int         active_demo;
+    bool        use_cpu;
+    int         num_bodies;
+    bool        double_supported;
+    NBodyParams active_params;
+    cudaEvent_t host_mem_sync_event;
+    cudaEvent_t start_event;
+    cudaEvent_t stop_event;
+};
+
+struct CameraConfig {
+    std::array<float, 3> translation_lag;
+    std::array<float, 3> translation;
+    std::array<float, 3> rotation;
+};
+
+struct ControlsConfig {
+    int button_state;
+    int old_x;
+    int old_y;
+};
+
+struct InterfaceConfig {
+    bool                          display_enabled;
+    bool                          show_sliders;
+    std::unique_ptr<ParamListGL>  param_list;
+    bool                          full_screen;
+    bool                          display_interactions;
+    ParticleRenderer::DisplayMode display_mode;
+};
+
+void display(ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& camera) {
     static double gflops                = 0;
     static double ifps                  = 0;
     static double interactionsPerSecond = 0;
 
     // update the simulation
-    if (!paused) {
-        const auto demo_time = fp64_enabled ? NBodyDemo<double>::get_demo_time() : NBodyDemo<float>::get_demo_time();
+    if (!compute.paused) {
+        const auto demo_time = compute.fp64_enabled ? NBodyDemo<double>::get_demo_time() : NBodyDemo<float>::get_demo_time();
 
-        if (cycle_demo && (demo_time > demoTime)) {
-            active_demo = (active_demo + 1) % numDemos;
-            selectDemo(active_demo);
+        if (compute.cycle_demo && (demo_time > demoTime)) {
+            compute.active_demo = (compute.active_demo + 1) % numDemos;
+            selectDemo(compute.active_demo);
         }
 
         updateSimulation();
 
-        if (!use_cpu) {
-            cudaEventRecord(host_mem_sync_event, 0);    // insert an event to wait on before rendering
+        if (!compute.use_cpu) {
+            cudaEventRecord(compute.host_mem_sync_event, 0);    // insert an event to wait on before rendering
         }
     }
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    if (display_enabled) {
+    if (interface.display_enabled) {
         constexpr static auto inertia = 0.1f;
 
         // view transform
@@ -560,11 +579,11 @@ void display(bool                        paused,
             static auto camera_rot_lag = std::array{0.f, 0.f, 0.f};
 
             for (int c = 0; c < 3; ++c) {
-                camera_translation_lag[c] += (camera_translation[c] - camera_translation_lag[c]) * inertia;
-                camera_rot_lag[c] += (camera_rotation[c] - camera_rot_lag[c]) * inertia;
+                camera.translation_lag[c] += (camera.translation[c] - camera.translation_lag[c]) * inertia;
+                camera_rot_lag[c] += (camera.rotation[c] - camera_rot_lag[c]) * inertia;
             }
 
-            glTranslatef(camera_translation_lag[0], camera_translation_lag[1], camera_translation_lag[2]);
+            glTranslatef(camera.translation_lag[0], camera.translation_lag[1], camera.translation_lag[2]);
             glRotatef(camera_rot_lag[0], 1.0, 0.0, 0.0);
             glRotatef(camera_rot_lag[1], 0.0, 1.0, 0.0);
         }
@@ -572,27 +591,27 @@ void display(bool                        paused,
         displayNBodySystem();
 
         // display user interface
-        if (display_sliders) {
+        if (interface.show_sliders) {
             glBlendFunc(GL_ONE_MINUS_DST_COLOR, GL_ZERO);    // invert color
             glEnable(GL_BLEND);
-            param_list.Render(0, 0);
+            interface.param_list->Render(0, 0);
             glDisable(GL_BLEND);
         }
 
-        if (full_screen) {
+        if (interface.full_screen) {
             beginWinCoords();
             constexpr static auto& msg0 = "some_temp_device_name";
             char                   msg1[256], msg2[256];
             // char deviceName[100];
 
-            if (display_interactions) {
+            if (interface.display_interactions) {
                 sprintf(msg1, "%0.2f billion interactions per second", interactionsPerSecond);
             } else {
                 sprintf(msg1, "%0.2f GFLOP/s", gflops);
             }
 
             // sprintf(msg0, "%s", deviceName);
-            sprintf(msg2, "%0.2f FPS [%s | %d bodies]", ifps, fp64_enabled ? "double precision" : "single precision", nb_bodies);
+            sprintf(msg2, "%0.2f FPS [%s | %d bodies]", ifps, compute.fp64_enabled ? "double precision" : "single precision", compute.num_bodies);
 
             glBlendFunc(GL_ONE_MINUS_DST_COLOR, GL_ZERO);    // invert color
             glEnable(GL_BLEND);
@@ -622,12 +641,12 @@ void display(bool                        paused,
         float milliseconds = 1;
 
         // stop timer
-        if (use_cpu) {
-            milliseconds = fp64_enabled ? NBodyDemo<double>::get_milliseconds_passed() : NBodyDemo<float>::get_milliseconds_passed();
+        if (compute.use_cpu) {
+            milliseconds = compute.fp64_enabled ? NBodyDemo<double>::get_milliseconds_passed() : NBodyDemo<float>::get_milliseconds_passed();
         } else {
-            checkCudaErrors(cudaEventRecord(stop_event, 0));
-            checkCudaErrors(cudaEventSynchronize(stop_event));
-            checkCudaErrors(cudaEventElapsedTime(&milliseconds, start_event, stop_event));
+            checkCudaErrors(cudaEventRecord(compute.stop_event, 0));
+            checkCudaErrors(cudaEventSynchronize(compute.stop_event));
+            checkCudaErrors(cudaEventElapsedTime(&milliseconds, compute.start_event, compute.stop_event));
         }
 
         milliseconds /= (float)fpsCount;
@@ -637,122 +656,100 @@ void display(bool                        paused,
         sprintf(fps,
                 "CUDA N-Body (%d bodies): "
                 "%0.1f fps | %0.1f BIPS | %0.1f GFLOP/s | %s",
-                nb_bodies,
+                compute.num_bodies,
                 ifps,
                 interactionsPerSecond,
                 gflops,
-                fp64_enabled ? "double precision" : "single precision");
+                compute.fp64_enabled ? "double precision" : "single precision");
 
         glutSetWindowTitle(fps);
         fpsCount = 0;
         fpsLimit = (ifps > 1.f) ? (int)ifps : 1;
 
-        if (paused) {
+        if (compute.paused) {
             fpsLimit = 0;
         }
 
         // restart timer
-        if (!use_cpu) {
-            checkCudaErrors(cudaEventRecord(start_event, 0));
+        if (!compute.use_cpu) {
+            checkCudaErrors(cudaEventRecord(compute.start_event, 0));
         }
     }
 
     glutReportErrors();
 }
 
-void reshape(int w, int h) {
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    gluPerspective(60.0, (float)w / (float)h, 0.1, 1000.0);
-
-    glMatrixMode(GL_MODELVIEW);
-    glViewport(0, 0, w, h);
-}
-
-void updateParams() {
-    if (fp64) {
+void updateParams(bool fp64_enabled) {
+    if (fp64_enabled) {
         NBodyDemo<double>::updateParams();
     } else {
         NBodyDemo<float>::updateParams();
     }
 }
 
-void mouse(int button, int state, int x, int y, bool show_sliders, ParamListGL& param_lis, int& button_state, int& old_x, int& old_y) {
-    if (show_sliders) {
+void mouse(int button, int state, int x, int y, InterfaceConfig& interface, ControlsConfig& controls, bool fp64_enabled) {
+    if (interface.show_sliders) {
         // call list mouse function
-        if (param_lis.Mouse(x, y, button, state)) {
-            updateParams();
+        if (interface.param_list->Mouse(x, y, button, state)) {
+            updateParams(fp64_enabled);
         }
     }
 
     if (state == GLUT_DOWN) {
-        button_state |= 1 << button;
+        controls.button_state |= 1 << button;
     } else if (state == GLUT_UP) {
-        button_state = 0;
+        controls.button_state = 0;
     }
 
     const auto mods = glutGetModifiers();
 
     if (mods & GLUT_ACTIVE_SHIFT) {
-        button_state = 2;
+        controls.button_state = 2;
     } else if (mods & GLUT_ACTIVE_CTRL) {
-        button_state = 3;
+        controls.button_state = 3;
     }
 
-    old_x = x;
-    old_y = y;
+    controls.old_x = x;
+    controls.old_y = y;
 
     glutPostRedisplay();
 }
 
-void motion(int x, int y, bool show_sliders, ParamListGL& param_list, int& old_x, int& old_y, int button_state, std::array<float, 3>& camera_translation, std::array<float, 3>& camera_rotation) {
-    if (show_sliders) {
+void motion(int x, int y, InterfaceConfig& interface, ControlsConfig& controls, CameraConfig& camera, bool fp64_enabled) {
+    if (interface.show_sliders) {
         // call parameter list motion function
-        if (param_list.Motion(x, y)) {
-            updateParams();
+        if (interface.param_list->Motion(x, y)) {
+            updateParams(fp64_enabled);
             glutPostRedisplay();
             return;
         }
     }
 
-    const auto dx = static_cast<float>(x - old_x);
-    const auto dy = static_cast<float>(y - old_y);
+    const auto dx = static_cast<float>(x - controls.old_x);
+    const auto dy = static_cast<float>(y - controls.old_y);
 
-    if (button_state == 3) {
+    if (controls.button_state == 3) {
         // left+middle = zoom
-        camera_translation[2] += (dy / 100.0f) * 0.5f * std::abs(camera_translation[2]);
-    } else if (button_state & 2) {
+        camera.translation[2] += (dy / 100.0f) * 0.5f * std::abs(camera.translation[2]);
+    } else if (controls.button_state & 2) {
         // middle = translate
-        camera_translation[0] += dx / 100.0f;
-        camera_translation[1] -= dy / 100.0f;
-    } else if (button_state & 1) {
+        camera.translation[0] += dx / 100.0f;
+        camera.translation[1] -= dy / 100.0f;
+    } else if (controls.button_state & 1) {
         // left = rotate
-        camera_rotation[0] += dy / 5.0f;
-        camera_rotation[1] += dx / 5.0f;
+        camera.rotation[0] += dy / 5.0f;
+        camera.rotation[1] += dx / 5.0f;
     }
 
-    old_x = x;
-    old_y = y;
+    controls.old_x = x;
+    controls.old_y = y;
     glutPostRedisplay();
 }
 
-void key(unsigned char                  key,
-         [[maybe_unused]] int           x,
-         [[maybe_unused]] int           y,
-         bool&                          paused,
-         bool                           double_supported,
-         bool                           fp64_enabled,
-         bool&                          show_sliders,
-         bool&                          display_interactions,
-         ParticleRenderer::DisplayMode& display_mode,
-         bool&                          cycle_demo,
-         int&                           active_demo,
-         bool&                          display_enabled,
-         const NBodyParams&             active_params,
-         int                            nb_bodies) {
+void key(unsigned char key, [[maybe_unused]] int x, [[maybe_unused]] int y, ComputeConfig& compute, InterfaceConfig& interface) {
     switch (key) {
         case ' ':
-            paused = !paused;
+            compute.paused = !compute.paused;
             break;
 
         case 27:    // escape
@@ -763,8 +760,8 @@ void key(unsigned char                  key,
             break;
 
         case 13:    // return
-            if (double_supported) {
-                if (fp64_enabled) {
+            if (compute.double_supported) {
+                if (compute.fp64_enabled) {
                     switchDemoPrecision<float, double>();
                     std::println("> Double precision floating point simulation");
                 } else {
@@ -776,82 +773,73 @@ void key(unsigned char                  key,
             break;
 
         case '`':
-            show_sliders = !show_sliders;
+            interface.show_sliders = !interface.show_sliders;
             break;
 
         case 'g':
         case 'G':
-            display_interactions = !display_interactions;
+            interface.display_interactions = !interface.display_interactions;
             break;
 
         case 'p':
         case 'P':
-            display_mode = (ParticleRenderer::DisplayMode)((display_mode + 1) % ParticleRenderer::PARTICLE_NUM_MODES);
+            interface.display_mode = (ParticleRenderer::DisplayMode)((interface.display_mode + 1) % ParticleRenderer::PARTICLE_NUM_MODES);
             break;
 
         case 'c':
         case 'C':
-            cycle_demo = !cycle_demo;
-            std::println("Cycle Demo Parameters: {}\n", cycle_demo ? "ON" : "OFF");
+            compute.cycle_demo = !compute.cycle_demo;
+            std::println("Cycle Demo Parameters: {}\n", compute.cycle_demo ? "ON" : "OFF");
             break;
 
         case '[':
-            active_demo = (active_demo == 0) ? numDemos - 1 : (active_demo - 1) % numDemos;
-            selectDemo(active_demo);
+            compute.active_demo = (compute.active_demo == 0) ? numDemos - 1 : (compute.active_demo - 1) % numDemos;
+            selectDemo(compute.active_demo);
             break;
 
         case ']':
-            active_demo = (active_demo + 1) % numDemos;
-            selectDemo(active_demo);
+            compute.active_demo = (compute.active_demo + 1) % numDemos;
+            selectDemo(compute.active_demo);
             break;
 
         case 'd':
         case 'D':
-            display_enabled = !display_enabled;
+            interface.display_enabled = !interface.display_enabled;
             break;
 
         case 'o':
         case 'O':
-            active_params.print();
+            compute.active_params.print();
             break;
 
         case '1':
-            if (fp64_enabled) {
-                NBodyDemo<double>::reset(nb_bodies, NBODY_CONFIG_SHELL);
+            if (compute.fp64_enabled) {
+                NBodyDemo<double>::reset(compute.num_bodies, NBODY_CONFIG_SHELL);
             } else {
-                NBodyDemo<float>::reset(nb_bodies, NBODY_CONFIG_SHELL);
+                NBodyDemo<float>::reset(compute.num_bodies, NBODY_CONFIG_SHELL);
             }
 
             break;
 
         case '2':
-            if (fp64_enabled) {
-                NBodyDemo<double>::reset(nb_bodies, NBODY_CONFIG_RANDOM);
+            if (compute.fp64_enabled) {
+                NBodyDemo<double>::reset(compute.num_bodies, NBODY_CONFIG_RANDOM);
             } else {
-                NBodyDemo<float>::reset(nb_bodies, NBODY_CONFIG_RANDOM);
+                NBodyDemo<float>::reset(compute.num_bodies, NBODY_CONFIG_RANDOM);
             }
 
             break;
 
         case '3':
-            if (fp64_enabled) {
-                NBodyDemo<double>::reset(nb_bodies, NBODY_CONFIG_EXPAND);
+            if (compute.fp64_enabled) {
+                NBodyDemo<double>::reset(compute.num_bodies, NBODY_CONFIG_EXPAND);
             } else {
-                NBodyDemo<float>::reset(nb_bodies, NBODY_CONFIG_EXPAND);
+                NBodyDemo<float>::reset(compute.num_bodies, NBODY_CONFIG_EXPAND);
             }
 
             break;
     }
 
-    glutPostRedisplay();
-}
-
-auto special(int key, int x, int y, ParamListGL& param_list) -> void {
-    param_list.Special(key, x, y);
-    glutPostRedisplay();
-}
-
-void idle() {
     glutPostRedisplay();
 }
 
@@ -935,42 +923,86 @@ auto parse_args(int argc, char** argv) -> std::pair<Status, Options> {
     return std::pair(Status::OK, std::move(options));
 }
 
-auto execute_graphics_loop() -> void {
-    auto display_ = []() {
-        display(
-            bPause,
-            fp64,
-            cycleDemo,
-            activeDemo,
-            useCpu,
-            displayEnabled,
-            camera_trans_lag,
-            camera_trans,
-            camera_rot,
-            bShowSliders,
-            *paramlist,
-            bFullscreen,
-            bDispInteractions,
-            numBodies,
-            hostMemSyncEvent,
-            startEvent,
-            stopEvent);
-    };
-    auto reshape_ = [](int w, int h) { reshape(w, h); };
-    auto mouse_   = [](int button, int state, int x, int y) { mouse(button, state, x, y, bShowSliders, *paramlist, buttonState, ox, oy); };
-    auto motion_  = [](int x, int y) { motion(x, y, bShowSliders, *paramlist, ox, oy, buttonState, camera_trans, camera_rot); };
-    auto key_     = [](unsigned char k, int x, int y) { key(k, x, y, bPause, bSupportDouble, fp64, bShowSliders, bDispInteractions, displayMode, cycleDemo, activeDemo, displayEnabled, activeParams, numBodies); };
-    auto special_ = [](int key, int x, int y) { special(key, x, y, *paramlist); };
-    auto idle_    = []() { idle(); };
+// get the parameter list of a lambda (with some minor fixes): https://stackoverflow.com/a/70954691
+template <typename T> struct Signature;
+template <typename C, typename... Args> struct Signature<void (C::*)(Args...) const> {
+    using type = typename std::tuple<Args...>;
+};
+template <typename C> struct Signature<void (C::*)() const> {
+    using type = void;
+};
 
-    // TODO: replace with glutXYZFuncUcall(XYZfunc, data)
-    glutDisplayFunc(display_);
-    glutReshapeFunc(reshape_);
-    glutMouseFunc(mouse_);
-    glutMotionFunc(motion_);
-    glutKeyboardFunc(key_);
-    glutSpecialFunc(special_);
-    glutIdleFunc(idle_);
+template <typename F>
+concept is_functor = std::is_class_v<std::decay_t<F>> && requires(F&& t) { &std::decay_t<F>::operator(); };
+
+template <is_functor T> auto arguments(T&& t) -> Signature<decltype(&std::decay_t<T>::operator())>::type;
+
+template <auto GLUTFunction, typename T> struct RegisterCallback;
+
+template <auto GLUTFunction> struct RegisterCallback<GLUTFunction, void> {
+    template <is_functor F> static auto callback(void* f_data) -> void {
+        const auto* obj = static_cast<F*>(f_data);
+
+        return obj->operator()();
+    }
+
+    template <typename F> static auto register_callback(F& func) -> void { GLUTFunction(callback<F>, static_cast<void*>(&func)); }
+};
+
+template <auto GLUTFunction, typename... Args> struct RegisterCallback<GLUTFunction, std::tuple<Args...>> {
+    template <is_functor F> static auto callback(Args... args, void* f_data) -> void {
+        const auto* obj = static_cast<F*>(f_data);
+
+        return obj->operator()(args...);
+    }
+
+    template <typename F> static auto register_callback(F& func) -> void { GLUTFunction(callback<F>, static_cast<void*>(&func)); }
+};
+
+template <auto GLUTFunction, typename F> auto register_callback(F& func) -> void {
+    using Args = std::decay_t<decltype(arguments(func))>;
+    RegisterCallback<GLUTFunction, Args>::register_callback(func);
+}
+
+auto execute_graphics_loop(ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& camera, ControlsConfig& controls) -> void {
+    auto display_ = [&]() { display(compute, interface, camera); };
+
+    auto reshape_ = [](int w, int h) {
+        glMatrixMode(GL_PROJECTION);
+        glLoadIdentity();
+        gluPerspective(60.0, static_cast<float>(w) / static_cast<float>(h), 0.1, 1000.0);
+
+        glMatrixMode(GL_MODELVIEW);
+        glViewport(0, 0, w, h);
+    };
+
+    auto mouse_   = [&](int button, int state, int x, int y) { mouse(button, state, x, y, interface, controls, compute.fp64_enabled); };
+    auto motion_  = [&](int x, int y) { motion(x, y, interface, controls, camera, compute.fp64_enabled); };
+    auto key_     = [&](unsigned char k, int x, int y) { key(k, x, y, compute, interface); };
+    auto special_ = [&](int key, int x, int y) {
+        interface.param_list->Special(key, x, y);
+        glutPostRedisplay();
+    };
+    auto idle_ = []() { glutPostRedisplay(); };
+
+    static_assert(std::is_same_v<decltype(arguments(display_)), void>);
+    static_assert(std::is_same_v<decltype(arguments(reshape_)), std::tuple<int, int>>);
+
+    register_callback<glutDisplayFuncUcall>(display_);
+    register_callback<glutReshapeFuncUcall>(reshape_);
+    register_callback<glutMotionFuncUcall>(motion_);
+    register_callback<glutMouseFuncUcall>(mouse_);
+    register_callback<glutKeyboardFuncUcall>(key_);
+    register_callback<glutSpecialFuncUcall>(special_);
+    register_callback<glutIdleFuncUcall>(idle_);
+
+    // glutDisplayFunc(display_);
+    // glutReshapeFunc(reshape_);
+    // glutMouseFunc(mouse_);
+    // glutMotionFunc(motion_);
+    // glutKeyboardFunc(key_);
+    // glutSpecialFunc(special_);
+    // glutIdleFunc(idle_);
 
     if (!useCpu) {
         checkCudaErrors(cudaEventRecord(startEvent, 0));
@@ -979,7 +1011,7 @@ auto execute_graphics_loop() -> void {
     glutMainLoop();
 }
 
-template <std::floating_point T> auto run_program(int nb_iterations) -> bool {
+template <std::floating_point T> auto run_program(int nb_iterations, ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& camera, ControlsConfig& controls) -> bool {
     if (benchmark) {
         if (nb_iterations <= 0) {
             nb_iterations = 10;
@@ -993,7 +1025,7 @@ template <std::floating_point T> auto run_program(int nb_iterations) -> bool {
         return NBodyDemo<T>::compareResults(numBodies);
     }
 
-    execute_graphics_loop();
+    execute_graphics_loop(compute, interface, camera, controls);
 
     return true;
 }
@@ -1264,10 +1296,35 @@ int main(int argc, char** argv) {
             NBodyDemo<double>::reset(numBodies, NBODY_CONFIG_SHELL);
         }
 
+        auto compute_config = ComputeConfig{
+            .paused              = bPause,
+            .fp64_enabled        = fp64,
+            .cycle_demo          = cycleDemo,
+            .active_demo         = activeDemo,
+            .use_cpu             = useCpu,
+            .num_bodies          = numBodies,
+            .double_supported    = bSupportDouble,
+            .active_params       = activeParams,
+            .host_mem_sync_event = hostMemSyncEvent,
+            .start_event         = startEvent,
+            .stop_event          = stopEvent};
+
+        auto camera_config = CameraConfig{.translation_lag = camera_trans_lag, .translation = camera_trans, .rotation = camera_rot};
+
+        auto controls_config = ControlsConfig{.button_state = buttonState, .old_x = ox, .old_y = oy};
+
+        auto interface_config = InterfaceConfig{
+            .display_enabled      = displayEnabled,
+            .show_sliders         = bShowSliders,
+            .param_list           = std::move(paramlist),
+            .full_screen          = bFullscreen,
+            .display_interactions = bDispInteractions,
+            .display_mode         = displayMode};
+
         if (fp64) {
-            bTestResults = run_program<double>(numIterations);
+            bTestResults = run_program<double>(numIterations, compute_config, interface_config, camera_config, controls_config);
         } else {
-            bTestResults = run_program<float>(numIterations);
+            bTestResults = run_program<float>(numIterations, compute_config, interface_config, camera_config, controls_config);
         }
 
         finalize();
