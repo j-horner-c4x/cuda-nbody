@@ -1057,6 +1057,8 @@ int main(int argc, char** argv) {
 
         const auto full_screen = cmd_options.fullscreen;
 
+        std::println("> {} mode", full_screen ? "Fullscreen" : "Windowed");
+
         auto show_sliders = !full_screen;
 
         auto compare_to_cpu = cmd_options.compare || cmd_options.qatest;
@@ -1070,12 +1072,14 @@ int main(int argc, char** argv) {
             std::println("number of CUDA devices  = {}", numDevsRequested);
         }
 
-        int  numDevsAvailable = 0;
-        bool customGPU        = false;
-        cudaGetDeviceCount(&numDevsAvailable);
+        auto customGPU = false;
+        {
+            int numDevsAvailable = 0;
+            cudaGetDeviceCount(&numDevsAvailable);
 
-        if (numDevsAvailable < numDevsRequested) {
-            throw std::invalid_argument(std::format("Error: only {} Devices available, {} requested.", numDevsAvailable, numDevsRequested));
+            if (numDevsAvailable < numDevsRequested) {
+                throw std::invalid_argument(std::format("Error: only {} Devices available, {} requested.", numDevsAvailable, numDevsRequested));
+            }
         }
 
         auto useP2P = true;    // this is always optimal to use P2P path when available
@@ -1083,7 +1087,7 @@ int main(int argc, char** argv) {
         if (numDevsRequested > 1) {
             // If user did not explicitly request host memory to be used, we default to P2P.
             // We fallback to host memory, if any of GPUs does not support P2P.
-            bool allGPUsSupportP2P = true;
+            auto allGPUsSupportP2P = true;
             if (!use_host_mem) {
                 // Enable P2P only in one direction, as every peer will access gpu0
                 for (int i = 1; i < numDevsRequested; ++i) {
@@ -1102,13 +1106,9 @@ int main(int argc, char** argv) {
             }
         }
 
-        std::println("> {} mode", full_screen ? "Fullscreen" : "Windowed");
         std::println("> Simulation data stored in {} memory", use_host_mem ? "system" : "video");
         std::println("> {} precision floating point simulation", cmd_options.fp64 ? "Double" : "Single");
         std::println("> {} Devices used for simulation", numDevsRequested);
-
-        int            devID = 0;
-        cudaDeviceProp props{};
 
         if (cmd_options.cpu) {
             use_host_mem   = true;
@@ -1121,16 +1121,9 @@ int main(int argc, char** argv) {
 #endif
         }
 
-        auto tipsy_file = std::filesystem::path{};
-        auto cycle_demo = true;
-
-        if (!cmd_options.tipsy.empty()) {
-            tipsy_file   = cmd_options.tipsy;
-            cycle_demo   = false;
-            show_sliders = false;
-        }
-
-        auto param_list = std::unique_ptr<ParamListGL>{};
+        auto tipsy_file = cmd_options.tipsy;
+        auto cycle_demo = tipsy_file.empty();
+        show_sliders    = tipsy_file.empty();
 
         auto compute = ComputeConfig{
             .paused                = false,
@@ -1149,12 +1142,16 @@ int main(int argc, char** argv) {
             .start_event           = cudaEvent_t{},
             .stop_event            = cudaEvent_t{}};
 
+        const auto enable_graphics = !compute.benchmark && !compute.compare_to_cpu;
+
         // Initialize GL and GLUT if necessary
-        if (!compute.benchmark && !compute.compare_to_cpu) {
+        if (enable_graphics) {
             initGL(&argc, argv, full_screen);
-            param_list = compute.active_params.create_sliders();
         }
 
+        int devID = 0;
+
+        cudaDeviceProp props{};
         if (!cmd_options.cpu) {
             if (cmd_options.device != -1) {
                 customGPU = true;
@@ -1287,17 +1284,17 @@ int main(int argc, char** argv) {
             compute.active_params.m_velocityScale = 11.f;
         }
 
-        auto camera = CameraConfig{.translation_lag = {0.f, -2.f, -150.f}, .translation = {0.f, -2.f, -150.f}, .rotation = {0.f, 0.f, 0.f}};
-
-        auto controls = ControlsConfig{.button_state = 0, .old_x = 0, .old_y = 0};
-
         auto interface = InterfaceConfig{
             .display_enabled      = true,
             .show_sliders         = show_sliders,
-            .param_list           = std::move(param_list),
+            .param_list           = enable_graphics ? compute.active_params.create_sliders() : nullptr,
             .full_screen          = full_screen,
             .display_interactions = false,
             .display_mode         = ParticleRenderer::PARTICLE_SPRITES_COLOR};
+
+        auto camera = CameraConfig{.translation_lag = {0.f, -2.f, -150.f}, .translation = {0.f, -2.f, -150.f}, .rotation = {0.f, 0.f, 0.f}};
+
+        auto controls = ControlsConfig{.button_state = 0, .old_x = 0, .old_y = 0};
 
         // Create the demo -- either double (fp64) or float (fp32, default)
         // implementation
