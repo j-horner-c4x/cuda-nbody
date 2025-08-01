@@ -58,13 +58,15 @@
 #include <cstdio>
 #include <cstdlib>
 
-void computePerfStats(float nb_bodies, int flops_per_interaction, double& interactionsPerSecond, double& gflops, float milliseconds, int iterations) {
+constexpr auto computePerfStats(float nb_bodies, int flops_per_interaction, float milliseconds, int iterations) -> std::array<double, 2> {
     // double precision uses intrinsic operation followed by refinement, resulting in higher operation count per interaction.
     // Note: Astrophysicists use 38 flops per interaction no matter what, based on "historical precedent", but they are using FLOP/s as a measure of "science throughput".
     // We are using it as a measure of hardware throughput.  They should really use interactions/s...
-    interactionsPerSecond = nb_bodies * nb_bodies;
-    interactionsPerSecond *= 1e-9 * iterations * 1000 / milliseconds;
-    gflops = interactionsPerSecond * static_cast<float>(flops_per_interaction);
+    const auto interactionsPerSecond = (nb_bodies * nb_bodies * 1e-9f) * iterations * (1000.0f / milliseconds);
+
+    const auto gflops = interactionsPerSecond * static_cast<float>(flops_per_interaction);
+
+    return {interactionsPerSecond, gflops};
 }
 
 ////////////////////////////////////////
@@ -95,6 +97,12 @@ constexpr static auto numDemos = demoParams.size();
 
 constexpr static auto demoTime = 10000.0f;    // ms
 
+using Clock        = std::chrono::steady_clock;
+using TimePoint    = std::chrono::time_point<Clock>;
+using MilliSeconds = std::chrono::duration<float, std::milli>;
+
+template <std::floating_point T> class NBodyDemo;
+
 struct ComputeConfig {
     bool        paused;
     bool        fp64_enabled;
@@ -111,6 +119,69 @@ struct ComputeConfig {
     cudaEvent_t host_mem_sync_event;
     cudaEvent_t start_event;
     cudaEvent_t stop_event;
+
+    template <std::floating_point T_new, std::floating_point T_old> auto switch_demo_precision() -> void {
+        static_assert(!std::is_same_v<T_new, T_old>);
+
+        cudaDeviceSynchronize();
+
+        fp64_enabled          = !fp64_enabled;
+        flops_per_interaction = fp64_enabled ? 30 : 20;
+
+        const auto nb_bodies_4 = static_cast<std::size_t>(num_bodies * 4);
+
+        auto oldPos = std::vector<T_old>(nb_bodies_4);
+        auto oldVel = std::vector<T_old>(nb_bodies_4);
+
+        NBodyDemo<T_old>::getArrays(oldPos, oldVel);
+
+        // convert float to double
+        auto newPos = std::vector<T_new>(nb_bodies_4);
+        auto newVel = std::vector<T_new>(nb_bodies_4);
+
+        for (int i = 0; i < nb_bodies_4; i++) {
+            newPos[i] = static_cast<T_new>(oldPos[i]);
+            newVel[i] = static_cast<T_new>(oldVel[i]);
+        }
+
+        NBodyDemo<T_new>::setArrays(newPos, newVel, *this);
+
+        cudaDeviceSynchronize();
+    }
+
+    template <std::floating_point T> auto run_benchmark(int iterations, BodySystem<T>& nbody) -> void {
+        // once without timing to prime the device
+        if (!use_cpu) {
+            nbody.update(active_params.m_timestep);
+        }
+
+        auto milliseconds = 0.f;
+        auto start        = TimePoint{};
+
+        if (use_cpu) {
+            start = Clock::now();
+        } else {
+            checkCudaErrors(cudaEventRecord(start_event, 0));
+        }
+
+        for (int i = 0; i < iterations; ++i) {
+            nbody.update(active_params.m_timestep);
+        }
+
+        if (use_cpu) {
+            milliseconds = MilliSeconds{Clock::now() - start}.count();
+        } else {
+            checkCudaErrors(cudaEventRecord(stop_event, 0));
+            checkCudaErrors(cudaEventSynchronize(stop_event));
+            checkCudaErrors(cudaEventElapsedTime(&milliseconds, start_event, stop_event));
+        }
+
+        const auto [interactionsPerSecond, gflops] = computePerfStats(static_cast<float>(num_bodies), flops_per_interaction, milliseconds, iterations);
+
+        std::println("%d bodies, total time for %d iterations: %.3f ms", num_bodies, iterations, milliseconds);
+        std::println("= %.3f billion interactions per second", interactionsPerSecond);
+        std::println("= %.3f %s-precision GFLOP/s at %d flops per interaction", gflops, (sizeof(T) > 4) ? "double" : "single", flops_per_interaction);
+    }
 };
 
 struct CameraConfig {
@@ -136,15 +207,12 @@ struct InterfaceConfig {
 
 using std::ranges::copy;
 
-template <typename T> class NBodyDemo {
+template <std::floating_point T> class NBodyDemo {
  public:
     static void Create(const std::filesystem::path& tipsy_file) { m_singleton = std::make_unique<NBodyDemo>(tipsy_file); }
     static void Destroy() { m_singleton.reset(); }
 
-    static void init(int numDevices, int block_size, bool use_p2p, int devID, ComputeConfig& compute) {
-        const auto use_pbo = !(compute.benchmark || compute.compare_to_cpu || compute.use_host_mem);
-        m_singleton->_init(numDevices, block_size, use_pbo, use_p2p, devID, compute);
-    }
+    static void init(int numDevices, int block_size, bool use_p2p, int devID, ComputeConfig& compute) { m_singleton->_init(numDevices, block_size, use_p2p, devID, compute); }
 
     static void reset(ComputeConfig& compute, NBodyConfig config) { m_singleton->_reset(compute, config); }
 
@@ -152,7 +220,7 @@ template <typename T> class NBodyDemo {
 
     static bool compareResults(int num_bodies) { return m_singleton->_compareResults(num_bodies); }
 
-    static void runBenchmark(int iterations, ComputeConfig& compute) { m_singleton->_runBenchmark(iterations, compute); }
+    static void runBenchmark(int iterations, ComputeConfig& compute) { compute.run_benchmark(iterations, *(m_singleton->m_nbody)); }
 
     static void updateParams(const NBodyParams& active_params) {
         m_singleton->m_nbody->setSoftening(active_params.m_softening);
@@ -173,7 +241,7 @@ template <typename T> class NBodyDemo {
 
             m_singleton->m_renderer->setPositions(m_singleton->m_nbody->getArray(BODYSYSTEM_POSITION), m_singleton->m_nbody->getNumBodies());
         } else {
-            m_singleton->m_renderer->setPBO(m_singleton->m_nbody->getCurrentReadBuffer(), m_singleton->m_nbody->getNumBodies(), (sizeof(T) > 4));
+            m_singleton->m_renderer->setPBO(m_singleton->m_nbody->getCurrentReadBuffer(), m_singleton->m_nbody->getNumBodies(), std::is_same_v<T, double>);
         }
 
         // display particles
@@ -229,10 +297,6 @@ template <typename T> class NBodyDemo {
     std::vector<T>     m_hVel;
     std::vector<float> m_hColor;
 
-    using Clock        = std::chrono::steady_clock;
-    using TimePoint    = std::chrono::time_point<Clock>;
-    using MilliSeconds = std::chrono::duration<float, std::milli>;
-
     TimePoint demo_reset_time_;
 
     TimePoint reset_time_;
@@ -240,13 +304,14 @@ template <typename T> class NBodyDemo {
     std::filesystem::path tipsy_file_;
 
  private:
-    void _init(int numDevices, int block_size, bool bUsePBO, bool use_p2p, int devID, ComputeConfig& compute) {
+    void _init(int numDevices, int block_size, bool use_p2p, int devID, ComputeConfig& compute) {
         if (compute.use_cpu) {
             m_nbodyCpu = std::make_unique<BodySystemCPU<T>>(compute.num_bodies);
             m_nbody    = m_nbodyCpu.get();
         } else {
-            m_nbodyCuda = std::make_unique<BodySystemCUDA<T>>(compute.num_bodies, numDevices, block_size, bUsePBO, compute.use_host_mem, use_p2p, devID);
-            m_nbody     = m_nbodyCuda.get();
+            const auto use_pbo = !(compute.benchmark || compute.compare_to_cpu || compute.use_host_mem);
+            m_nbodyCuda        = std::make_unique<BodySystemCUDA<T>>(compute.num_bodies, numDevices, block_size, use_pbo, compute.use_host_mem, use_p2p, devID);
+            m_nbody            = m_nbodyCuda.get();
         }
 
         const auto nb_bodies_4 = compute.num_bodies * 4;
@@ -331,52 +396,16 @@ template <typename T> class NBodyDemo {
             T tolerance = 0.0005f;
 
             for (int i = 0; i < num_bodies; i++) {
-                if (fabs(cpuPos[i] - cudaPos[i]) > tolerance) {
+                if (std::abs(cpuPos[i] - cudaPos[i]) > tolerance) {
                     passed = false;
-                    printf("Error: (host)%f != (device)%f\n", cpuPos[i], cudaPos[i]);
+                    std::println("Error: (host)%f != (device)%f", cpuPos[i], cudaPos[i]);
                 }
             }
         }
         if (passed) {
-            printf("  OK\n");
+            std::println("  OK");
         }
         return passed;
-    }
-
-    void _runBenchmark(int iterations, ComputeConfig& compute) {
-        // once without timing to prime the device
-        if (!compute.use_cpu) {
-            m_nbody->update(compute.active_params.m_timestep);
-        }
-
-        float milliseconds = 0;
-        auto  start        = TimePoint{};
-
-        if (compute.use_cpu) {
-            start = Clock::now();
-        } else {
-            checkCudaErrors(cudaEventRecord(compute.start_event, 0));
-        }
-
-        for (int i = 0; i < iterations; ++i) {
-            m_nbody->update(compute.active_params.m_timestep);
-        }
-
-        if (compute.use_cpu) {
-            milliseconds = MilliSeconds{Clock::now() - start}.count();
-        } else {
-            checkCudaErrors(cudaEventRecord(compute.stop_event, 0));
-            checkCudaErrors(cudaEventSynchronize(compute.stop_event));
-            checkCudaErrors(cudaEventElapsedTime(&milliseconds, compute.start_event, compute.stop_event));
-        }
-
-        double interactionsPerSecond = 0;
-        double gflops                = 0;
-        computePerfStats(static_cast<float>(compute.num_bodies), compute.flops_per_interaction, interactionsPerSecond, gflops, milliseconds, iterations);
-
-        printf("%d bodies, total time for %d iterations: %.3f ms\n", compute.num_bodies, iterations, milliseconds);
-        printf("= %.3f billion interactions per second\n", interactionsPerSecond);
-        printf("= %.3f %s-precision GFLOP/s at %d flops per interaction\n", gflops, (sizeof(T) > 4) ? "double" : "single", compute.flops_per_interaction);
     }
 };
 
@@ -395,33 +424,6 @@ void finalize(const ComputeConfig& compute) {
 
 template <> std::unique_ptr<NBodyDemo<double>> NBodyDemo<double>::m_singleton = nullptr;
 template <> std::unique_ptr<NBodyDemo<float>>  NBodyDemo<float>::m_singleton  = nullptr;
-
-template <typename T_new, typename T_old> void switchDemoPrecision(ComputeConfig& compute) {
-    cudaDeviceSynchronize();
-
-    compute.fp64_enabled          = !compute.fp64_enabled;
-    compute.flops_per_interaction = compute.fp64_enabled ? 30 : 20;
-
-    const auto nb_bodies_4 = static_cast<std::size_t>(compute.num_bodies * 4);
-
-    auto oldPos = std::vector<T_old>(nb_bodies_4);
-    auto oldVel = std::vector<T_old>(nb_bodies_4);
-
-    NBodyDemo<T_old>::getArrays(oldPos, oldVel);
-
-    // convert float to double
-    auto newPos = std::vector<T_new>(nb_bodies_4);
-    auto newVel = std::vector<T_new>(nb_bodies_4);
-
-    for (int i = 0; i < nb_bodies_4; i++) {
-        newPos[i] = static_cast<T_new>(oldPos[i]);
-        newVel[i] = static_cast<T_new>(oldVel[i]);
-    }
-
-    NBodyDemo<T_new>::setArrays(newPos, newVel, compute);
-
-    cudaDeviceSynchronize();
-}
 
 // check for OpenGL errors
 inline void checkGLErrors(const char* s) {
@@ -617,7 +619,12 @@ void display(ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& c
         }
 
         milliseconds /= (float)fpsCount;
-        computePerfStats(static_cast<float>(compute.num_bodies), compute.flops_per_interaction, interactionsPerSecond, gflops, milliseconds, 1);
+        {
+            const auto [interactions_per_second, g_flops] = computePerfStats(static_cast<float>(compute.num_bodies), compute.flops_per_interaction, milliseconds, 1);
+
+            interactionsPerSecond = interactions_per_second;
+            gflops                = g_flops;
+        }
 
         ifps = 1.f / (milliseconds / 1000.f);
         sprintf(fps,
@@ -729,10 +736,10 @@ void key(unsigned char key, [[maybe_unused]] int x, [[maybe_unused]] int y, Comp
         case 13:    // return
             if (compute.double_supported) {
                 if (compute.fp64_enabled) {
-                    switchDemoPrecision<float, double>(compute);
+                    compute.switch_demo_precision<float, double>();
                     std::println("> Double precision floating point simulation");
                 } else {
-                    switchDemoPrecision<double, float>(compute);
+                    compute.switch_demo_precision<double, float>();
                     std::println("> Single precision floating point simulation");
                 }
             }
