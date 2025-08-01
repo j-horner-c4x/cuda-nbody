@@ -27,6 +27,8 @@
 
 #pragma once
 
+#include <array>
+
 class ParticleRenderer {
  public:
     ParticleRenderer();
@@ -34,7 +36,7 @@ class ParticleRenderer {
 
     void setPositions(float* pos, int numParticles);
     void setPositions(double* pos, int numParticles);
-    void setBaseColor(float color[4]);
+    void setBaseColor(const std::array<float, 4>& colour) { m_baseColor = colour; }
     void setColors(float* color, int numParticles);
     void setPBO(unsigned int pbo, int numParticles, bool fp64);
 
@@ -69,7 +71,7 @@ class ParticleRenderer {
     unsigned int m_pbo;
     unsigned int m_vboColor;
 
-    float m_baseColor[4];
+    std::array<float, 4> m_baseColor;
 
     bool m_bFp64Positions;
 };

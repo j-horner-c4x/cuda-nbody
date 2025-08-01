@@ -94,11 +94,6 @@ void ParticleRenderer::setColors(float* color, int numParticles) {
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
-void ParticleRenderer::setBaseColor(float color[4]) {
-    for (int i = 0; i < 4; i++)
-        m_baseColor[i] = color[i];
-}
-
 void ParticleRenderer::setPBO(unsigned int pbo, int numParticles, bool fp64) {
     m_pbo          = pbo;
     m_numParticles = numParticles;
@@ -179,7 +174,7 @@ void ParticleRenderer::display(DisplayMode mode /* = PARTICLE_POINTS */) {
                 glBindTexture(GL_TEXTURE_2D, m_texture);
 
                 glColor3f(1, 1, 1);
-                glSecondaryColor3fv(m_baseColor);
+                glSecondaryColor3fv(m_baseColor.data());
 
                 _drawPoints();
 
@@ -211,7 +206,7 @@ void ParticleRenderer::display(DisplayMode mode /* = PARTICLE_POINTS */) {
                 glBindTexture(GL_TEXTURE_2D, m_texture);
 
                 glColor3f(1, 1, 1);
-                glSecondaryColor3fv(m_baseColor);
+                glSecondaryColor3fv(m_baseColor.data());
 
                 _drawPoints(true);
 

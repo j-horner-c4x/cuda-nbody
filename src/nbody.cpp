@@ -51,6 +51,7 @@
 #include <format>
 #include <memory>
 #include <print>
+#include <string_view>
 
 #include <cassert>
 #include <cmath>
@@ -73,15 +74,42 @@ constexpr auto computePerfStats(float nb_bodies, int flops_per_interaction, floa
 // Demo Parameters
 ////////////////////////////////////////
 struct NBodyParams {
-    float m_timestep;
-    float m_clusterScale;
-    float m_velocityScale;
-    float m_softening;
-    float m_damping;
-    float m_pointSize;
-    float m_x, m_y, m_z;
+    float                m_timestep;
+    float                m_clusterScale;
+    float                m_velocityScale;
+    float                m_softening;
+    float                m_damping;
+    float                m_pointSize;
+    std::array<float, 3> camera_origin;
 
-    auto print() const -> void { std::println("{{ {}, {}, {}, {}, {}, {}, {}, {}, {} }},", m_timestep, m_clusterScale, m_velocityScale, m_softening, m_damping, m_pointSize, m_x, m_y, m_z); }
+    auto print() const -> void {
+        std::println("{{ {}, {}, {}, {}, {}, {}, {}, {}, {} }},", m_timestep, m_clusterScale, m_velocityScale, m_softening, m_damping, m_pointSize, camera_origin[0], camera_origin[1], camera_origin[2]);
+    }
+
+    auto create_sliders() -> std::unique_ptr<ParamListGL> {
+        // create a new parameter list
+        auto paramlist = std::make_unique<ParamListGL>("sliders");
+        paramlist->SetBarColorInner(0.8f, 0.8f, 0.0f);
+
+        // add some parameters to the list
+
+        // Point Size
+        paramlist->AddParam(std::make_unique<Param<float>>("Point Size", m_pointSize, 0.001f, 10.0f, 0.01f, &m_pointSize));
+
+        // Velocity Damping
+        paramlist->AddParam(std::make_unique<Param<float>>("Velocity Damping", m_damping, 0.5f, 1.0f, .0001f, &m_damping));
+        // Softening Factor
+        paramlist->AddParam(std::make_unique<Param<float>>("Softening Factor", m_softening, 0.001f, 1.0f, .0001f, &m_softening));
+        // Time step size
+        paramlist->AddParam(std::make_unique<Param<float>>("Time Step", m_timestep, 0.0f, 1.0f, .0001f, &m_timestep));
+        // Cluster scale (only affects starting configuration
+        paramlist->AddParam(std::make_unique<Param<float>>("Cluster Scale", m_clusterScale, 0.0f, 10.0f, 0.01f, &m_clusterScale));
+
+        // Velocity scale (only affects starting configuration)
+        paramlist->AddParam(std::make_unique<Param<float>>("Velocity Scale", m_velocityScale, 0.0f, 1000.0f, 0.1f, &m_velocityScale));
+
+        return paramlist;
+    }
 };
 
 constexpr static auto demoParams = std::array{
@@ -102,6 +130,18 @@ using TimePoint    = std::chrono::time_point<Clock>;
 using MilliSeconds = std::chrono::duration<float, std::milli>;
 
 template <std::floating_point T> class NBodyDemo;
+
+struct CameraConfig {
+    std::array<float, 3> translation_lag;
+    std::array<float, 3> translation;
+    std::array<float, 3> rotation;
+
+    auto reset(const std::array<float, 3>& origin) noexcept -> void { translation = translation_lag = origin; }
+};
+
+struct ComputeConfig;
+
+void selectDemo(ComputeConfig& compute, CameraConfig& camera);
 
 struct ComputeConfig {
     bool        paused;
@@ -182,12 +222,43 @@ struct ComputeConfig {
         std::println("= %.3f billion interactions per second", interactionsPerSecond);
         std::println("= %.3f %s-precision GFLOP/s at %d flops per interaction", gflops, (sizeof(T) > 4) ? "double" : "single", flops_per_interaction);
     }
-};
 
-struct CameraConfig {
-    std::array<float, 3> translation_lag;
-    std::array<float, 3> translation;
-    std::array<float, 3> rotation;
+    auto select_demo() -> void {
+        assert(active_demo < numDemos);
+
+        active_params = demoParams[active_demo];
+    }
+
+    auto finalize() noexcept -> void;
+
+    auto pause() noexcept -> void { paused = !paused; }
+
+    auto switch_precision() -> void {
+        if (double_supported) {
+            if (fp64_enabled) {
+                switch_demo_precision<float, double>();
+                std::println("> Double precision floating point simulation");
+            } else {
+                switch_demo_precision<double, float>();
+                std::println("> Single precision floating point simulation");
+            }
+        }
+    }
+
+    auto toggle_cycle_demo() -> void {
+        cycle_demo = !cycle_demo;
+        std::println("Cycle Demo Parameters: {}\n", cycle_demo ? "ON" : "OFF");
+    }
+
+    auto previous_demo(CameraConfig& camera) -> void {
+        active_demo = (active_demo == 0) ? numDemos - 1 : (active_demo - 1) % numDemos;
+        selectDemo(*this, camera);
+    }
+
+    auto next_demo(CameraConfig& camera) -> void {
+        active_demo = (active_demo + 1) % numDemos;
+        selectDemo(*this, camera);
+    }
 };
 
 struct ControlsConfig {
@@ -203,6 +274,11 @@ struct InterfaceConfig {
     bool                          full_screen;
     bool                          display_interactions;
     ParticleRenderer::DisplayMode display_mode;
+
+    auto toggle_sliders() noexcept -> void { show_sliders = !show_sliders; }
+    auto toggle_interactions() noexcept -> void { display_interactions = !display_interactions; }
+    auto cycle_display_mode() noexcept -> void { display_mode = (ParticleRenderer::DisplayMode)((display_mode + 1) % ParticleRenderer::PARTICLE_NUM_MODES); }
+    auto togle_display() noexcept -> void { display_enabled = !display_enabled; }
 };
 
 using std::ranges::copy;
@@ -210,7 +286,7 @@ using std::ranges::copy;
 template <std::floating_point T> class NBodyDemo {
  public:
     static void Create(const std::filesystem::path& tipsy_file) { m_singleton = std::make_unique<NBodyDemo>(tipsy_file); }
-    static void Destroy() { m_singleton.reset(); }
+    static void Destroy() noexcept { m_singleton.reset(); }
 
     static void init(int numDevices, int block_size, bool use_p2p, int devID, ComputeConfig& compute) { m_singleton->_init(numDevices, block_size, use_p2p, devID, compute); }
 
@@ -351,26 +427,19 @@ template <std::floating_point T> class NBodyDemo {
     }
 
     void _resetRenderer(float point_size) {
-        if constexpr (std::is_same_v<T, double>) {
-            auto colour = std::array{0.4f, 0.8f, 0.1f, 1.0f};
-            m_renderer->setBaseColor(colour.data());
-        } else {
-            auto colour = std::array{1.0f, 0.6f, 0.3f, 1.0f};
-            m_renderer->setBaseColor(colour.data());
-        }
+        const auto colour = std::is_same_v<T, double> ? std::array{0.4f, 0.8f, 0.1f, 1.0f} : std::array{1.0f, 0.6f, 0.3f, 1.0f};
 
+        m_renderer->setBaseColor(colour);
         m_renderer->setColors(m_hColor.data(), m_nbody->getNumBodies());
         m_renderer->setSpriteSize(point_size);
     }
 
     void _selectDemo(ComputeConfig& compute, CameraConfig& camera) {
-        assert(compute.active_demo < numDemos);
+        compute.select_demo();
 
-        compute.active_params = demoParams[compute.active_demo];
-        camera.translation[0] = camera.translation_lag[0] = compute.active_params.m_x;
-        camera.translation[1] = camera.translation_lag[1] = compute.active_params.m_y;
-        camera.translation[2] = camera.translation_lag[2] = compute.active_params.m_z;
-        reset(compute, NBODY_CONFIG_SHELL);
+        camera.reset(compute.active_params.camera_origin);
+
+        _reset(compute, NBODY_CONFIG_SHELL);
 
         demo_reset_time_ = Clock::now();
     }
@@ -409,30 +478,21 @@ template <std::floating_point T> class NBodyDemo {
     }
 };
 
-void finalize(const ComputeConfig& compute) {
-    if (!compute.use_cpu) {
-        checkCudaErrors(cudaEventDestroy(compute.start_event));
-        checkCudaErrors(cudaEventDestroy(compute.stop_event));
-        checkCudaErrors(cudaEventDestroy(compute.host_mem_sync_event));
+auto ComputeConfig::finalize() noexcept -> void {
+    if (!use_cpu) {
+        checkCudaErrors(cudaEventDestroy(start_event));
+        checkCudaErrors(cudaEventDestroy(stop_event));
+        checkCudaErrors(cudaEventDestroy(host_mem_sync_event));
     }
 
     NBodyDemo<float>::Destroy();
 
-    if (compute.double_supported)
+    if (double_supported)
         NBodyDemo<double>::Destroy();
 }
 
 template <> std::unique_ptr<NBodyDemo<double>> NBodyDemo<double>::m_singleton = nullptr;
 template <> std::unique_ptr<NBodyDemo<float>>  NBodyDemo<float>::m_singleton  = nullptr;
-
-// check for OpenGL errors
-inline void checkGLErrors(const char* s) {
-    GLenum error;
-
-    while ((error = glGetError()) != GL_NO_ERROR) {
-        fprintf(stderr, "%s: error - %s\n", s, (char*)gluErrorString(error));
-    }
-}
 
 void initGL(int* argc, char** argv, bool full_screen) {
     // First initialize OpenGL context, so we can properly set the GL for CUDA.
@@ -462,32 +522,11 @@ void initGL(int* argc, char** argv, bool full_screen) {
     glEnable(GL_DEPTH_TEST);
     glClearColor(0.0, 0.0, 0.0, 1.0);
 
-    checkGLErrors("initGL");
-}
+    GLenum error;
 
-auto initParameters(NBodyParams& active_params) -> std::unique_ptr<ParamListGL> {
-    // create a new parameter list
-    auto paramlist = std::make_unique<ParamListGL>("sliders");
-    paramlist->SetBarColorInner(0.8f, 0.8f, 0.0f);
-
-    // add some parameters to the list
-
-    // Point Size
-    paramlist->AddParam(std::make_unique<Param<float>>("Point Size", active_params.m_pointSize, 0.001f, 10.0f, 0.01f, &active_params.m_pointSize));
-
-    // Velocity Damping
-    paramlist->AddParam(std::make_unique<Param<float>>("Velocity Damping", active_params.m_damping, 0.5f, 1.0f, .0001f, &(active_params.m_damping)));
-    // Softening Factor
-    paramlist->AddParam(std::make_unique<Param<float>>("Softening Factor", active_params.m_softening, 0.001f, 1.0f, .0001f, &(active_params.m_softening)));
-    // Time step size
-    paramlist->AddParam(std::make_unique<Param<float>>("Time Step", active_params.m_timestep, 0.0f, 1.0f, .0001f, &(active_params.m_timestep)));
-    // Cluster scale (only affects starting configuration
-    paramlist->AddParam(std::make_unique<Param<float>>("Cluster Scale", active_params.m_clusterScale, 0.0f, 10.0f, 0.01f, &(active_params.m_clusterScale)));
-
-    // Velocity scale (only affects starting configuration)
-    paramlist->AddParam(std::make_unique<Param<float>>("Velocity Scale", active_params.m_velocityScale, 0.0f, 1000.0f, 0.1f, &active_params.m_velocityScale));
-
-    return paramlist;
+    while ((error = glGetError()) != GL_NO_ERROR) {
+        std::println(stderr, "initGL: error - {}", reinterpret_cast<const char*>(gluErrorString(error)));
+    }
 }
 
 void selectDemo(ComputeConfig& compute, CameraConfig& camera) {
@@ -723,62 +762,50 @@ void motion(int x, int y, InterfaceConfig& interface, ControlsConfig& controls, 
 void key(unsigned char key, [[maybe_unused]] int x, [[maybe_unused]] int y, ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& camera) {
     switch (key) {
         case ' ':
-            compute.paused = !compute.paused;
+            compute.pause();
             break;
 
         case 27:    // escape
         case 'q':
         case 'Q':
-            finalize(compute);
+            compute.finalize();
             exit(EXIT_SUCCESS);
             break;
 
         case 13:    // return
-            if (compute.double_supported) {
-                if (compute.fp64_enabled) {
-                    compute.switch_demo_precision<float, double>();
-                    std::println("> Double precision floating point simulation");
-                } else {
-                    compute.switch_demo_precision<double, float>();
-                    std::println("> Single precision floating point simulation");
-                }
-            }
-
+            compute.switch_precision();
             break;
 
         case '`':
-            interface.show_sliders = !interface.show_sliders;
+            interface.toggle_sliders();
             break;
 
         case 'g':
         case 'G':
-            interface.display_interactions = !interface.display_interactions;
+            interface.toggle_interactions();
             break;
 
         case 'p':
         case 'P':
-            interface.display_mode = (ParticleRenderer::DisplayMode)((interface.display_mode + 1) % ParticleRenderer::PARTICLE_NUM_MODES);
+            interface.cycle_display_mode();
             break;
 
         case 'c':
         case 'C':
-            compute.cycle_demo = !compute.cycle_demo;
-            std::println("Cycle Demo Parameters: {}\n", compute.cycle_demo ? "ON" : "OFF");
+            compute.toggle_cycle_demo();
             break;
 
         case '[':
-            compute.active_demo = (compute.active_demo == 0) ? numDemos - 1 : (compute.active_demo - 1) % numDemos;
-            selectDemo(compute, camera);
+            compute.previous_demo(camera);
             break;
 
         case ']':
-            compute.active_demo = (compute.active_demo + 1) % numDemos;
-            selectDemo(compute, camera);
+            compute.next_demo(camera);
             break;
 
         case 'd':
         case 'D':
-            interface.display_enabled = !interface.display_enabled;
+            interface.togle_display();
             break;
 
         case 'o':
@@ -1125,7 +1152,7 @@ int main(int argc, char** argv) {
         // Initialize GL and GLUT if necessary
         if (!compute.benchmark && !compute.compare_to_cpu) {
             initGL(&argc, argv, full_screen);
-            param_list = initParameters(compute.active_params);
+            param_list = compute.active_params.create_sliders();
         }
 
         if (!cmd_options.cpu) {
@@ -1291,7 +1318,7 @@ int main(int argc, char** argv) {
             bTestResults = run_program<float>(numIterations, compute, interface, camera, controls);
         }
 
-        finalize(compute);
+        compute.finalize();
 
         if (!bTestResults) {
             return 1;
