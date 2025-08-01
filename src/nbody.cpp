@@ -37,6 +37,7 @@
 #include "nbody/helper_cuda.hpp"
 #include "nbody/paramgl.hpp"
 #include "nbody/render_particles.hpp"
+#include "nbody/win_coords.hpp"
 
 #include <CLI/CLI.hpp>
 #include <GL/freeglut.h>
@@ -607,7 +608,8 @@ void display(ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& c
         }
 
         if (interface.full_screen) {
-            beginWinCoords();
+            const auto win_coords = WinCoords{};
+
             constexpr static auto& msg0 = "some_temp_device_name";
             char                   msg1[256], msg2[256];
             // char deviceName[100];
@@ -630,8 +632,6 @@ void display(ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& c
             glColor3f(1.0f, 1.0f, 1.0f);
             glPrint(80, glutGet(GLUT_WINDOW_HEIGHT) - 70, msg1, GLUT_BITMAP_TIMES_ROMAN_24);
             glDisable(GL_BLEND);
-
-            endWinCoords();
         }
 
         glutSwapBuffers();

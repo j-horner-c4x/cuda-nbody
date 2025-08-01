@@ -40,6 +40,8 @@
 #include <string>
 #include <vector>
 
+#include <cassert>
+
 // base class for named parameter
 class ParamBase {
  public:

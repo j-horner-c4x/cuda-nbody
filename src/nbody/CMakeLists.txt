@@ -4,10 +4,17 @@
 #
 add_library(${PROJECT_NAME}_render_particles STATIC render_particles.cpp)
 add_library(${PROJECT_NAME}_tipsy STATIC tipsy.cpp)
+add_library(${PROJECT_NAME}_win_coords STATIC win_coords.cpp)
+add_library(${PROJECT_NAME}_paramgl STATIC paramgl.cpp)
 
 add_library(${PROJECT_NAME}_bodysystemcuda STATIC bodysystemcuda.cu)
 
 target_link_libraries(${PROJECT_NAME}_render_particles PRIVATE CUDA::cudart_static OpenGL::GL GLEW::GLEW)
+
+target_link_libraries(${PROJECT_NAME}_win_coords PRIVATE GLUT::GLUT)
+target_link_libraries(${PROJECT_NAME}_paramgl PRIVATE GLUT::GLUT)
+
+
 
 target_link_libraries(${PROJECT_NAME}_tipsy PRIVATE CUDA::cudart_static)
 
