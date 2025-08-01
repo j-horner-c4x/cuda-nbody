@@ -103,9 +103,9 @@ class ParamListGL : public ParamList {
         m_start_x = x;
         m_start_y = y;
 
-        for (std::vector<ParamBase*>::const_iterator p = m_params.begin(); p != m_params.end(); ++p) {
+        for (auto p = m_params.begin(); p != m_params.end(); ++p) {
             if ((*p)->IsList()) {
-                ParamListGL* list = (ParamListGL*)(*p);
+                auto list = dynamic_cast<ParamListGL*>(p->get());
                 list->Render(x + 10, y);
                 y += m_separation * list->GetSize();
             } else {

@@ -248,14 +248,11 @@ template <typename T> void BodySystemCUDA<T>::loadTipsyFile(const std::filesyste
     if (m_bInitialized)
         _finalize();
 
-    std::vector<typename vec4<T>::Type> positions;
-    std::vector<typename vec4<T>::Type> velocities;
-    std::vector<int>                    ids;
+    const auto [positions, velocities] = read_tipsy_file<vec4<T>::Type>(filename);
 
-    int nBodies = 0;
-    int nFirst = 0, nSecond = 0, nThird = 0;
+    assert(positions.size() == velocities.size());
 
-    read_tipsy_file(positions, velocities, ids, filename, nBodies, nFirst, nSecond, nThird);
+    auto nBodies = static_cast<int>(positions.size());
 
     _initialize(nBodies);
 
