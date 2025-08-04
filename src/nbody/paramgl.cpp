@@ -61,38 +61,32 @@ auto ParamListGL::Render(int x, int y, bool shadow) -> void {
     m_start_y = y;
 
     for (auto p = m_params.begin(); p != m_params.end(); ++p) {
-        if ((*p)->IsList()) {
-            auto list = dynamic_cast<ParamListGL*>(p->get());
-            list->Render(x + 10, y);
-            y += m_separation * static_cast<int>(list->GetSize());
+        if (p == m_current) {
+            glColor3fv(&m_text_color_selected.r);
         } else {
-            if (p == m_current) {
-                glColor3fv(&m_text_color_selected.r);
-            } else {
-                glColor3fv(&m_text_color_unselected.r);
-            }
-
-            if (shadow) {
-                glPrintShadowed(x + m_text_x, y + m_font_h, (*p)->GetName().c_str(), m_font, (p == m_current) ? &m_text_color_selected.r : &m_text_color_unselected.r);
-                glPrintShadowed(x + m_value_x, y + m_font_h, (*p)->GetValueString().c_str(), m_font, (p == m_current) ? &m_text_color_selected.r : &m_text_color_unselected.r);
-            } else {
-                glPrint(x + m_text_x, y + m_font_h, (*p)->GetName().c_str(), m_font);
-                glPrint(x + m_value_x, y + m_font_h, (*p)->GetValueString().c_str(), m_font);
-            }
-
-            glColor3fv((GLfloat*)&m_bar_color_outer.r);
-            glBegin(GL_LINE_LOOP);
-            glVertex2f((GLfloat)(x + m_bar_x), (GLfloat)(y + m_bar_offset));
-            glVertex2f((GLfloat)(x + m_bar_x + m_bar_w), (GLfloat)(y + m_bar_offset));
-            glVertex2f((GLfloat)(x + m_bar_x + m_bar_w), (GLfloat)(y + m_bar_offset + m_bar_h));
-            glVertex2f((GLfloat)(x + m_bar_x), (GLfloat)(y + m_bar_offset + m_bar_h));
-            glEnd();
-
-            glColor3fv((GLfloat*)&m_bar_color_inner.r);
-            glRectf((GLfloat)(x + m_bar_x), (GLfloat)(y + m_bar_offset + m_bar_h), (GLfloat)(x + m_bar_x + ((m_bar_w - 1) * (*p)->GetPercentage())), (GLfloat)(y + m_bar_offset + 1));
-
-            y += m_separation;
+            glColor3fv(&m_text_color_unselected.r);
         }
+
+        if (shadow) {
+            glPrintShadowed(x + m_text_x, y + m_font_h, (*p)->GetName().c_str(), m_font, (p == m_current) ? &m_text_color_selected.r : &m_text_color_unselected.r);
+            glPrintShadowed(x + m_value_x, y + m_font_h, (*p)->GetValueString().c_str(), m_font, (p == m_current) ? &m_text_color_selected.r : &m_text_color_unselected.r);
+        } else {
+            glPrint(x + m_text_x, y + m_font_h, (*p)->GetName().c_str(), m_font);
+            glPrint(x + m_value_x, y + m_font_h, (*p)->GetValueString().c_str(), m_font);
+        }
+
+        glColor3fv((GLfloat*)&m_bar_color_outer.r);
+        glBegin(GL_LINE_LOOP);
+        glVertex2f((GLfloat)(x + m_bar_x), (GLfloat)(y + m_bar_offset));
+        glVertex2f((GLfloat)(x + m_bar_x + m_bar_w), (GLfloat)(y + m_bar_offset));
+        glVertex2f((GLfloat)(x + m_bar_x + m_bar_w), (GLfloat)(y + m_bar_offset + m_bar_h));
+        glVertex2f((GLfloat)(x + m_bar_x), (GLfloat)(y + m_bar_offset + m_bar_h));
+        glEnd();
+
+        glColor3fv((GLfloat*)&m_bar_color_inner.r);
+        glRectf((GLfloat)(x + m_bar_x), (GLfloat)(y + m_bar_offset + m_bar_h), (GLfloat)(x + m_bar_x + ((m_bar_w - 1) * (*p)->GetPercentage())), (GLfloat)(y + m_bar_offset + 1));
+
+        y += m_separation;
     }
 }
 

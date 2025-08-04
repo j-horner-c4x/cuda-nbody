@@ -32,11 +32,8 @@
 
 #pragma once
 
-#include <format>
-#include <map>
-#include <memory>
 #include <string>
-#include <vector>
+#include <type_traits>
 
 #include <cassert>
 
@@ -48,9 +45,7 @@ class ParamBase {
 
     auto& GetName() const noexcept { return m_name; }
 
-    virtual float       GetFloatValue()  = 0;
-    virtual int         GetIntValue()    = 0;
-    virtual std::string GetValueString() = 0;
+    auto virtual GetValueString() const noexcept -> std::string = 0;
 
     virtual void Reset()     = 0;
     virtual void Increment() = 0;
@@ -59,43 +54,30 @@ class ParamBase {
     virtual float GetPercentage()        = 0;
     virtual void  SetPercentage(float p) = 0;
 
-    virtual bool IsList() = 0;
-
  protected:
     std::string m_name;
 };
 
 // derived class for single-valued parameter
-template <class T> class Param : public ParamBase {
+template <class T> class Param final : public ParamBase {
  public:
-    Param(const char* name, T value = 0, T min = 0, T max = 10000, T step = 1, T* ptr = 0) : ParamBase(name), m_default(value), m_min(min), m_max(max), m_step(step), m_precision(3) {
-        if (ptr) {
-            m_ptr = ptr;
-        } else {
-            m_ptr = &m_value;
-        }
+    static_assert(std::is_same_v<T, float>, "only Param<float> has been implemented so far");
 
+    Param(std::string name, T value, T min, T max, T step, T* ptr) : ParamBase(std::move(name)), m_ptr(ptr), m_default(value), m_min(min), m_max(max), m_step(step) {
+        assert(m_ptr);
         *m_ptr = value;
     }
     ~Param() = default;
 
-    T GetValue() const { return *m_ptr; }
-    T SetValue(const T value) { *m_ptr = value; }
+    auto GetValueString() const noexcept -> std::string override;
 
-    float GetFloatValue() { return (float)*m_ptr; }
-    int   GetIntValue() { return (int)*m_ptr; }
+    float GetPercentage() override { return (*m_ptr - m_min) / (float)(m_max - m_min); }
 
-    std::string GetValueString() { return std::format("{:{}f}", *m_ptr, m_precision); }
+    void SetPercentage(float p) override { *m_ptr = (T)(m_min + p * (m_max - m_min)); }
 
-    void SetPrecision(int x) { m_precision = x; }
+    void Reset() override { *m_ptr = m_default; }
 
-    float GetPercentage() { return (*m_ptr - m_min) / (float)(m_max - m_min); }
-
-    void SetPercentage(float p) { *m_ptr = (T)(m_min + p * (m_max - m_min)); }
-
-    void Reset() { *m_ptr = m_default; }
-
-    void Increment() {
+    void Increment() override {
         *m_ptr += m_step;
 
         if (*m_ptr > m_max) {
@@ -103,7 +85,7 @@ template <class T> class Param : public ParamBase {
         }
     }
 
-    void Decrement() {
+    void Decrement() override {
         *m_ptr -= m_step;
 
         if (*m_ptr < m_min) {
@@ -111,11 +93,12 @@ template <class T> class Param : public ParamBase {
         }
     }
 
-    bool IsList() { return false; }
-
  private:
-    T   m_value;
-    T*  m_ptr;    // pointer to value declared elsewhere
-    T   m_default, m_min, m_max, m_step;
-    int m_precision;    // number of digits after decimal point in string output
+    T* m_ptr;    // pointer to value declared elsewhere
+    T  m_default;
+    T  m_min;
+    T  m_max;
+    T  m_step;
 };
+
+extern template auto Param<float>::GetValueString() const noexcept -> std::string;
