@@ -17,9 +17,30 @@ auto glPrintShadowed(int x, int y, const char* s, void* font, const float* color
 
 }    // namespace
 
-ParamListGL::ParamListGL(const char* name)
-    : ParamList(name), m_active(true), m_text_color_selected(1.0, 1.0, 1.0), m_text_color_unselected(0.75, 0.75, 0.75), m_text_color_shadow(0.0, 0.0, 0.0), m_bar_color_outer(0.25, 0.25, 0.25),
-      m_bar_color_inner(1.0, 1.0, 1.0) {
+auto ParamListGL::AddParam(std::unique_ptr<ParamBase> param) -> void {
+    m_params.push_back(std::move(param));
+    auto& p = m_params.back();
+
+    m_map[p->GetName()] = p.get();
+    m_current           = m_params.begin();
+}
+
+auto ParamListGL::GetParam(std::string_view name) -> ParamBase& {
+    const auto p_itr = m_map.find(name);
+
+    assert(p_itr != m_map.end());
+
+    return *(p_itr->second);
+}
+
+auto ParamListGL::ResetAll() -> void {
+    for (auto& p : m_params) {
+        p->Reset();
+    }
+}
+
+ParamListGL::ParamListGL()
+    : m_active(true), m_text_color_selected(1.0, 1.0, 1.0), m_text_color_unselected(0.75, 0.75, 0.75), m_text_color_shadow(0.0, 0.0, 0.0), m_bar_color_outer(0.25, 0.25, 0.25), m_bar_color_inner(1.0, 1.0, 1.0) {
     m_font       = (void*)GLUT_BITMAP_9_BY_15;    // GLUT_BITMAP_8_BY_13;
     m_font_h     = 15;
     m_bar_x      = 260;
@@ -43,7 +64,7 @@ auto ParamListGL::Render(int x, int y, bool shadow) -> void {
         if ((*p)->IsList()) {
             auto list = dynamic_cast<ParamListGL*>(p->get());
             list->Render(x + 10, y);
-            y += m_separation * list->GetSize();
+            y += m_separation * static_cast<int>(list->GetSize());
         } else {
             if (p == m_current) {
                 glColor3fv(&m_text_color_selected.r);
@@ -147,19 +168,19 @@ auto ParamListGL::Special(int key, [[maybe_unused]] int x, [[maybe_unused]] int 
             break;
 
         case GLUT_KEY_RIGHT:
-            GetCurrent()->Increment();
+            GetCurrent().Increment();
             break;
 
         case GLUT_KEY_LEFT:
-            GetCurrent()->Decrement();
+            GetCurrent().Decrement();
             break;
 
         case GLUT_KEY_HOME:
-            GetCurrent()->Reset();
+            GetCurrent().Reset();
             break;
 
         case GLUT_KEY_END:
-            GetCurrent()->SetPercentage(1.0);
+            GetCurrent().SetPercentage(1.0);
             break;
     }
 

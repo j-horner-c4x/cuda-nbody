@@ -35,9 +35,18 @@
 
 #include "param.hpp"
 
-class ParamListGL : public ParamList {
+#include <map>
+#include <memory>
+#include <string_view>
+#include <vector>
+
+#include <cassert>
+
+class ParamListGL {
  public:
-    ParamListGL(const char* name = "");
+    ParamListGL();
+
+    auto AddParam(std::unique_ptr<ParamBase> param) -> void;
 
     auto Render(int x, int y, bool shadow = false) -> void;
 
@@ -62,6 +71,46 @@ class ParamListGL : public ParamList {
     void SetActive(bool b) { m_active = b; }
 
  private:
+    // look-up parameter based on name
+    auto GetParam(std::string_view name) -> ParamBase&;
+
+    auto& GetParam(std::size_t i) noexcept {
+        assert(i < m_params.size());
+        return *(m_params[i]);
+    }
+
+    auto& GetCurrent() noexcept {
+        assert(m_current != m_params.end());
+        return **(m_current);
+    }
+
+    auto GetSize() const noexcept { return m_params.size(); }
+
+    // functions to traverse list
+    auto Reset() noexcept -> void { m_current = m_params.begin(); }
+
+    auto Increment() noexcept {
+        ++m_current;
+
+        if (m_current == m_params.end()) {
+            m_current = m_params.begin();
+        }
+    }
+
+    auto Decrement() noexcept {
+        if (m_current == m_params.begin()) {
+            m_current = m_params.end() - 1;
+        } else {
+            m_current--;
+        }
+    }
+
+    auto ResetAll() -> void;
+
+    std::vector<std::unique_ptr<ParamBase>>                 m_params;
+    std::map<std::string, ParamBase*, std::less<>>          m_map;
+    std::vector<std::unique_ptr<ParamBase>>::const_iterator m_current;
+
     void* m_font;
     int   m_font_h;    // font height
 

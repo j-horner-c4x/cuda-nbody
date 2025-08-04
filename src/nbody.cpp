@@ -89,7 +89,7 @@ struct NBodyParams {
 
     auto create_sliders() -> std::unique_ptr<ParamListGL> {
         // create a new parameter list
-        auto paramlist = std::make_unique<ParamListGL>("sliders");
+        auto paramlist = std::make_unique<ParamListGL>();
         paramlist->SetBarColorInner(0.8f, 0.8f, 0.0f);
 
         // add some parameters to the list

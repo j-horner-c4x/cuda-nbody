@@ -32,11 +32,9 @@
 
 #pragma once
 
-#include <iomanip>
-#include <iostream>
+#include <format>
 #include <map>
 #include <memory>
-#include <sstream>
 #include <string>
 #include <vector>
 
@@ -45,10 +43,10 @@
 // base class for named parameter
 class ParamBase {
  public:
-    ParamBase(const char* name) : m_name(name) {}
-    virtual ~ParamBase() {}
+    ParamBase(std::string name) noexcept : m_name(std::move(name)) {}
+    virtual ~ParamBase() noexcept = default;
 
-    std::string& GetName() { return m_name; }
+    auto& GetName() const noexcept { return m_name; }
 
     virtual float       GetFloatValue()  = 0;
     virtual int         GetIntValue()    = 0;
@@ -60,9 +58,6 @@ class ParamBase {
 
     virtual float GetPercentage()        = 0;
     virtual void  SetPercentage(float p) = 0;
-
-    virtual void Write(std::ostream& stream) = 0;
-    virtual void Read(std::istream& stream)  = 0;
 
     virtual bool IsList() = 0;
 
@@ -82,7 +77,7 @@ template <class T> class Param : public ParamBase {
 
         *m_ptr = value;
     }
-    ~Param() {}
+    ~Param() = default;
 
     T GetValue() const { return *m_ptr; }
     T SetValue(const T value) { *m_ptr = value; }
@@ -90,12 +85,7 @@ template <class T> class Param : public ParamBase {
     float GetFloatValue() { return (float)*m_ptr; }
     int   GetIntValue() { return (int)*m_ptr; }
 
-    std::string GetValueString() {
-        std::ostringstream ost;
-        ost << std::setprecision(m_precision) << std::fixed;
-        ost << *m_ptr;
-        return ost.str();
-    }
+    std::string GetValueString() { return std::format("{:{}f}", *m_ptr, m_precision); }
 
     void SetPrecision(int x) { m_precision = x; }
 
@@ -121,9 +111,6 @@ template <class T> class Param : public ParamBase {
         }
     }
 
-    void Write(std::ostream& stream) { stream << m_name << " " << *m_ptr << '\n'; }
-    void Read(std::istream& stream) { stream >> m_name >> *m_ptr; }
-
     bool IsList() { return false; }
 
  private:
@@ -131,91 +118,4 @@ template <class T> class Param : public ParamBase {
     T*  m_ptr;    // pointer to value declared elsewhere
     T   m_default, m_min, m_max, m_step;
     int m_precision;    // number of digits after decimal point in string output
-};
-
-// list of parameters
-class ParamList : public ParamBase {
- public:
-    ParamList(const char* name = "") : ParamBase(name) { active = true; }
-    ~ParamList() {}
-
-    float GetFloatValue() { return 0.0f; }
-    int   GetIntValue() { return 0; }
-
-    void AddParam(std::unique_ptr<ParamBase> param) {
-        m_params.push_back(std::move(param));
-        auto& p = m_params.back();
-
-        m_map[p->GetName()] = p.get();
-        m_current           = m_params.begin();
-    }
-
-    // look-up parameter based on name
-    ParamBase* GetParam(char* name) {
-        const auto p_itr = m_map.find(name);
-
-        assert(p_itr != m_map.end());
-
-        return p_itr->second;
-    }
-
-    ParamBase* GetParam(int i) { return m_params[i].get(); }
-
-    ParamBase* GetCurrent() { return m_current->get(); }
-
-    int GetSize() { return (int)m_params.size(); }
-
-    std::string GetValueString() { return m_name; }
-
-    // functions to traverse list
-    void Reset() { m_current = m_params.begin(); }
-
-    void Increment() {
-        m_current++;
-
-        if (m_current == m_params.end()) {
-            m_current = m_params.begin();
-        }
-    }
-
-    void Decrement() {
-        if (m_current == m_params.begin()) {
-            m_current = m_params.end() - 1;
-        } else {
-            m_current--;
-        }
-    }
-
-    float GetPercentage() { return 0.0f; }
-    void  SetPercentage(float /*p*/) {}
-
-    void Write(std::ostream& stream) {
-        stream << m_name << '\n';
-
-        for (auto& p : m_params) {
-            p->Write(stream);
-        }
-    }
-
-    void Read(std::istream& stream) {
-        stream >> m_name;
-
-        for (auto& p : m_params) {
-            p->Read(stream);
-        }
-    }
-
-    bool IsList() { return true; }
-
-    void ResetAll() {
-        for (auto& p : m_params) {
-            p->Reset();
-        }
-    }
-
- protected:
-    bool                                                    active;
-    std::vector<std::unique_ptr<ParamBase>>                 m_params;
-    std::map<std::string, ParamBase*>                       m_map;
-    std::vector<std::unique_ptr<ParamBase>>::const_iterator m_current;
 };
