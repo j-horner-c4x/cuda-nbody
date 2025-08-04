@@ -28,5 +28,7 @@ target_link_libraries(${PROJECT_NAME}_exe
                             CUDA::cudart_static
                             ${PROJECT_NAME}_render_particles
                             ${PROJECT_NAME}_tipsy
-                            ${PROJECT_NAME}_bodysystemcuda)
+                            ${PROJECT_NAME}_bodysystemcuda
+                            ${PROJECT_NAME}_win_coords
+                            ${PROJECT_NAME}_paramgl)
 

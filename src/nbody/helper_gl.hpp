@@ -41,6 +41,7 @@
 #include <GL/glx.h>
 #endif
 #endif
+#include <GL/freeglut.h>
 
 #include <algorithm>
 #include <iostream>
@@ -51,6 +52,15 @@
 
 #include <cassert>
 #include <cstdio>
+
+inline void glPrint(int x, int y, const char* s, void* font) {
+    glRasterPos2f((GLfloat)x, (GLfloat)y);
+    int len = (int)strlen(s);
+
+    for (int i = 0; i < len; i++) {
+        glutBitmapCharacter(font, s[i]);
+    }
+}
 
 /* Prototypes */
 namespace __HelperGL {

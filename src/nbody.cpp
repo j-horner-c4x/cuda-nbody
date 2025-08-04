@@ -37,6 +37,7 @@
 #include "nbody/helper_cuda.hpp"
 #include "nbody/paramgl.hpp"
 #include "nbody/render_particles.hpp"
+#include "nbody/win_coords.hpp"
 
 #include <CLI/CLI.hpp>
 #include <GL/freeglut.h>
@@ -51,6 +52,7 @@
 #include <format>
 #include <memory>
 #include <print>
+#include <string_view>
 
 #include <cassert>
 #include <cmath>
@@ -58,28 +60,57 @@
 #include <cstdio>
 #include <cstdlib>
 
-void computePerfStats(float nb_bodies, int flops_per_interaction, double& interactionsPerSecond, double& gflops, float milliseconds, int iterations) {
+constexpr auto computePerfStats(float nb_bodies, int flops_per_interaction, float milliseconds, int iterations) -> std::array<double, 2> {
     // double precision uses intrinsic operation followed by refinement, resulting in higher operation count per interaction.
     // Note: Astrophysicists use 38 flops per interaction no matter what, based on "historical precedent", but they are using FLOP/s as a measure of "science throughput".
     // We are using it as a measure of hardware throughput.  They should really use interactions/s...
-    interactionsPerSecond = nb_bodies * nb_bodies;
-    interactionsPerSecond *= 1e-9 * iterations * 1000 / milliseconds;
-    gflops = interactionsPerSecond * static_cast<float>(flops_per_interaction);
+    const auto interactionsPerSecond = (nb_bodies * nb_bodies * 1e-9f) * iterations * (1000.0f / milliseconds);
+
+    const auto gflops = interactionsPerSecond * static_cast<float>(flops_per_interaction);
+
+    return {interactionsPerSecond, gflops};
 }
 
 ////////////////////////////////////////
 // Demo Parameters
 ////////////////////////////////////////
 struct NBodyParams {
-    float m_timestep;
-    float m_clusterScale;
-    float m_velocityScale;
-    float m_softening;
-    float m_damping;
-    float m_pointSize;
-    float m_x, m_y, m_z;
+    float                m_timestep;
+    float                m_clusterScale;
+    float                m_velocityScale;
+    float                m_softening;
+    float                m_damping;
+    float                m_pointSize;
+    std::array<float, 3> camera_origin;
 
-    auto print() const -> void { std::println("{{ {}, {}, {}, {}, {}, {}, {}, {}, {} }},", m_timestep, m_clusterScale, m_velocityScale, m_softening, m_damping, m_pointSize, m_x, m_y, m_z); }
+    auto print() const -> void {
+        std::println("{{ {}, {}, {}, {}, {}, {}, {}, {}, {} }},", m_timestep, m_clusterScale, m_velocityScale, m_softening, m_damping, m_pointSize, camera_origin[0], camera_origin[1], camera_origin[2]);
+    }
+
+    auto create_sliders() -> std::unique_ptr<ParamListGL> {
+        // create a new parameter list
+        auto paramlist = std::make_unique<ParamListGL>();
+        paramlist->SetBarColorInner(0.8f, 0.8f, 0.0f);
+
+        // add some parameters to the list
+
+        // Point Size
+        paramlist->AddParam(std::make_unique<Param<float>>("Point Size", m_pointSize, 0.001f, 10.0f, 0.01f, &m_pointSize));
+
+        // Velocity Damping
+        paramlist->AddParam(std::make_unique<Param<float>>("Velocity Damping", m_damping, 0.5f, 1.0f, .0001f, &m_damping));
+        // Softening Factor
+        paramlist->AddParam(std::make_unique<Param<float>>("Softening Factor", m_softening, 0.001f, 1.0f, .0001f, &m_softening));
+        // Time step size
+        paramlist->AddParam(std::make_unique<Param<float>>("Time Step", m_timestep, 0.0f, 1.0f, .0001f, &m_timestep));
+        // Cluster scale (only affects starting configuration
+        paramlist->AddParam(std::make_unique<Param<float>>("Cluster Scale", m_clusterScale, 0.0f, 10.0f, 0.01f, &m_clusterScale));
+
+        // Velocity scale (only affects starting configuration)
+        paramlist->AddParam(std::make_unique<Param<float>>("Velocity Scale", m_velocityScale, 0.0f, 1000.0f, 0.1f, &m_velocityScale));
+
+        return paramlist;
+    }
 };
 
 constexpr static auto demoParams = std::array{
@@ -94,6 +125,24 @@ constexpr static auto demoParams = std::array{
 constexpr static auto numDemos = demoParams.size();
 
 constexpr static auto demoTime = 10000.0f;    // ms
+
+using Clock        = std::chrono::steady_clock;
+using TimePoint    = std::chrono::time_point<Clock>;
+using MilliSeconds = std::chrono::duration<float, std::milli>;
+
+template <std::floating_point T> class NBodyDemo;
+
+struct CameraConfig {
+    std::array<float, 3> translation_lag;
+    std::array<float, 3> translation;
+    std::array<float, 3> rotation;
+
+    auto reset(const std::array<float, 3>& origin) noexcept -> void { translation = translation_lag = origin; }
+};
+
+struct ComputeConfig;
+
+void selectDemo(ComputeConfig& compute, CameraConfig& camera);
 
 struct ComputeConfig {
     bool        paused;
@@ -111,12 +160,106 @@ struct ComputeConfig {
     cudaEvent_t host_mem_sync_event;
     cudaEvent_t start_event;
     cudaEvent_t stop_event;
-};
 
-struct CameraConfig {
-    std::array<float, 3> translation_lag;
-    std::array<float, 3> translation;
-    std::array<float, 3> rotation;
+    template <std::floating_point T_new, std::floating_point T_old> auto switch_demo_precision() -> void {
+        static_assert(!std::is_same_v<T_new, T_old>);
+
+        cudaDeviceSynchronize();
+
+        fp64_enabled          = !fp64_enabled;
+        flops_per_interaction = fp64_enabled ? 30 : 20;
+
+        const auto nb_bodies_4 = static_cast<std::size_t>(num_bodies * 4);
+
+        auto oldPos = std::vector<T_old>(nb_bodies_4);
+        auto oldVel = std::vector<T_old>(nb_bodies_4);
+
+        NBodyDemo<T_old>::getArrays(oldPos, oldVel);
+
+        // convert float to double
+        auto newPos = std::vector<T_new>(nb_bodies_4);
+        auto newVel = std::vector<T_new>(nb_bodies_4);
+
+        for (int i = 0; i < nb_bodies_4; i++) {
+            newPos[i] = static_cast<T_new>(oldPos[i]);
+            newVel[i] = static_cast<T_new>(oldVel[i]);
+        }
+
+        NBodyDemo<T_new>::setArrays(newPos, newVel, *this);
+
+        cudaDeviceSynchronize();
+    }
+
+    template <std::floating_point T> auto run_benchmark(int iterations, BodySystem<T>& nbody) -> void {
+        // once without timing to prime the device
+        if (!use_cpu) {
+            nbody.update(active_params.m_timestep);
+        }
+
+        auto milliseconds = 0.f;
+        auto start        = TimePoint{};
+
+        if (use_cpu) {
+            start = Clock::now();
+        } else {
+            checkCudaErrors(cudaEventRecord(start_event, 0));
+        }
+
+        for (int i = 0; i < iterations; ++i) {
+            nbody.update(active_params.m_timestep);
+        }
+
+        if (use_cpu) {
+            milliseconds = MilliSeconds{Clock::now() - start}.count();
+        } else {
+            checkCudaErrors(cudaEventRecord(stop_event, 0));
+            checkCudaErrors(cudaEventSynchronize(stop_event));
+            checkCudaErrors(cudaEventElapsedTime(&milliseconds, start_event, stop_event));
+        }
+
+        const auto [interactionsPerSecond, gflops] = computePerfStats(static_cast<float>(num_bodies), flops_per_interaction, milliseconds, iterations);
+
+        std::println("%d bodies, total time for %d iterations: %.3f ms", num_bodies, iterations, milliseconds);
+        std::println("= %.3f billion interactions per second", interactionsPerSecond);
+        std::println("= %.3f %s-precision GFLOP/s at %d flops per interaction", gflops, (sizeof(T) > 4) ? "double" : "single", flops_per_interaction);
+    }
+
+    auto select_demo() -> void {
+        assert(active_demo < numDemos);
+
+        active_params = demoParams[active_demo];
+    }
+
+    auto finalize() noexcept -> void;
+
+    auto pause() noexcept -> void { paused = !paused; }
+
+    auto switch_precision() -> void {
+        if (double_supported) {
+            if (fp64_enabled) {
+                switch_demo_precision<float, double>();
+                std::println("> Double precision floating point simulation");
+            } else {
+                switch_demo_precision<double, float>();
+                std::println("> Single precision floating point simulation");
+            }
+        }
+    }
+
+    auto toggle_cycle_demo() -> void {
+        cycle_demo = !cycle_demo;
+        std::println("Cycle Demo Parameters: {}\n", cycle_demo ? "ON" : "OFF");
+    }
+
+    auto previous_demo(CameraConfig& camera) -> void {
+        active_demo = (active_demo == 0) ? numDemos - 1 : (active_demo - 1) % numDemos;
+        selectDemo(*this, camera);
+    }
+
+    auto next_demo(CameraConfig& camera) -> void {
+        active_demo = (active_demo + 1) % numDemos;
+        selectDemo(*this, camera);
+    }
 };
 
 struct ControlsConfig {
@@ -132,19 +275,21 @@ struct InterfaceConfig {
     bool                          full_screen;
     bool                          display_interactions;
     ParticleRenderer::DisplayMode display_mode;
+
+    auto toggle_sliders() noexcept -> void { show_sliders = !show_sliders; }
+    auto toggle_interactions() noexcept -> void { display_interactions = !display_interactions; }
+    auto cycle_display_mode() noexcept -> void { display_mode = (ParticleRenderer::DisplayMode)((display_mode + 1) % ParticleRenderer::PARTICLE_NUM_MODES); }
+    auto togle_display() noexcept -> void { display_enabled = !display_enabled; }
 };
 
 using std::ranges::copy;
 
-template <typename T> class NBodyDemo {
+template <std::floating_point T> class NBodyDemo {
  public:
     static void Create(const std::filesystem::path& tipsy_file) { m_singleton = std::make_unique<NBodyDemo>(tipsy_file); }
-    static void Destroy() { m_singleton.reset(); }
+    static void Destroy() noexcept { m_singleton.reset(); }
 
-    static void init(int numDevices, int block_size, bool use_p2p, int devID, ComputeConfig& compute) {
-        const auto use_pbo = !(compute.benchmark || compute.compare_to_cpu || compute.use_host_mem);
-        m_singleton->_init(numDevices, block_size, use_pbo, use_p2p, devID, compute);
-    }
+    static void init(int numDevices, int block_size, bool use_p2p, int devID, ComputeConfig& compute) { m_singleton->_init(numDevices, block_size, use_p2p, devID, compute); }
 
     static void reset(ComputeConfig& compute, NBodyConfig config) { m_singleton->_reset(compute, config); }
 
@@ -152,7 +297,7 @@ template <typename T> class NBodyDemo {
 
     static bool compareResults(int num_bodies) { return m_singleton->_compareResults(num_bodies); }
 
-    static void runBenchmark(int iterations, ComputeConfig& compute) { m_singleton->_runBenchmark(iterations, compute); }
+    static void runBenchmark(int iterations, ComputeConfig& compute) { compute.run_benchmark(iterations, *(m_singleton->m_nbody)); }
 
     static void updateParams(const NBodyParams& active_params) {
         m_singleton->m_nbody->setSoftening(active_params.m_softening);
@@ -173,7 +318,7 @@ template <typename T> class NBodyDemo {
 
             m_singleton->m_renderer->setPositions(m_singleton->m_nbody->getArray(BODYSYSTEM_POSITION), m_singleton->m_nbody->getNumBodies());
         } else {
-            m_singleton->m_renderer->setPBO(m_singleton->m_nbody->getCurrentReadBuffer(), m_singleton->m_nbody->getNumBodies(), (sizeof(T) > 4));
+            m_singleton->m_renderer->setPBO(m_singleton->m_nbody->getCurrentReadBuffer(), m_singleton->m_nbody->getNumBodies(), std::is_same_v<T, double>);
         }
 
         // display particles
@@ -229,10 +374,6 @@ template <typename T> class NBodyDemo {
     std::vector<T>     m_hVel;
     std::vector<float> m_hColor;
 
-    using Clock        = std::chrono::steady_clock;
-    using TimePoint    = std::chrono::time_point<Clock>;
-    using MilliSeconds = std::chrono::duration<float, std::milli>;
-
     TimePoint demo_reset_time_;
 
     TimePoint reset_time_;
@@ -240,13 +381,14 @@ template <typename T> class NBodyDemo {
     std::filesystem::path tipsy_file_;
 
  private:
-    void _init(int numDevices, int block_size, bool bUsePBO, bool use_p2p, int devID, ComputeConfig& compute) {
+    void _init(int numDevices, int block_size, bool use_p2p, int devID, ComputeConfig& compute) {
         if (compute.use_cpu) {
             m_nbodyCpu = std::make_unique<BodySystemCPU<T>>(compute.num_bodies);
             m_nbody    = m_nbodyCpu.get();
         } else {
-            m_nbodyCuda = std::make_unique<BodySystemCUDA<T>>(compute.num_bodies, numDevices, block_size, bUsePBO, compute.use_host_mem, use_p2p, devID);
-            m_nbody     = m_nbodyCuda.get();
+            const auto use_pbo = !(compute.benchmark || compute.compare_to_cpu || compute.use_host_mem);
+            m_nbodyCuda        = std::make_unique<BodySystemCUDA<T>>(compute.num_bodies, numDevices, block_size, use_pbo, compute.use_host_mem, use_p2p, devID);
+            m_nbody            = m_nbodyCuda.get();
         }
 
         const auto nb_bodies_4 = compute.num_bodies * 4;
@@ -286,26 +428,19 @@ template <typename T> class NBodyDemo {
     }
 
     void _resetRenderer(float point_size) {
-        if constexpr (std::is_same_v<T, double>) {
-            auto colour = std::array{0.4f, 0.8f, 0.1f, 1.0f};
-            m_renderer->setBaseColor(colour.data());
-        } else {
-            auto colour = std::array{1.0f, 0.6f, 0.3f, 1.0f};
-            m_renderer->setBaseColor(colour.data());
-        }
+        const auto colour = std::is_same_v<T, double> ? std::array{0.4f, 0.8f, 0.1f, 1.0f} : std::array{1.0f, 0.6f, 0.3f, 1.0f};
 
+        m_renderer->setBaseColor(colour);
         m_renderer->setColors(m_hColor.data(), m_nbody->getNumBodies());
         m_renderer->setSpriteSize(point_size);
     }
 
     void _selectDemo(ComputeConfig& compute, CameraConfig& camera) {
-        assert(compute.active_demo < numDemos);
+        compute.select_demo();
 
-        compute.active_params = demoParams[compute.active_demo];
-        camera.translation[0] = camera.translation_lag[0] = compute.active_params.m_x;
-        camera.translation[1] = camera.translation_lag[1] = compute.active_params.m_y;
-        camera.translation[2] = camera.translation_lag[2] = compute.active_params.m_z;
-        reset(compute, NBODY_CONFIG_SHELL);
+        camera.reset(compute.active_params.camera_origin);
+
+        _reset(compute, NBODY_CONFIG_SHELL);
 
         demo_reset_time_ = Clock::now();
     }
@@ -331,106 +466,34 @@ template <typename T> class NBodyDemo {
             T tolerance = 0.0005f;
 
             for (int i = 0; i < num_bodies; i++) {
-                if (fabs(cpuPos[i] - cudaPos[i]) > tolerance) {
+                if (std::abs(cpuPos[i] - cudaPos[i]) > tolerance) {
                     passed = false;
-                    printf("Error: (host)%f != (device)%f\n", cpuPos[i], cudaPos[i]);
+                    std::println("Error: (host)%f != (device)%f", cpuPos[i], cudaPos[i]);
                 }
             }
         }
         if (passed) {
-            printf("  OK\n");
+            std::println("  OK");
         }
         return passed;
     }
-
-    void _runBenchmark(int iterations, ComputeConfig& compute) {
-        // once without timing to prime the device
-        if (!compute.use_cpu) {
-            m_nbody->update(compute.active_params.m_timestep);
-        }
-
-        float milliseconds = 0;
-        auto  start        = TimePoint{};
-
-        if (compute.use_cpu) {
-            start = Clock::now();
-        } else {
-            checkCudaErrors(cudaEventRecord(compute.start_event, 0));
-        }
-
-        for (int i = 0; i < iterations; ++i) {
-            m_nbody->update(compute.active_params.m_timestep);
-        }
-
-        if (compute.use_cpu) {
-            milliseconds = MilliSeconds{Clock::now() - start}.count();
-        } else {
-            checkCudaErrors(cudaEventRecord(compute.stop_event, 0));
-            checkCudaErrors(cudaEventSynchronize(compute.stop_event));
-            checkCudaErrors(cudaEventElapsedTime(&milliseconds, compute.start_event, compute.stop_event));
-        }
-
-        double interactionsPerSecond = 0;
-        double gflops                = 0;
-        computePerfStats(static_cast<float>(compute.num_bodies), compute.flops_per_interaction, interactionsPerSecond, gflops, milliseconds, iterations);
-
-        printf("%d bodies, total time for %d iterations: %.3f ms\n", compute.num_bodies, iterations, milliseconds);
-        printf("= %.3f billion interactions per second\n", interactionsPerSecond);
-        printf("= %.3f %s-precision GFLOP/s at %d flops per interaction\n", gflops, (sizeof(T) > 4) ? "double" : "single", compute.flops_per_interaction);
-    }
 };
 
-void finalize(const ComputeConfig& compute) {
-    if (!compute.use_cpu) {
-        checkCudaErrors(cudaEventDestroy(compute.start_event));
-        checkCudaErrors(cudaEventDestroy(compute.stop_event));
-        checkCudaErrors(cudaEventDestroy(compute.host_mem_sync_event));
+auto ComputeConfig::finalize() noexcept -> void {
+    if (!use_cpu) {
+        checkCudaErrors(cudaEventDestroy(start_event));
+        checkCudaErrors(cudaEventDestroy(stop_event));
+        checkCudaErrors(cudaEventDestroy(host_mem_sync_event));
     }
 
     NBodyDemo<float>::Destroy();
 
-    if (compute.double_supported)
+    if (double_supported)
         NBodyDemo<double>::Destroy();
 }
 
 template <> std::unique_ptr<NBodyDemo<double>> NBodyDemo<double>::m_singleton = nullptr;
 template <> std::unique_ptr<NBodyDemo<float>>  NBodyDemo<float>::m_singleton  = nullptr;
-
-template <typename T_new, typename T_old> void switchDemoPrecision(ComputeConfig& compute) {
-    cudaDeviceSynchronize();
-
-    compute.fp64_enabled          = !compute.fp64_enabled;
-    compute.flops_per_interaction = compute.fp64_enabled ? 30 : 20;
-
-    const auto nb_bodies_4 = static_cast<std::size_t>(compute.num_bodies * 4);
-
-    auto oldPos = std::vector<T_old>(nb_bodies_4);
-    auto oldVel = std::vector<T_old>(nb_bodies_4);
-
-    NBodyDemo<T_old>::getArrays(oldPos, oldVel);
-
-    // convert float to double
-    auto newPos = std::vector<T_new>(nb_bodies_4);
-    auto newVel = std::vector<T_new>(nb_bodies_4);
-
-    for (int i = 0; i < nb_bodies_4; i++) {
-        newPos[i] = static_cast<T_new>(oldPos[i]);
-        newVel[i] = static_cast<T_new>(oldVel[i]);
-    }
-
-    NBodyDemo<T_new>::setArrays(newPos, newVel, compute);
-
-    cudaDeviceSynchronize();
-}
-
-// check for OpenGL errors
-inline void checkGLErrors(const char* s) {
-    GLenum error;
-
-    while ((error = glGetError()) != GL_NO_ERROR) {
-        fprintf(stderr, "%s: error - %s\n", s, (char*)gluErrorString(error));
-    }
-}
 
 void initGL(int* argc, char** argv, bool full_screen) {
     // First initialize OpenGL context, so we can properly set the GL for CUDA.
@@ -460,32 +523,11 @@ void initGL(int* argc, char** argv, bool full_screen) {
     glEnable(GL_DEPTH_TEST);
     glClearColor(0.0, 0.0, 0.0, 1.0);
 
-    checkGLErrors("initGL");
-}
+    GLenum error;
 
-auto initParameters(NBodyParams& active_params) -> std::unique_ptr<ParamListGL> {
-    // create a new parameter list
-    auto paramlist = std::make_unique<ParamListGL>("sliders");
-    paramlist->SetBarColorInner(0.8f, 0.8f, 0.0f);
-
-    // add some parameters to the list
-
-    // Point Size
-    paramlist->AddParam(std::make_unique<Param<float>>("Point Size", active_params.m_pointSize, 0.001f, 10.0f, 0.01f, &active_params.m_pointSize));
-
-    // Velocity Damping
-    paramlist->AddParam(std::make_unique<Param<float>>("Velocity Damping", active_params.m_damping, 0.5f, 1.0f, .0001f, &(active_params.m_damping)));
-    // Softening Factor
-    paramlist->AddParam(std::make_unique<Param<float>>("Softening Factor", active_params.m_softening, 0.001f, 1.0f, .0001f, &(active_params.m_softening)));
-    // Time step size
-    paramlist->AddParam(std::make_unique<Param<float>>("Time Step", active_params.m_timestep, 0.0f, 1.0f, .0001f, &(active_params.m_timestep)));
-    // Cluster scale (only affects starting configuration
-    paramlist->AddParam(std::make_unique<Param<float>>("Cluster Scale", active_params.m_clusterScale, 0.0f, 10.0f, 0.01f, &(active_params.m_clusterScale)));
-
-    // Velocity scale (only affects starting configuration)
-    paramlist->AddParam(std::make_unique<Param<float>>("Velocity Scale", active_params.m_velocityScale, 0.0f, 1000.0f, 0.1f, &active_params.m_velocityScale));
-
-    return paramlist;
+    while ((error = glGetError()) != GL_NO_ERROR) {
+        std::println(stderr, "initGL: error - {}", reinterpret_cast<const char*>(gluErrorString(error)));
+    }
 }
 
 void selectDemo(ComputeConfig& compute, CameraConfig& camera) {
@@ -566,7 +608,8 @@ void display(ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& c
         }
 
         if (interface.full_screen) {
-            beginWinCoords();
+            const auto win_coords = WinCoords{};
+
             constexpr static auto& msg0 = "some_temp_device_name";
             char                   msg1[256], msg2[256];
             // char deviceName[100];
@@ -589,8 +632,6 @@ void display(ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& c
             glColor3f(1.0f, 1.0f, 1.0f);
             glPrint(80, glutGet(GLUT_WINDOW_HEIGHT) - 70, msg1, GLUT_BITMAP_TIMES_ROMAN_24);
             glDisable(GL_BLEND);
-
-            endWinCoords();
         }
 
         glutSwapBuffers();
@@ -617,7 +658,12 @@ void display(ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& c
         }
 
         milliseconds /= (float)fpsCount;
-        computePerfStats(static_cast<float>(compute.num_bodies), compute.flops_per_interaction, interactionsPerSecond, gflops, milliseconds, 1);
+        {
+            const auto [interactions_per_second, g_flops] = computePerfStats(static_cast<float>(compute.num_bodies), compute.flops_per_interaction, milliseconds, 1);
+
+            interactionsPerSecond = interactions_per_second;
+            gflops                = g_flops;
+        }
 
         ifps = 1.f / (milliseconds / 1000.f);
         sprintf(fps,
@@ -716,62 +762,50 @@ void motion(int x, int y, InterfaceConfig& interface, ControlsConfig& controls, 
 void key(unsigned char key, [[maybe_unused]] int x, [[maybe_unused]] int y, ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& camera) {
     switch (key) {
         case ' ':
-            compute.paused = !compute.paused;
+            compute.pause();
             break;
 
         case 27:    // escape
         case 'q':
         case 'Q':
-            finalize(compute);
+            compute.finalize();
             exit(EXIT_SUCCESS);
             break;
 
         case 13:    // return
-            if (compute.double_supported) {
-                if (compute.fp64_enabled) {
-                    switchDemoPrecision<float, double>(compute);
-                    std::println("> Double precision floating point simulation");
-                } else {
-                    switchDemoPrecision<double, float>(compute);
-                    std::println("> Single precision floating point simulation");
-                }
-            }
-
+            compute.switch_precision();
             break;
 
         case '`':
-            interface.show_sliders = !interface.show_sliders;
+            interface.toggle_sliders();
             break;
 
         case 'g':
         case 'G':
-            interface.display_interactions = !interface.display_interactions;
+            interface.toggle_interactions();
             break;
 
         case 'p':
         case 'P':
-            interface.display_mode = (ParticleRenderer::DisplayMode)((interface.display_mode + 1) % ParticleRenderer::PARTICLE_NUM_MODES);
+            interface.cycle_display_mode();
             break;
 
         case 'c':
         case 'C':
-            compute.cycle_demo = !compute.cycle_demo;
-            std::println("Cycle Demo Parameters: {}\n", compute.cycle_demo ? "ON" : "OFF");
+            compute.toggle_cycle_demo();
             break;
 
         case '[':
-            compute.active_demo = (compute.active_demo == 0) ? numDemos - 1 : (compute.active_demo - 1) % numDemos;
-            selectDemo(compute, camera);
+            compute.previous_demo(camera);
             break;
 
         case ']':
-            compute.active_demo = (compute.active_demo + 1) % numDemos;
-            selectDemo(compute, camera);
+            compute.next_demo(camera);
             break;
 
         case 'd':
         case 'D':
-            interface.display_enabled = !interface.display_enabled;
+            interface.togle_display();
             break;
 
         case 'o':
@@ -1023,6 +1057,8 @@ int main(int argc, char** argv) {
 
         const auto full_screen = cmd_options.fullscreen;
 
+        std::println("> {} mode", full_screen ? "Fullscreen" : "Windowed");
+
         auto show_sliders = !full_screen;
 
         auto compare_to_cpu = cmd_options.compare || cmd_options.qatest;
@@ -1036,12 +1072,14 @@ int main(int argc, char** argv) {
             std::println("number of CUDA devices  = {}", numDevsRequested);
         }
 
-        int  numDevsAvailable = 0;
-        bool customGPU        = false;
-        cudaGetDeviceCount(&numDevsAvailable);
+        auto customGPU = false;
+        {
+            int numDevsAvailable = 0;
+            cudaGetDeviceCount(&numDevsAvailable);
 
-        if (numDevsAvailable < numDevsRequested) {
-            throw std::invalid_argument(std::format("Error: only {} Devices available, {} requested.", numDevsAvailable, numDevsRequested));
+            if (numDevsAvailable < numDevsRequested) {
+                throw std::invalid_argument(std::format("Error: only {} Devices available, {} requested.", numDevsAvailable, numDevsRequested));
+            }
         }
 
         auto useP2P = true;    // this is always optimal to use P2P path when available
@@ -1049,7 +1087,7 @@ int main(int argc, char** argv) {
         if (numDevsRequested > 1) {
             // If user did not explicitly request host memory to be used, we default to P2P.
             // We fallback to host memory, if any of GPUs does not support P2P.
-            bool allGPUsSupportP2P = true;
+            auto allGPUsSupportP2P = true;
             if (!use_host_mem) {
                 // Enable P2P only in one direction, as every peer will access gpu0
                 for (int i = 1; i < numDevsRequested; ++i) {
@@ -1068,13 +1106,9 @@ int main(int argc, char** argv) {
             }
         }
 
-        std::println("> {} mode", full_screen ? "Fullscreen" : "Windowed");
         std::println("> Simulation data stored in {} memory", use_host_mem ? "system" : "video");
         std::println("> {} precision floating point simulation", cmd_options.fp64 ? "Double" : "Single");
         std::println("> {} Devices used for simulation", numDevsRequested);
-
-        int            devID = 0;
-        cudaDeviceProp props{};
 
         if (cmd_options.cpu) {
             use_host_mem   = true;
@@ -1087,16 +1121,9 @@ int main(int argc, char** argv) {
 #endif
         }
 
-        auto tipsy_file = std::filesystem::path{};
-        auto cycle_demo = true;
-
-        if (!cmd_options.tipsy.empty()) {
-            tipsy_file   = cmd_options.tipsy;
-            cycle_demo   = false;
-            show_sliders = false;
-        }
-
-        auto param_list = std::unique_ptr<ParamListGL>{};
+        auto tipsy_file = cmd_options.tipsy;
+        auto cycle_demo = tipsy_file.empty();
+        show_sliders    = tipsy_file.empty();
 
         auto compute = ComputeConfig{
             .paused                = false,
@@ -1115,12 +1142,16 @@ int main(int argc, char** argv) {
             .start_event           = cudaEvent_t{},
             .stop_event            = cudaEvent_t{}};
 
+        const auto enable_graphics = !compute.benchmark && !compute.compare_to_cpu;
+
         // Initialize GL and GLUT if necessary
-        if (!compute.benchmark && !compute.compare_to_cpu) {
+        if (enable_graphics) {
             initGL(&argc, argv, full_screen);
-            param_list = initParameters(compute.active_params);
         }
 
+        int devID = 0;
+
+        cudaDeviceProp props{};
         if (!cmd_options.cpu) {
             if (cmd_options.device != -1) {
                 customGPU = true;
@@ -1253,17 +1284,17 @@ int main(int argc, char** argv) {
             compute.active_params.m_velocityScale = 11.f;
         }
 
-        auto camera = CameraConfig{.translation_lag = {0.f, -2.f, -150.f}, .translation = {0.f, -2.f, -150.f}, .rotation = {0.f, 0.f, 0.f}};
-
-        auto controls = ControlsConfig{.button_state = 0, .old_x = 0, .old_y = 0};
-
         auto interface = InterfaceConfig{
             .display_enabled      = true,
             .show_sliders         = show_sliders,
-            .param_list           = std::move(param_list),
+            .param_list           = enable_graphics ? compute.active_params.create_sliders() : nullptr,
             .full_screen          = full_screen,
             .display_interactions = false,
             .display_mode         = ParticleRenderer::PARTICLE_SPRITES_COLOR};
+
+        auto camera = CameraConfig{.translation_lag = {0.f, -2.f, -150.f}, .translation = {0.f, -2.f, -150.f}, .rotation = {0.f, 0.f, 0.f}};
+
+        auto controls = ControlsConfig{.button_state = 0, .old_x = 0, .old_y = 0};
 
         // Create the demo -- either double (fp64) or float (fp32, default)
         // implementation
@@ -1284,7 +1315,7 @@ int main(int argc, char** argv) {
             bTestResults = run_program<float>(numIterations, compute, interface, camera, controls);
         }
 
-        finalize(compute);
+        compute.finalize();
 
         if (!bTestResults) {
             return 1;

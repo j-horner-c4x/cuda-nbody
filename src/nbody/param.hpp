@@ -32,25 +32,20 @@
 
 #pragma once
 
-#include <iomanip>
-#include <iostream>
-#include <map>
-#include <memory>
-#include <sstream>
 #include <string>
-#include <vector>
+#include <type_traits>
+
+#include <cassert>
 
 // base class for named parameter
 class ParamBase {
  public:
-    ParamBase(const char* name) : m_name(name) {}
-    virtual ~ParamBase() {}
+    ParamBase(std::string name) noexcept : m_name(std::move(name)) {}
+    virtual ~ParamBase() noexcept = default;
 
-    std::string& GetName() { return m_name; }
+    auto& GetName() const noexcept { return m_name; }
 
-    virtual float       GetFloatValue()  = 0;
-    virtual int         GetIntValue()    = 0;
-    virtual std::string GetValueString() = 0;
+    auto virtual GetValueString() const noexcept -> std::string = 0;
 
     virtual void Reset()     = 0;
     virtual void Increment() = 0;
@@ -59,51 +54,30 @@ class ParamBase {
     virtual float GetPercentage()        = 0;
     virtual void  SetPercentage(float p) = 0;
 
-    virtual void Write(std::ostream& stream) = 0;
-    virtual void Read(std::istream& stream)  = 0;
-
-    virtual bool IsList() = 0;
-
  protected:
     std::string m_name;
 };
 
 // derived class for single-valued parameter
-template <class T> class Param : public ParamBase {
+template <class T> class Param final : public ParamBase {
  public:
-    Param(const char* name, T value = 0, T min = 0, T max = 10000, T step = 1, T* ptr = 0) : ParamBase(name), m_default(value), m_min(min), m_max(max), m_step(step), m_precision(3) {
-        if (ptr) {
-            m_ptr = ptr;
-        } else {
-            m_ptr = &m_value;
-        }
+    static_assert(std::is_same_v<T, float>, "only Param<float> has been implemented so far");
 
+    Param(std::string name, T value, T min, T max, T step, T* ptr) : ParamBase(std::move(name)), m_ptr(ptr), m_default(value), m_min(min), m_max(max), m_step(step) {
+        assert(m_ptr);
         *m_ptr = value;
     }
-    ~Param() {}
+    ~Param() = default;
 
-    T GetValue() const { return *m_ptr; }
-    T SetValue(const T value) { *m_ptr = value; }
+    auto GetValueString() const noexcept -> std::string override;
 
-    float GetFloatValue() { return (float)*m_ptr; }
-    int   GetIntValue() { return (int)*m_ptr; }
+    float GetPercentage() override { return (*m_ptr - m_min) / (float)(m_max - m_min); }
 
-    std::string GetValueString() {
-        std::ostringstream ost;
-        ost << std::setprecision(m_precision) << std::fixed;
-        ost << *m_ptr;
-        return ost.str();
-    }
+    void SetPercentage(float p) override { *m_ptr = (T)(m_min + p * (m_max - m_min)); }
 
-    void SetPrecision(int x) { m_precision = x; }
+    void Reset() override { *m_ptr = m_default; }
 
-    float GetPercentage() { return (*m_ptr - m_min) / (float)(m_max - m_min); }
-
-    void SetPercentage(float p) { *m_ptr = (T)(m_min + p * (m_max - m_min)); }
-
-    void Reset() { *m_ptr = m_default; }
-
-    void Increment() {
+    void Increment() override {
         *m_ptr += m_step;
 
         if (*m_ptr > m_max) {
@@ -111,7 +85,7 @@ template <class T> class Param : public ParamBase {
         }
     }
 
-    void Decrement() {
+    void Decrement() override {
         *m_ptr -= m_step;
 
         if (*m_ptr < m_min) {
@@ -119,101 +93,12 @@ template <class T> class Param : public ParamBase {
         }
     }
 
-    void Write(std::ostream& stream) { stream << m_name << " " << *m_ptr << '\n'; }
-    void Read(std::istream& stream) { stream >> m_name >> *m_ptr; }
-
-    bool IsList() { return false; }
-
  private:
-    T   m_value;
-    T*  m_ptr;    // pointer to value declared elsewhere
-    T   m_default, m_min, m_max, m_step;
-    int m_precision;    // number of digits after decimal point in string output
+    T* m_ptr;    // pointer to value declared elsewhere
+    T  m_default;
+    T  m_min;
+    T  m_max;
+    T  m_step;
 };
 
-// list of parameters
-class ParamList : public ParamBase {
- public:
-    ParamList(const char* name = "") : ParamBase(name) { active = true; }
-    ~ParamList() {}
-
-    float GetFloatValue() { return 0.0f; }
-    int   GetIntValue() { return 0; }
-
-    void AddParam(std::unique_ptr<ParamBase> param) {
-        m_params.push_back(std::move(param));
-        auto& p = m_params.back();
-
-        m_map[p->GetName()] = p.get();
-        m_current           = m_params.begin();
-    }
-
-    // look-up parameter based on name
-    ParamBase* GetParam(char* name) {
-        const auto p_itr = m_map.find(name);
-
-        assert(p_itr != m_map.end());
-
-        return p_itr->second;
-    }
-
-    ParamBase* GetParam(int i) { return m_params[i].get(); }
-
-    ParamBase* GetCurrent() { return m_current->get(); }
-
-    int GetSize() { return (int)m_params.size(); }
-
-    std::string GetValueString() { return m_name; }
-
-    // functions to traverse list
-    void Reset() { m_current = m_params.begin(); }
-
-    void Increment() {
-        m_current++;
-
-        if (m_current == m_params.end()) {
-            m_current = m_params.begin();
-        }
-    }
-
-    void Decrement() {
-        if (m_current == m_params.begin()) {
-            m_current = m_params.end() - 1;
-        } else {
-            m_current--;
-        }
-    }
-
-    float GetPercentage() { return 0.0f; }
-    void  SetPercentage(float /*p*/) {}
-
-    void Write(std::ostream& stream) {
-        stream << m_name << '\n';
-
-        for (auto& p : m_params) {
-            p->Write(stream);
-        }
-    }
-
-    void Read(std::istream& stream) {
-        stream >> m_name;
-
-        for (auto& p : m_params) {
-            p->Read(stream);
-        }
-    }
-
-    bool IsList() { return true; }
-
-    void ResetAll() {
-        for (auto& p : m_params) {
-            p->Reset();
-        }
-    }
-
- protected:
-    bool                                                    active;
-    std::vector<std::unique_ptr<ParamBase>>                 m_params;
-    std::map<std::string, ParamBase*>                       m_map;
-    std::vector<std::unique_ptr<ParamBase>>::const_iterator m_current;
-};
+extern template auto Param<float>::GetValueString() const noexcept -> std::string;
