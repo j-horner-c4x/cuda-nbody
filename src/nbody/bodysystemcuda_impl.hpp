@@ -28,6 +28,7 @@
 #pragma once
 
 #include "helper_cuda.hpp"
+#include "tipsy.hpp"
 
 #include <cuda_gl_interop.h>
 

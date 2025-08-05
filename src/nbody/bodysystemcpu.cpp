@@ -28,6 +28,7 @@
 #pragma once
 
 #include "bodysystemcpu.hpp"
+
 #include "helper_cuda.hpp"
 #include "tipsy.hpp"
 
@@ -43,19 +44,19 @@
 #include <cstdio>
 #include <cstdlib>
 
-template <typename T> BodySystemCPU<T>::BodySystemCPU(int num_bodies) : m_numBodies(num_bodies), m_bInitialized(false), m_force(0), m_softeningSquared(.00125f), m_damping(0.995f) {
+template <std::floating_point T> BodySystemCPU<T>::BodySystemCPU(int num_bodies) : m_numBodies(num_bodies), m_bInitialized(false), m_force(0), m_softeningSquared(.00125f), m_damping(0.995f) {
     m_pos = 0;
     m_vel = 0;
 
     _initialize(num_bodies);
 }
 
-template <typename T> BodySystemCPU<T>::~BodySystemCPU() {
+template <std::floating_point T> BodySystemCPU<T>::~BodySystemCPU() {
     _finalize();
     m_numBodies = 0;
 }
 
-template <typename T> void BodySystemCPU<T>::_initialize(int num_bodies) {
+template <std::floating_point T> void BodySystemCPU<T>::_initialize(int num_bodies) {
     assert(!m_bInitialized);
 
     m_numBodies = num_bodies;
@@ -71,7 +72,7 @@ template <typename T> void BodySystemCPU<T>::_initialize(int num_bodies) {
     m_bInitialized = true;
 }
 
-template <typename T> void BodySystemCPU<T>::_finalize() {
+template <std::floating_point T> void BodySystemCPU<T>::_finalize() {
     assert(m_bInitialized);
 
     delete[] m_pos;
@@ -81,7 +82,7 @@ template <typename T> void BodySystemCPU<T>::_finalize() {
     m_bInitialized = false;
 }
 
-template <typename T> void BodySystemCPU<T>::loadTipsyFile(const std::filesystem::path& filename) {
+template <std::floating_point T> void BodySystemCPU<T>::loadTipsyFile(const std::filesystem::path& filename) {
     if (m_bInitialized)
         _finalize();
 
@@ -97,7 +98,7 @@ template <typename T> void BodySystemCPU<T>::loadTipsyFile(const std::filesystem
     std::memcpy(m_vel, &velocities[0], sizeof(vec4<T>) * nBodies);
 }
 
-template <typename T> void BodySystemCPU<T>::update(T deltaTime) {
+template <std::floating_point T> void BodySystemCPU<T>::update(T deltaTime) {
     assert(m_bInitialized);
 
     _integrateNBodySystem(deltaTime);
@@ -105,7 +106,7 @@ template <typename T> void BodySystemCPU<T>::update(T deltaTime) {
     // std::swap(m_currentRead, m_currentWrite);
 }
 
-template <typename T> T* BodySystemCPU<T>::getArray(BodyArray array) {
+template <std::floating_point T> T* BodySystemCPU<T>::getArray(BodyArray array) {
     using enum BodyArray;
 
     assert(m_bInitialized);
@@ -126,7 +127,7 @@ template <typename T> T* BodySystemCPU<T>::getArray(BodyArray array) {
     return data;
 }
 
-template <typename T> void BodySystemCPU<T>::setArray(BodyArray array, const T* data) {
+template <std::floating_point T> void BodySystemCPU<T>::setArray(BodyArray array, const T* data) {
     using enum BodyArray;
 
     assert(m_bInitialized);
@@ -147,7 +148,7 @@ template <typename T> void BodySystemCPU<T>::setArray(BodyArray array, const T* 
     std::memcpy(target, data, m_numBodies * 4 * sizeof(T));
 }
 
-template <typename T> T sqrt_T(T x) {
+template <std::floating_point T> T sqrt_T(T x) {
     return sqrt(x);
 }
 
@@ -155,7 +156,7 @@ template <> float sqrt_T<float>(float x) {
     return sqrtf(x);
 }
 
-template <typename T> void bodyBodyInteraction(T accel[3], T posMass0[4], T posMass1[4], T softeningSquared) {
+template <std::floating_point T> void bodyBodyInteraction(T accel[3], T posMass0[4], T posMass1[4], T softeningSquared) {
     T r[3];
 
     // r_01  [3 FLOPS]
@@ -180,7 +181,7 @@ template <typename T> void bodyBodyInteraction(T accel[3], T posMass0[4], T posM
     accel[2] += r[2] * s;
 }
 
-template <typename T> void BodySystemCPU<T>::_computeNBodyGravitation() {
+template <std::floating_point T> void BodySystemCPU<T>::_computeNBodyGravitation() {
 #ifdef OPENMP
 #pragma omp parallel for
 #endif
@@ -210,7 +211,7 @@ template <typename T> void BodySystemCPU<T>::_computeNBodyGravitation() {
     }
 }
 
-template <typename T> void BodySystemCPU<T>::_integrateNBodySystem(T deltaTime) {
+template <std::floating_point T> void BodySystemCPU<T>::_integrateNBodySystem(T deltaTime) {
     _computeNBodyGravitation();
 
 #ifdef OPENMP
@@ -259,3 +260,6 @@ template <typename T> void BodySystemCPU<T>::_integrateNBodySystem(T deltaTime) 
         m_vel[index + 2] = vel[2];
     }
 }
+
+template BodySystemCPU<float>;
+template BodySystemCPU<double>;

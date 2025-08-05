@@ -29,8 +29,9 @@
 
 #include <vector_types.h>
 
-#include <algorithm>
+#include <concepts>
 #include <filesystem>
+#include <type_traits>
 
 enum class NBodyConfig { NBODY_CONFIG_RANDOM, NBODY_CONFIG_SHELL, NBODY_CONFIG_EXPAND, NBODY_NUM_CONFIGS };
 
