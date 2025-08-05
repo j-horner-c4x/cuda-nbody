@@ -207,7 +207,7 @@ template <typename T> void BodySystemCUDA<T>::_initialize(int num_bodies) {
     m_bInitialized = true;
 }
 
-template <typename T> void BodySystemCUDA<T>::_finalize() {
+template <typename T> void BodySystemCUDA<T>::_finalize() noexcept {
     assert(m_bInitialized);
 
     if (m_bUseSysMem) {
@@ -256,14 +256,14 @@ template <typename T> void BodySystemCUDA<T>::loadTipsyFile(const std::filesyste
 
     assert(positions.size() == velocities.size());
 
-    auto nBodies = static_cast<int>(positions.size());
+    auto nBodies = positions.size();
 
-    _initialize(nBodies);
+    _initialize(static_cast<int>(nBodies));
 
     using enum BodyArray;
 
-    setArray(BODYSYSTEM_POSITION, (T*)&positions[0]);
-    setArray(BODYSYSTEM_VELOCITY, (T*)&velocities[0]);
+    setArray(BODYSYSTEM_POSITION, std::span{reinterpret_cast<const T*>(positions.data()), nBodies * 4});
+    setArray(BODYSYSTEM_VELOCITY, std::span{reinterpret_cast<const T*>(velocities.data()), nBodies * 4});
 }
 
 template <typename T> void BodySystemCUDA<T>::setSoftening(T softening) {
@@ -338,7 +338,7 @@ template <typename T> T* BodySystemCUDA<T>::getArray(BodyArray array) {
     return hdata;
 }
 
-template <typename T> void BodySystemCUDA<T>::setArray(BodyArray array, const T* data) {
+template <typename T> void BodySystemCUDA<T>::setArray(BodyArray array, std::span<const T> data) {
     assert(m_bInitialized);
 
     m_currentRead  = 0;
@@ -352,7 +352,7 @@ template <typename T> void BodySystemCUDA<T>::setArray(BodyArray array, const T*
             {
                 if (m_bUsePBO) {
                     glBindBuffer(GL_ARRAY_BUFFER, m_pbo[m_currentRead]);
-                    glBufferSubData(GL_ARRAY_BUFFER, 0, 4 * sizeof(T) * m_numBodies, data);
+                    glBufferSubData(GL_ARRAY_BUFFER, 0, 4 * sizeof(T) * m_numBodies, data.data());
 
                     int size = 0;
                     glGetBufferParameteriv(GL_ARRAY_BUFFER, GL_BUFFER_SIZE, (GLint*)&size);
@@ -364,18 +364,18 @@ template <typename T> void BodySystemCUDA<T>::setArray(BodyArray array, const T*
                     glBindBuffer(GL_ARRAY_BUFFER, 0);
                 } else {
                     if (m_bUseSysMem) {
-                        memcpy(m_hPos[m_currentRead], data, m_numBodies * 4 * sizeof(T));
+                        memcpy(m_hPos[m_currentRead], data.data(), m_numBodies * 4 * sizeof(T));
                     } else
-                        checkCudaErrors(cudaMemcpy(m_deviceData[0].dPos[m_currentRead], data, m_numBodies * 4 * sizeof(T), cudaMemcpyHostToDevice));
+                        checkCudaErrors(cudaMemcpy(m_deviceData[0].dPos[m_currentRead], data.data(), m_numBodies * 4 * sizeof(T), cudaMemcpyHostToDevice));
                 }
             }
             break;
 
         case BODYSYSTEM_VELOCITY:
             if (m_bUseSysMem) {
-                memcpy(m_hVel, data, m_numBodies * 4 * sizeof(T));
+                memcpy(m_hVel, data.data(), m_numBodies * 4 * sizeof(T));
             } else
-                checkCudaErrors(cudaMemcpy(m_deviceData[0].dVel, data, m_numBodies * 4 * sizeof(T), cudaMemcpyHostToDevice));
+                checkCudaErrors(cudaMemcpy(m_deviceData[0].dVel, data.data(), m_numBodies * 4 * sizeof(T), cudaMemcpyHostToDevice));
 
             break;
     }

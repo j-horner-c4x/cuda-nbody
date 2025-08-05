@@ -31,6 +31,7 @@
 
 #include <concepts>
 #include <filesystem>
+#include <span>
 #include <type_traits>
 
 enum class NBodyConfig { NBODY_CONFIG_RANDOM, NBODY_CONFIG_SHELL, NBODY_CONFIG_EXPAND, NBODY_NUM_CONFIGS };
@@ -53,8 +54,8 @@ template <std::floating_point T> class BodySystem {
     virtual void setSoftening(T softening) = 0;
     virtual void setDamping(T damping)     = 0;
 
-    virtual T*   getArray(BodyArray array)                = 0;
-    virtual void setArray(BodyArray array, const T* data) = 0;
+    virtual T*   getArray(BodyArray array)                          = 0;
+    virtual void setArray(BodyArray array, std::span<const T> data) = 0;
 
     virtual unsigned int getCurrentReadBuffer() const = 0;
 
@@ -68,7 +69,7 @@ template <std::floating_point T> class BodySystem {
     BodySystem() = default;    // default constructor
 
     virtual void _initialize(int numBodies) = 0;
-    virtual void _finalize()                = 0;
+    virtual void _finalize() noexcept       = 0;
 };
 
 // utility function

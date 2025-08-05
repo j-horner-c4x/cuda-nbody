@@ -344,8 +344,8 @@ template <std::floating_point T> class NBodyDemo {
 
         using enum BodyArray;
 
-        m_singleton->m_nbody->setArray(BODYSYSTEM_POSITION, m_singleton->m_hPos.data());
-        m_singleton->m_nbody->setArray(BODYSYSTEM_VELOCITY, m_singleton->m_hVel.data());
+        m_singleton->m_nbody->setArray(BODYSYSTEM_POSITION, m_singleton->m_hPos);
+        m_singleton->m_nbody->setArray(BODYSYSTEM_VELOCITY, m_singleton->m_hVel);
 
         if (!compute.benchmark && !compute.use_cpu && !compute.compare_to_cpu) {
             m_singleton->_resetRenderer(compute.active_params.m_pointSize);
@@ -460,8 +460,8 @@ template <std::floating_point T> class NBodyDemo {
 
             m_nbodyCpu = std::make_unique<BodySystemCPU<T>>(num_bodies);
 
-            m_nbodyCpu->setArray(BODYSYSTEM_POSITION, m_hPos.data());
-            m_nbodyCpu->setArray(BODYSYSTEM_VELOCITY, m_hVel.data());
+            m_nbodyCpu->setArray(BODYSYSTEM_POSITION, m_hPos);
+            m_nbodyCpu->setArray(BODYSYSTEM_VELOCITY, m_hVel);
 
             m_nbodyCpu->update(0.001f);
 

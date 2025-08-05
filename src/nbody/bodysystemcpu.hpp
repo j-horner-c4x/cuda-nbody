@@ -29,42 +29,43 @@
 
 #include "bodysystem.hpp"
 
+#include <span>
+#include <vector>
+
 // CPU Body System
-template <std::floating_point T> class BodySystemCPU : public BodySystem<T> {
+template <std::floating_point T> class BodySystemCPU final : public BodySystem<T> {
  public:
     BodySystemCPU(int numBodies);
-    virtual ~BodySystemCPU();
+    virtual ~BodySystemCPU() = default;
 
-    virtual void loadTipsyFile(const std::filesystem::path& filename);
+    virtual void loadTipsyFile(const std::filesystem::path& filename) override;
 
-    virtual void update(T deltaTime);
+    virtual void update(T deltaTime) override;
 
-    virtual void setSoftening(T softening) { m_softeningSquared = softening * softening; }
-    virtual void setDamping(T damping) { m_damping = damping; }
+    virtual void setSoftening(T softening) override { m_softeningSquared = softening * softening; }
+    virtual void setDamping(T damping) override { m_damping = damping; }
 
-    virtual T*   getArray(BodyArray array);
-    virtual void setArray(BodyArray array, const T* data);
+    virtual T*   getArray(BodyArray array) override;
+    virtual void setArray(BodyArray array, std::span<const T> data) override;
 
-    virtual unsigned int getCurrentReadBuffer() const { return 0; }
+    virtual unsigned int getCurrentReadBuffer() const override { return 0; }
 
-    virtual unsigned int getNumBodies() const { return m_numBodies; }
+    virtual unsigned int getNumBodies() const override { return m_numBodies; }
 
- protected:               // methods
+ private:                 // methods
     BodySystemCPU() {}    // default constructor
 
-    virtual void _initialize(int numBodies);
-    virtual void _finalize();
+    virtual void _initialize(int numBodies) override;
+    virtual void _finalize() noexcept override {};
 
     void _computeNBodyGravitation();
     void _integrateNBodySystem(T deltaTime);
 
- protected:    // data
-    int  m_numBodies;
-    bool m_bInitialized;
+    int m_numBodies;
 
-    T* m_pos;
-    T* m_vel;
-    T* m_force;
+    std::vector<T> m_pos;
+    std::vector<T> m_vel;
+    std::vector<T> m_force;
 
     T m_softeningSquared;
     T m_damping;
