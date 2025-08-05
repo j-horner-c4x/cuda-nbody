@@ -31,6 +31,8 @@
 
 #include <cuda_runtime.h>
 
+#include <vector>
+
 template <typename T> struct DeviceData {
     T*           dPos[2];    // mapped host pointers
     T*           dVel;
@@ -74,7 +76,7 @@ template <typename T> class BodySystemCUDA final : public BodySystem<T> {
     T* m_hPos[2];
     T* m_hVel;
 
-    DeviceData<T>* m_deviceData;
+    std::vector<DeviceData<T>> m_deviceData;
 
     bool         m_bUsePBO;
     bool         m_bUseSysMem;

@@ -35,6 +35,8 @@
 #include <cuda_gl_interop.h>
 #include <cuda_runtime.h>
 
+#include <span>
+
 #include <cmath>
 
 namespace cg = cooperative_groups;
@@ -184,7 +186,16 @@ __global__ void integrateBodies(vec4<T>* __restrict__ newPos, vec4<T>* __restric
 }
 
 template <typename T>
-void integrateNbodySystem(DeviceData<T>* deviceData, cudaGraphicsResource** pgres, unsigned int currentRead, float deltaTime, float damping, unsigned int numBodies, unsigned int numDevices, int blockSize, bool bUsePBO) {
+void integrateNbodySystem(
+    std::span<DeviceData<T>> deviceData,
+    cudaGraphicsResource**   pgres,
+    unsigned int             currentRead,
+    float                    deltaTime,
+    float                    damping,
+    unsigned int             numBodies,
+    unsigned int             numDevices,
+    int                      blockSize,
+    bool                     bUsePBO) {
     if (bUsePBO) {
         checkCudaErrors(cudaGraphicsResourceSetMapFlags(pgres[currentRead], cudaGraphicsMapFlagsReadOnly));
         checkCudaErrors(cudaGraphicsResourceSetMapFlags(pgres[1 - currentRead], cudaGraphicsMapFlagsWriteDiscard));
@@ -235,8 +246,8 @@ void integrateNbodySystem(DeviceData<T>* deviceData, cudaGraphicsResource** pgre
 }
 
 // Explicit specializations needed to generate code
-template void
-integrateNbodySystem<float>(DeviceData<float>* deviceData, cudaGraphicsResource** pgres, unsigned int currentRead, float deltaTime, float damping, unsigned int numBodies, unsigned int numDevices, int blockSize, bool bUsePBO);
+template void integrateNbodySystem<
+    float>(std::span<DeviceData<float>> deviceData, cudaGraphicsResource** pgres, unsigned int currentRead, float deltaTime, float damping, unsigned int numBodies, unsigned int numDevices, int blockSize, bool bUsePBO);
 
 template void integrateNbodySystem<
-    double>(DeviceData<double>* deviceData, cudaGraphicsResource** pgres, unsigned int currentRead, float deltaTime, float damping, unsigned int numBodies, unsigned int numDevices, int blockSize, bool bUsePBO);
+    double>(std::span<DeviceData<double>> deviceData, cudaGraphicsResource** pgres, unsigned int currentRead, float deltaTime, float damping, unsigned int numBodies, unsigned int numDevices, int blockSize, bool bUsePBO);

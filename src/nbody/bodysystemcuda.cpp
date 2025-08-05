@@ -44,7 +44,16 @@
 #include <cstdlib>
 
 template <typename T>
-void integrateNbodySystem(DeviceData<T>* deviceData, cudaGraphicsResource** pgres, unsigned int currentRead, float deltaTime, float damping, unsigned int numBodies, unsigned int numDevices, int blockSize, bool bUsePBO);
+void integrateNbodySystem(
+    std::span<DeviceData<T>> deviceData,
+    cudaGraphicsResource**   pgres,
+    unsigned int             currentRead,
+    float                    deltaTime,
+    float                    damping,
+    unsigned int             numBodies,
+    unsigned int             numDevices,
+    int                      blockSize,
+    bool                     bUsePBO);
 
 cudaError_t setSofteningSquared(float softeningSq);
 cudaError_t setSofteningSquared(double softeningSq);
@@ -54,8 +63,6 @@ BodySystemCUDA<T>::BodySystemCUDA(unsigned int num_bodies, unsigned int numDevic
     : m_numBodies(num_bodies), m_numDevices(numDevices), m_bInitialized(false), m_bUsePBO(usePBO), m_bUseSysMem(useSysMem), m_bUseP2P(use_p2p), m_currentRead(0), m_currentWrite(1), m_blockSize(block_size), m_devID(deviceId) {
     m_hPos[0] = m_hPos[1] = 0;
     m_hVel                = 0;
-
-    m_deviceData = 0;
 
     _initialize(num_bodies);
     setSoftening(0.00125f);
@@ -74,7 +81,7 @@ template <typename T> void BodySystemCUDA<T>::_initialize(int num_bodies) {
 
     unsigned int memSize = sizeof(T) * 4 * num_bodies;
 
-    m_deviceData = new DeviceData<T>[m_numDevices];
+    m_deviceData.resize(m_numDevices);
 
     // divide up the workload amongst Devices
     float* weights = new float[m_numDevices];
@@ -242,8 +249,6 @@ template <typename T> void BodySystemCUDA<T>::_finalize() noexcept {
             }
         }
     }
-
-    delete[] m_deviceData;
 
     m_bInitialized = false;
 }
