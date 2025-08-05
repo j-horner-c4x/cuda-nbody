@@ -8,7 +8,7 @@ add_library(${PROJECT_NAME}_win_coords STATIC win_coords.cpp)
 add_library(${PROJECT_NAME}_paramgl STATIC paramgl.cpp)
 add_library(${PROJECT_NAME}_param STATIC param.cpp)
 
-add_library(${PROJECT_NAME}_bodysystemcuda STATIC bodysystemcuda.cu)
+add_library(${PROJECT_NAME}_bodysystemcuda STATIC bodysystemcuda.cu bodysystemcuda.cpp)
 add_library(${PROJECT_NAME}_bodysystem STATIC bodysystem.cpp)
 add_library(${PROJECT_NAME}_bodysystemcpu STATIC bodysystemcpu.cpp)
 
@@ -25,6 +25,7 @@ target_link_libraries(${PROJECT_NAME}_bodysystemcpu PRIVATE CUDA::cudart_static)
 
 target_link_libraries(${PROJECT_NAME}_bodysystemcuda
                             PRIVATE
+                                CUDA::cudart_static    
                                 GLUT::GLUT)
 
 #

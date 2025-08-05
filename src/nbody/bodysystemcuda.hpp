@@ -92,4 +92,5 @@ template <typename T> class BodySystemCUDA : public BodySystem<T> {
     unsigned int m_blockSize;
 };
 
-#include "bodysystemcuda_impl.hpp"
+extern template BodySystemCUDA<float>;
+extern template BodySystemCUDA<double>;

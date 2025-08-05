@@ -27,7 +27,10 @@
 
 #pragma once
 
+#include "bodysystemcuda.hpp"
+
 #include "helper_cuda.hpp"
+#include "helper_gl.hpp"
 #include "tipsy.hpp"
 
 #include <cuda_gl_interop.h>
@@ -377,3 +380,6 @@ template <typename T> void BodySystemCUDA<T>::setArray(BodyArray array, const T*
             break;
     }
 }
+
+template BodySystemCUDA<float>;
+template BodySystemCUDA<double>;
