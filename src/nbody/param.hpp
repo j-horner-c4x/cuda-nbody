@@ -25,11 +25,6 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/*
- Simple parameter system
- sgreen@nvidia.com 4/2001
-*/
-
 #pragma once
 
 #include <string>

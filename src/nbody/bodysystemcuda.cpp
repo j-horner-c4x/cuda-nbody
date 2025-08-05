@@ -27,7 +27,11 @@
 
 #pragma once
 
+#include "bodysystemcuda.hpp"
+
 #include "helper_cuda.hpp"
+#include "helper_gl.hpp"
+#include "tipsy.hpp"
 
 #include <cuda_gl_interop.h>
 
@@ -40,7 +44,16 @@
 #include <cstdlib>
 
 template <typename T>
-void integrateNbodySystem(DeviceData<T>* deviceData, cudaGraphicsResource** pgres, unsigned int currentRead, float deltaTime, float damping, unsigned int numBodies, unsigned int numDevices, int blockSize, bool bUsePBO);
+void integrateNbodySystem(
+    std::span<DeviceData<T>> deviceData,
+    cudaGraphicsResource**   pgres,
+    unsigned int             currentRead,
+    float                    deltaTime,
+    float                    damping,
+    unsigned int             numBodies,
+    unsigned int             numDevices,
+    int                      blockSize,
+    bool                     bUsePBO);
 
 cudaError_t setSofteningSquared(float softeningSq);
 cudaError_t setSofteningSquared(double softeningSq);
@@ -50,8 +63,6 @@ BodySystemCUDA<T>::BodySystemCUDA(unsigned int num_bodies, unsigned int numDevic
     : m_numBodies(num_bodies), m_numDevices(numDevices), m_bInitialized(false), m_bUsePBO(usePBO), m_bUseSysMem(useSysMem), m_bUseP2P(use_p2p), m_currentRead(0), m_currentWrite(1), m_blockSize(block_size), m_devID(deviceId) {
     m_hPos[0] = m_hPos[1] = 0;
     m_hVel                = 0;
-
-    m_deviceData = 0;
 
     _initialize(num_bodies);
     setSoftening(0.00125f);
@@ -70,7 +81,7 @@ template <typename T> void BodySystemCUDA<T>::_initialize(int num_bodies) {
 
     unsigned int memSize = sizeof(T) * 4 * num_bodies;
 
-    m_deviceData = new DeviceData<T>[m_numDevices];
+    m_deviceData.resize(m_numDevices);
 
     // divide up the workload amongst Devices
     float* weights = new float[m_numDevices];
@@ -203,7 +214,7 @@ template <typename T> void BodySystemCUDA<T>::_initialize(int num_bodies) {
     m_bInitialized = true;
 }
 
-template <typename T> void BodySystemCUDA<T>::_finalize() {
+template <typename T> void BodySystemCUDA<T>::_finalize() noexcept {
     assert(m_bInitialized);
 
     if (m_bUseSysMem) {
@@ -239,8 +250,6 @@ template <typename T> void BodySystemCUDA<T>::_finalize() {
         }
     }
 
-    delete[] m_deviceData;
-
     m_bInitialized = false;
 }
 
@@ -248,16 +257,18 @@ template <typename T> void BodySystemCUDA<T>::loadTipsyFile(const std::filesyste
     if (m_bInitialized)
         _finalize();
 
-    const auto [positions, velocities] = read_tipsy_file<vec4<T>::Type>(filename);
+    const auto [positions, velocities] = read_tipsy_file<vec4<T>>(filename);
 
     assert(positions.size() == velocities.size());
 
-    auto nBodies = static_cast<int>(positions.size());
+    auto nBodies = positions.size();
 
-    _initialize(nBodies);
+    _initialize(static_cast<int>(nBodies));
 
-    setArray(BODYSYSTEM_POSITION, (T*)&positions[0]);
-    setArray(BODYSYSTEM_VELOCITY, (T*)&velocities[0]);
+    using enum BodyArray;
+
+    setArray(BODYSYSTEM_POSITION, std::span{reinterpret_cast<const T*>(positions.data()), nBodies * 4});
+    setArray(BODYSYSTEM_VELOCITY, std::span{reinterpret_cast<const T*>(velocities.data()), nBodies * 4});
 }
 
 template <typename T> void BodySystemCUDA<T>::setSoftening(T softening) {
@@ -293,6 +304,8 @@ template <typename T> T* BodySystemCUDA<T>::getArray(BodyArray array) {
     cudaGraphicsResource* pgres = NULL;
 
     int currentReadHost = m_bUseSysMem ? m_currentRead : 0;
+
+    using enum BodyArray;
 
     switch (array) {
         default:
@@ -330,11 +343,13 @@ template <typename T> T* BodySystemCUDA<T>::getArray(BodyArray array) {
     return hdata;
 }
 
-template <typename T> void BodySystemCUDA<T>::setArray(BodyArray array, const T* data) {
+template <typename T> void BodySystemCUDA<T>::setArray(BodyArray array, std::span<const T> data) {
     assert(m_bInitialized);
 
     m_currentRead  = 0;
     m_currentWrite = 1;
+
+    using enum BodyArray;
 
     switch (array) {
         default:
@@ -342,7 +357,7 @@ template <typename T> void BodySystemCUDA<T>::setArray(BodyArray array, const T*
             {
                 if (m_bUsePBO) {
                     glBindBuffer(GL_ARRAY_BUFFER, m_pbo[m_currentRead]);
-                    glBufferSubData(GL_ARRAY_BUFFER, 0, 4 * sizeof(T) * m_numBodies, data);
+                    glBufferSubData(GL_ARRAY_BUFFER, 0, 4 * sizeof(T) * m_numBodies, data.data());
 
                     int size = 0;
                     glGetBufferParameteriv(GL_ARRAY_BUFFER, GL_BUFFER_SIZE, (GLint*)&size);
@@ -354,19 +369,22 @@ template <typename T> void BodySystemCUDA<T>::setArray(BodyArray array, const T*
                     glBindBuffer(GL_ARRAY_BUFFER, 0);
                 } else {
                     if (m_bUseSysMem) {
-                        memcpy(m_hPos[m_currentRead], data, m_numBodies * 4 * sizeof(T));
+                        memcpy(m_hPos[m_currentRead], data.data(), m_numBodies * 4 * sizeof(T));
                     } else
-                        checkCudaErrors(cudaMemcpy(m_deviceData[0].dPos[m_currentRead], data, m_numBodies * 4 * sizeof(T), cudaMemcpyHostToDevice));
+                        checkCudaErrors(cudaMemcpy(m_deviceData[0].dPos[m_currentRead], data.data(), m_numBodies * 4 * sizeof(T), cudaMemcpyHostToDevice));
                 }
             }
             break;
 
         case BODYSYSTEM_VELOCITY:
             if (m_bUseSysMem) {
-                memcpy(m_hVel, data, m_numBodies * 4 * sizeof(T));
+                memcpy(m_hVel, data.data(), m_numBodies * 4 * sizeof(T));
             } else
-                checkCudaErrors(cudaMemcpy(m_deviceData[0].dVel, data, m_numBodies * 4 * sizeof(T), cudaMemcpyHostToDevice));
+                checkCudaErrors(cudaMemcpy(m_deviceData[0].dVel, data.data(), m_numBodies * 4 * sizeof(T), cudaMemcpyHostToDevice));
 
             break;
     }
 }
+
+template BodySystemCUDA<float>;
+template BodySystemCUDA<double>;

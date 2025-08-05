@@ -28,6 +28,7 @@
 #pragma once
 
 #include "bodysystemcpu.hpp"
+
 #include "helper_cuda.hpp"
 #include "tipsy.hpp"
 
@@ -36,6 +37,7 @@
 #endif
 
 #include <algorithm>
+#include <span>
 #include <vector>
 
 #include <cassert>
@@ -43,49 +45,30 @@
 #include <cstdio>
 #include <cstdlib>
 
-template <typename T> BodySystemCPU<T>::BodySystemCPU(int num_bodies) : m_numBodies(num_bodies), m_bInitialized(false), m_force(0), m_softeningSquared(.00125f), m_damping(0.995f) {
-    m_pos = 0;
-    m_vel = 0;
+using std::ranges::copy;
 
+template <std::floating_point T> BodySystemCPU<T>::BodySystemCPU(int num_bodies) : m_numBodies(num_bodies), m_force(0), m_softeningSquared(.00125f), m_damping(0.995f) {
     _initialize(num_bodies);
 }
 
-template <typename T> BodySystemCPU<T>::~BodySystemCPU() {
-    _finalize();
-    m_numBodies = 0;
-}
-
-template <typename T> void BodySystemCPU<T>::_initialize(int num_bodies) {
-    assert(!m_bInitialized);
+template <std::floating_point T> void BodySystemCPU<T>::_initialize(int num_bodies) {
+    assert(m_pos.empty());
 
     m_numBodies = num_bodies;
 
-    m_pos   = new T[m_numBodies * 4];
-    m_vel   = new T[m_numBodies * 4];
-    m_force = new T[m_numBodies * 3];
-
-    memset(m_pos, 0, m_numBodies * 4 * sizeof(T));
-    memset(m_vel, 0, m_numBodies * 4 * sizeof(T));
-    memset(m_force, 0, m_numBodies * 3 * sizeof(T));
-
-    m_bInitialized = true;
+    m_pos.resize(m_numBodies * 4, 0.f);
+    m_vel.resize(m_numBodies * 4, 0.f);
+    m_force.resize(m_numBodies * 3, 0.f);
 }
 
-template <typename T> void BodySystemCPU<T>::_finalize() {
-    assert(m_bInitialized);
+template <std::floating_point T> void BodySystemCPU<T>::loadTipsyFile(const std::filesystem::path& filename) {
+    if (!m_pos.empty()) {
+        m_pos.clear();
+        m_vel.clear();
+        m_force.clear();
+    }
 
-    delete[] m_pos;
-    delete[] m_vel;
-    delete[] m_force;
-
-    m_bInitialized = false;
-}
-
-template <typename T> void BodySystemCPU<T>::loadTipsyFile(const std::filesystem::path& filename) {
-    if (m_bInitialized)
-        _finalize();
-
-    const auto [positions, velocities] = read_tipsy_file<vec4<T>::Type>(filename);
+    const auto [positions, velocities] = read_tipsy_file<vec4<T>>(filename);
 
     assert(positions.size() == velocities.size());
 
@@ -93,65 +76,47 @@ template <typename T> void BodySystemCPU<T>::loadTipsyFile(const std::filesystem
 
     _initialize(nBodies);
 
-    std::memcpy(m_pos, &positions[0], sizeof(vec4<T>) * nBodies);
-    std::memcpy(m_vel, &velocities[0], sizeof(vec4<T>) * nBodies);
+    std::memcpy(m_pos.data(), &positions[0], sizeof(vec4<T>) * nBodies);
+    std::memcpy(m_vel.data(), &velocities[0], sizeof(vec4<T>) * nBodies);
 }
 
-template <typename T> void BodySystemCPU<T>::update(T deltaTime) {
-    assert(m_bInitialized);
-
+template <std::floating_point T> void BodySystemCPU<T>::update(T deltaTime) {
     _integrateNBodySystem(deltaTime);
-
-    // std::swap(m_currentRead, m_currentWrite);
 }
 
-template <typename T> T* BodySystemCPU<T>::getArray(BodyArray array) {
-    assert(m_bInitialized);
-
-    T* data = 0;
+template <std::floating_point T> T* BodySystemCPU<T>::getArray(BodyArray array) {
+    using enum BodyArray;
 
     switch (array) {
         default:
         case BODYSYSTEM_POSITION:
-            data = m_pos;
+            return m_pos.data();
             break;
 
         case BODYSYSTEM_VELOCITY:
-            data = m_vel;
+            return m_vel.data();
             break;
     }
-
-    return data;
 }
 
-template <typename T> void BodySystemCPU<T>::setArray(BodyArray array, const T* data) {
-    assert(m_bInitialized);
-
-    T* target = 0;
+template <std::floating_point T> void BodySystemCPU<T>::setArray(BodyArray array, std::span<const T> data) {
+    using enum BodyArray;
 
     switch (array) {
         default:
         case BODYSYSTEM_POSITION:
-            target = m_pos;
+            assert(data.size() == m_pos.size());
+            copy(data, m_pos.begin());
             break;
 
         case BODYSYSTEM_VELOCITY:
-            target = m_vel;
+            assert(data.size() == m_vel.size());
+            copy(data, m_vel.begin());
             break;
     }
-
-    std::memcpy(target, data, m_numBodies * 4 * sizeof(T));
 }
 
-template <typename T> T sqrt_T(T x) {
-    return sqrt(x);
-}
-
-template <> float sqrt_T<float>(float x) {
-    return sqrtf(x);
-}
-
-template <typename T> void bodyBodyInteraction(T accel[3], T posMass0[4], T posMass1[4], T softeningSquared) {
+template <std::floating_point T> void bodyBodyInteraction(T accel[3], T posMass0[4], T posMass1[4], T softeningSquared) {
     T r[3];
 
     // r_01  [3 FLOPS]
@@ -164,7 +129,7 @@ template <typename T> void bodyBodyInteraction(T accel[3], T posMass0[4], T posM
     distSqr += softeningSquared;
 
     // invDistCube =1/distSqr^(3/2)  [4 FLOPS (2 mul, 1 sqrt, 1 inv)]
-    T invDist     = (T)1.0 / (T)sqrt((double)distSqr);
+    T invDist     = (T)1.0 / std::sqrt(distSqr);
     T invDistCube = invDist * invDist * invDist;
 
     // s = m_j * invDistCube [1 FLOP]
@@ -176,7 +141,7 @@ template <typename T> void bodyBodyInteraction(T accel[3], T posMass0[4], T posM
     accel[2] += r[2] * s;
 }
 
-template <typename T> void BodySystemCPU<T>::_computeNBodyGravitation() {
+template <std::floating_point T> void BodySystemCPU<T>::_computeNBodyGravitation() {
 #ifdef OPENMP
 #pragma omp parallel for
 #endif
@@ -206,7 +171,7 @@ template <typename T> void BodySystemCPU<T>::_computeNBodyGravitation() {
     }
 }
 
-template <typename T> void BodySystemCPU<T>::_integrateNBodySystem(T deltaTime) {
+template <std::floating_point T> void BodySystemCPU<T>::_integrateNBodySystem(T deltaTime) {
     _computeNBodyGravitation();
 
 #ifdef OPENMP
@@ -255,3 +220,6 @@ template <typename T> void BodySystemCPU<T>::_integrateNBodySystem(T deltaTime) 
         m_vel[index + 2] = vel[2];
     }
 }
+
+template BodySystemCPU<float>;
+template BodySystemCPU<double>;

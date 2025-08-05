@@ -31,6 +31,8 @@
 
 #include <cuda_runtime.h>
 
+#include <vector>
+
 template <typename T> struct DeviceData {
     T*           dPos[2];    // mapped host pointers
     T*           dVel;
@@ -40,32 +42,31 @@ template <typename T> struct DeviceData {
 };
 
 // CUDA BodySystem: runs on the GPU
-template <typename T> class BodySystemCUDA : public BodySystem<T> {
+template <typename T> class BodySystemCUDA final : public BodySystem<T> {
  public:
     BodySystemCUDA(unsigned int numBodies, unsigned int numDevices, unsigned int blockSize, bool usePBO, bool useSysMem = false, bool useP2P = true, int deviceId = 0);
     virtual ~BodySystemCUDA();
 
-    virtual void loadTipsyFile(const std::filesystem::path& filename);
+    virtual void loadTipsyFile(const std::filesystem::path& filename) override;
 
-    virtual void update(T deltaTime);
+    virtual void update(T deltaTime) override;
 
-    virtual void setSoftening(T softening);
-    virtual void setDamping(T damping);
+    virtual void setSoftening(T softening) override;
+    virtual void setDamping(T damping) override;
 
-    virtual T*   getArray(BodyArray array);
-    virtual void setArray(BodyArray array, const T* data);
+    virtual T*   getArray(BodyArray array) override;
+    virtual void setArray(BodyArray array, std::span<const T> data) override;
 
-    virtual unsigned int getCurrentReadBuffer() const { return m_pbo[m_currentRead]; }
+    virtual unsigned int getCurrentReadBuffer() const override { return m_pbo[m_currentRead]; }
 
-    virtual unsigned int getNumBodies() const { return m_numBodies; }
+    virtual unsigned int getNumBodies() const override { return m_numBodies; }
 
- protected:    // methods
-    BodySystemCUDA() {}
+ private:    // methods
+    BodySystemCUDA() = default;
 
-    virtual void _initialize(int numBodies);
-    virtual void _finalize();
+    virtual void _initialize(int numBodies) override;
+    virtual void _finalize() noexcept override;
 
- protected:    // data
     unsigned int m_numBodies;
     unsigned int m_numDevices;
     bool         m_bInitialized;
@@ -75,7 +76,7 @@ template <typename T> class BodySystemCUDA : public BodySystem<T> {
     T* m_hPos[2];
     T* m_hVel;
 
-    DeviceData<T>* m_deviceData;
+    std::vector<DeviceData<T>> m_deviceData;
 
     bool         m_bUsePBO;
     bool         m_bUseSysMem;
@@ -92,4 +93,5 @@ template <typename T> class BodySystemCUDA : public BodySystem<T> {
     unsigned int m_blockSize;
 };
 
-#include "bodysystemcuda_impl.hpp"
+extern template BodySystemCUDA<float>;
+extern template BodySystemCUDA<double>;
