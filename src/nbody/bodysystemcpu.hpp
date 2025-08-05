@@ -30,7 +30,7 @@
 #include "bodysystem.hpp"
 
 // CPU Body System
-template <typename T> class BodySystemCPU : public BodySystem<T> {
+template <std::floating_point T> class BodySystemCPU : public BodySystem<T> {
  public:
     BodySystemCPU(int numBodies);
     virtual ~BodySystemCPU();
@@ -70,4 +70,5 @@ template <typename T> class BodySystemCPU : public BodySystem<T> {
     T m_damping;
 };
 
-#include "bodysystemcpu_impl.hpp"
+extern template BodySystemCPU<float>;
+extern template BodySystemCPU<double>;

@@ -10,6 +10,7 @@ add_library(${PROJECT_NAME}_param STATIC param.cpp)
 
 add_library(${PROJECT_NAME}_bodysystemcuda STATIC bodysystemcuda.cu)
 add_library(${PROJECT_NAME}_bodysystem STATIC bodysystem.cpp)
+add_library(${PROJECT_NAME}_bodysystemcpu STATIC bodysystemcpu.cpp)
 
 target_link_libraries(${PROJECT_NAME}_render_particles PRIVATE CUDA::cudart_static OpenGL::GL GLEW::GLEW)
 
@@ -20,6 +21,7 @@ target_link_libraries(${PROJECT_NAME}_paramgl PRIVATE GLUT::GLUT ${PROJECT_NAME}
 
 target_link_libraries(${PROJECT_NAME}_tipsy PRIVATE CUDA::cudart_static)
 target_link_libraries(${PROJECT_NAME}_bodysystem PRIVATE CUDA::cudart_static)
+target_link_libraries(${PROJECT_NAME}_bodysystemcpu PRIVATE CUDA::cudart_static)
 
 target_link_libraries(${PROJECT_NAME}_bodysystemcuda
                             PRIVATE
