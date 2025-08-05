@@ -85,7 +85,7 @@ template <typename T> void BodySystemCPU<T>::loadTipsyFile(const std::filesystem
     if (m_bInitialized)
         _finalize();
 
-    const auto [positions, velocities] = read_tipsy_file<vec4<T>::Type>(filename);
+    const auto [positions, velocities] = read_tipsy_file<vec4<T>>(filename);
 
     assert(positions.size() == velocities.size());
 
@@ -106,6 +106,8 @@ template <typename T> void BodySystemCPU<T>::update(T deltaTime) {
 }
 
 template <typename T> T* BodySystemCPU<T>::getArray(BodyArray array) {
+    using enum BodyArray;
+
     assert(m_bInitialized);
 
     T* data = 0;
@@ -125,6 +127,8 @@ template <typename T> T* BodySystemCPU<T>::getArray(BodyArray array) {
 }
 
 template <typename T> void BodySystemCPU<T>::setArray(BodyArray array, const T* data) {
+    using enum BodyArray;
+
     assert(m_bInitialized);
 
     T* target = 0;

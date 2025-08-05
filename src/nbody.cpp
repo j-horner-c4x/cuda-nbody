@@ -316,7 +316,7 @@ template <std::floating_point T> class NBodyDemo {
                 cudaEventSynchronize(compute.host_mem_sync_event);
             }
 
-            m_singleton->m_renderer->setPositions(m_singleton->m_nbody->getArray(BODYSYSTEM_POSITION), m_singleton->m_nbody->getNumBodies());
+            m_singleton->m_renderer->setPositions(m_singleton->m_nbody->getArray(BodyArray::BODYSYSTEM_POSITION), m_singleton->m_nbody->getNumBodies());
         } else {
             m_singleton->m_renderer->setPBO(m_singleton->m_nbody->getCurrentReadBuffer(), m_singleton->m_nbody->getNumBodies(), std::is_same_v<T, double>);
         }
@@ -326,6 +326,7 @@ template <std::floating_point T> class NBodyDemo {
     }
 
     static void getArrays(std::vector<T>& pos, std::vector<T>& vel) {
+        using enum BodyArray;
         T* _pos = m_singleton->m_nbody->getArray(BODYSYSTEM_POSITION);
         T* _vel = m_singleton->m_nbody->getArray(BODYSYSTEM_VELOCITY);
         copy(_pos, _pos + m_singleton->m_nbody->getNumBodies() * 4, pos.begin());
@@ -340,6 +341,8 @@ template <std::floating_point T> class NBodyDemo {
         if (vel.data() != m_singleton->m_hVel.data()) {
             copy(vel, m_singleton->m_hVel.begin());
         }
+
+        using enum BodyArray;
 
         m_singleton->m_nbody->setArray(BODYSYSTEM_POSITION, m_singleton->m_hPos.data());
         m_singleton->m_nbody->setArray(BODYSYSTEM_VELOCITY, m_singleton->m_hVel.data());
@@ -440,7 +443,7 @@ template <std::floating_point T> class NBodyDemo {
 
         camera.reset(compute.active_params.camera_origin);
 
-        _reset(compute, NBODY_CONFIG_SHELL);
+        _reset(compute, NBodyConfig::NBODY_CONFIG_SHELL);
 
         demo_reset_time_ = Clock::now();
     }
@@ -453,6 +456,8 @@ template <std::floating_point T> class NBodyDemo {
         m_nbody->update(0.001f);
 
         {
+            using enum BodyArray;
+
             m_nbodyCpu = std::make_unique<BodySystemCPU<T>>(num_bodies);
 
             m_nbodyCpu->setArray(BODYSYSTEM_POSITION, m_hPos.data());
@@ -760,6 +765,8 @@ void motion(int x, int y, InterfaceConfig& interface, ControlsConfig& controls, 
 }
 
 void key(unsigned char key, [[maybe_unused]] int x, [[maybe_unused]] int y, ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& camera) {
+    using enum NBodyConfig;
+
     switch (key) {
         case ' ':
             compute.pause();
@@ -1295,6 +1302,8 @@ int main(int argc, char** argv) {
         auto camera = CameraConfig{.translation_lag = {0.f, -2.f, -150.f}, .translation = {0.f, -2.f, -150.f}, .rotation = {0.f, 0.f, 0.f}};
 
         auto controls = ControlsConfig{.button_state = 0, .old_x = 0, .old_y = 0};
+
+        using enum NBodyConfig;
 
         // Create the demo -- either double (fp64) or float (fp32, default)
         // implementation

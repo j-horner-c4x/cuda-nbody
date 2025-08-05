@@ -248,13 +248,15 @@ template <typename T> void BodySystemCUDA<T>::loadTipsyFile(const std::filesyste
     if (m_bInitialized)
         _finalize();
 
-    const auto [positions, velocities] = read_tipsy_file<vec4<T>::Type>(filename);
+    const auto [positions, velocities] = read_tipsy_file<vec4<T>>(filename);
 
     assert(positions.size() == velocities.size());
 
     auto nBodies = static_cast<int>(positions.size());
 
     _initialize(nBodies);
+
+    using enum BodyArray;
 
     setArray(BODYSYSTEM_POSITION, (T*)&positions[0]);
     setArray(BODYSYSTEM_VELOCITY, (T*)&velocities[0]);
@@ -293,6 +295,8 @@ template <typename T> T* BodySystemCUDA<T>::getArray(BodyArray array) {
     cudaGraphicsResource* pgres = NULL;
 
     int currentReadHost = m_bUseSysMem ? m_currentRead : 0;
+
+    using enum BodyArray;
 
     switch (array) {
         default:
@@ -335,6 +339,8 @@ template <typename T> void BodySystemCUDA<T>::setArray(BodyArray array, const T*
 
     m_currentRead  = 0;
     m_currentWrite = 1;
+
+    using enum BodyArray;
 
     switch (array) {
         default:

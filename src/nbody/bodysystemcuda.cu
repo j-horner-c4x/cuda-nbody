@@ -94,8 +94,8 @@ template <typename T> struct DeviceData {
     unsigned int numBodies;
 };
 
-template <typename T> __device__ typename vec3<T>::Type bodyBodyInteraction(typename vec3<T>::Type ai, typename vec4<T>::Type bi, typename vec4<T>::Type bj) {
-    typename vec3<T>::Type r;
+template <typename T> __device__ vec3<T> bodyBodyInteraction(vec3<T> ai, vec4<T> bi, vec4<T> bj) {
+    vec3<T> r;
 
     // r_ij  [3 FLOPS]
     r.x = bj.x - bi.x;
@@ -121,10 +121,10 @@ template <typename T> __device__ typename vec3<T>::Type bodyBodyInteraction(type
     return ai;
 }
 
-template <typename T> __device__ typename vec3<T>::Type computeBodyAccel(typename vec4<T>::Type bodyPos, typename vec4<T>::Type* positions, int numTiles, cg::thread_block cta) {
-    typename vec4<T>::Type* sharedPos = SharedMemory<typename vec4<T>::Type>();
+template <typename T> __device__ vec3<T> computeBodyAccel(vec4<T> bodyPos, vec4<T>* positions, int numTiles, cg::thread_block cta) {
+    vec4<T>* sharedPos = SharedMemory<vec4<T>>();
 
-    typename vec3<T>::Type acc = {0.0f, 0.0f, 0.0f};
+    vec3<T> acc = {0.0f, 0.0f, 0.0f};
 
     for (int tile = 0; tile < numTiles; tile++) {
         sharedPos[threadIdx.x] = positions[tile * blockDim.x + threadIdx.x];
@@ -145,15 +145,7 @@ template <typename T> __device__ typename vec3<T>::Type computeBodyAccel(typenam
 }
 
 template <typename T>
-__global__ void integrateBodies(
-    typename vec4<T>::Type* __restrict__ newPos,
-    typename vec4<T>::Type* __restrict__ oldPos,
-    typename vec4<T>::Type* vel,
-    unsigned int            deviceOffset,
-    unsigned int            deviceNumBodies,
-    float                   deltaTime,
-    float                   damping,
-    int                     numTiles) {
+__global__ void integrateBodies(vec4<T>* __restrict__ newPos, vec4<T>* __restrict__ oldPos, vec4<T>* vel, unsigned int deviceOffset, unsigned int deviceNumBodies, float deltaTime, float damping, int numTiles) {
     // Handle to thread block group
     cg::thread_block cta   = cg::this_thread_block();
     int              index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -162,16 +154,16 @@ __global__ void integrateBodies(
         return;
     }
 
-    typename vec4<T>::Type position = oldPos[deviceOffset + index];
+    vec4<T> position = oldPos[deviceOffset + index];
 
-    typename vec3<T>::Type accel = computeBodyAccel<T>(position, oldPos, numTiles, cta);
+    vec3<T> accel = computeBodyAccel<T>(position, oldPos, numTiles, cta);
 
     // acceleration = force / mass;
     // new velocity = old velocity + acceleration * deltaTime
     // note we factor out the body's mass from the equation, here and in
     // bodyBodyInteraction
     // (because they cancel out).  Thus here force == acceleration
-    typename vec4<T>::Type velocity = vel[deviceOffset + index];
+    vec4<T> velocity = vel[deviceOffset + index];
 
     velocity.x += accel.x * deltaTime;
     velocity.y += accel.y * deltaTime;
@@ -212,9 +204,9 @@ void integrateNbodySystem(DeviceData<T>* deviceData, cudaGraphicsResource** pgre
         int sharedMemSize = blockSize * 4 * sizeof(T);    // 4 floats for pos
 
         integrateBodies<T><<<numBlocks, blockSize, sharedMemSize>>>(
-            (typename vec4<T>::Type*)deviceData[dev].dPos[1 - currentRead],
-            (typename vec4<T>::Type*)deviceData[dev].dPos[currentRead],
-            (typename vec4<T>::Type*)deviceData[dev].dVel,
+            (vec4<T>*)deviceData[dev].dPos[1 - currentRead],
+            (vec4<T>*)deviceData[dev].dPos[currentRead],
+            (vec4<T>*)deviceData[dev].dVel,
             deviceData[dev].offset,
             deviceData[dev].numBodies,
             deltaTime,
