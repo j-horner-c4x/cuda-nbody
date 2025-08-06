@@ -32,5 +32,8 @@ target_link_libraries(${PROJECT_NAME}_exe
                             ${PROJECT_NAME}_win_coords
                             ${PROJECT_NAME}_paramgl
                             ${PROJECT_NAME}_bodysystem
-                            ${PROJECT_NAME}_bodysystemcpu)
+                            ${PROJECT_NAME}_bodysystemcpu
+                            ${PROJECT_NAME}_nbody_demo
+                            ${PROJECT_NAME}_params
+                            ${PROJECT_NAME}_compute)
 

@@ -33,30 +33,30 @@
 #include <vector>
 
 // CPU Body System
-template <std::floating_point T> class BodySystemCPU final : public BodySystem<T> {
+template <std::floating_point T> class BodySystemCPU {
  public:
-    BodySystemCPU(int numBodies);
-    virtual ~BodySystemCPU() = default;
+    using Type                    = T;
+    constexpr static auto use_cpu = true;
 
-    virtual void loadTipsyFile(const std::filesystem::path& filename) override;
+    explicit BodySystemCPU(int numBodies);
 
-    virtual void update(T deltaTime) override;
+    void loadTipsyFile(const std::filesystem::path& filename);
 
-    virtual void setSoftening(T softening) override { m_softeningSquared = softening * softening; }
-    virtual void setDamping(T damping) override { m_damping = damping; }
+    void update(T deltaTime);
 
-    virtual T*   getArray(BodyArray array) override;
-    virtual void setArray(BodyArray array, std::span<const T> data) override;
+    void setSoftening(T softening) { m_softeningSquared = softening * softening; }
+    void setDamping(T damping) { m_damping = damping; }
 
-    virtual unsigned int getCurrentReadBuffer() const override { return 0; }
+    T*   getArray(BodyArray array);
+    void setArray(BodyArray array, std::span<const T> data);
 
-    virtual unsigned int getNumBodies() const override { return m_numBodies; }
+    constexpr static unsigned int getCurrentReadBuffer() { return 0; }
 
- private:                 // methods
-    BodySystemCPU() {}    // default constructor
+    unsigned int getNumBodies() const { return m_numBodies; }
 
-    virtual void _initialize(int numBodies) override;
-    virtual void _finalize() noexcept override {};
+ private:    // methods
+    void _initialize(int numBodies);
+    void _finalize() noexcept {};
 
     void _computeNBodyGravitation();
     void _integrateNBodySystem(T deltaTime);
