@@ -31,6 +31,7 @@
 
 #include "helper_cuda.hpp"
 #include "tipsy.hpp"
+#include "vec.hpp"
 
 #ifdef OPENMP
 #include <omp.h>
@@ -56,9 +57,9 @@ template <std::floating_point T> void BodySystemCPU<T>::_initialize(int num_bodi
 
     m_numBodies = num_bodies;
 
-    m_pos.resize(m_numBodies * 4, 0.f);
-    m_vel.resize(m_numBodies * 4, 0.f);
-    m_force.resize(m_numBodies * 3, 0.f);
+    m_pos.resize(m_numBodies * 4, T{0});
+    m_vel.resize(m_numBodies * 4, T{0});
+    m_force.resize(m_numBodies * 3, T{0});
 }
 
 template <std::floating_point T> void BodySystemCPU<T>::loadTipsyFile(const std::filesystem::path& filename) {

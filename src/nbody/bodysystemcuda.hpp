@@ -42,30 +42,33 @@ template <typename T> struct DeviceData {
 };
 
 // CUDA BodySystem: runs on the GPU
-template <typename T> class BodySystemCUDA final : public BodySystem<T> {
+template <std::floating_point T> class BodySystemCUDA {
  public:
+    using Type                    = T;
+    constexpr static auto use_cpu = false;
+
     BodySystemCUDA(unsigned int numBodies, unsigned int numDevices, unsigned int blockSize, bool usePBO, bool useSysMem = false, bool useP2P = true, int deviceId = 0);
-    virtual ~BodySystemCUDA();
+    ~BodySystemCUDA();
 
-    virtual void loadTipsyFile(const std::filesystem::path& filename) override;
+    void loadTipsyFile(const std::filesystem::path& filename);
 
-    virtual void update(T deltaTime) override;
+    void update(T deltaTime);
 
-    virtual void setSoftening(T softening) override;
-    virtual void setDamping(T damping) override;
+    void setSoftening(T softening);
+    void setDamping(T damping);
 
-    virtual T*   getArray(BodyArray array) override;
-    virtual void setArray(BodyArray array, std::span<const T> data) override;
+    T*   getArray(BodyArray array);
+    void setArray(BodyArray array, std::span<const T> data);
 
-    virtual unsigned int getCurrentReadBuffer() const override { return m_pbo[m_currentRead]; }
+    unsigned int getCurrentReadBuffer() const { return m_pbo[m_currentRead]; }
 
-    virtual unsigned int getNumBodies() const override { return m_numBodies; }
+    unsigned int getNumBodies() const { return m_numBodies; }
 
  private:    // methods
     BodySystemCUDA() = default;
 
-    virtual void _initialize(int numBodies) override;
-    virtual void _finalize() noexcept override;
+    void _initialize(int numBodies);
+    void _finalize() noexcept;
 
     unsigned int m_numBodies;
     unsigned int m_numDevices;

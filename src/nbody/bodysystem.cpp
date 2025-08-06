@@ -1,5 +1,7 @@
 #include "bodysystem.hpp"
 
+#include <vector_types.h>
+
 namespace {
 auto normalize(float3& vector) -> float {
     const auto dist = sqrtf(vector.x * vector.x + vector.y * vector.y + vector.z * vector.z);

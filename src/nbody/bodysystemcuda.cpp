@@ -32,6 +32,7 @@
 #include "helper_cuda.hpp"
 #include "helper_gl.hpp"
 #include "tipsy.hpp"
+#include "vec.hpp"
 
 #include <cuda_gl_interop.h>
 
@@ -58,7 +59,7 @@ void integrateNbodySystem(
 cudaError_t setSofteningSquared(float softeningSq);
 cudaError_t setSofteningSquared(double softeningSq);
 
-template <typename T>
+template <std::floating_point T>
 BodySystemCUDA<T>::BodySystemCUDA(unsigned int num_bodies, unsigned int numDevices, unsigned int block_size, bool usePBO, bool useSysMem, bool use_p2p, int deviceId)
     : m_numBodies(num_bodies), m_numDevices(numDevices), m_bInitialized(false), m_bUsePBO(usePBO), m_bUseSysMem(useSysMem), m_bUseP2P(use_p2p), m_currentRead(0), m_currentWrite(1), m_blockSize(block_size), m_devID(deviceId) {
     m_hPos[0] = m_hPos[1] = 0;
@@ -69,12 +70,12 @@ BodySystemCUDA<T>::BodySystemCUDA(unsigned int num_bodies, unsigned int numDevic
     setDamping(0.995f);
 }
 
-template <typename T> BodySystemCUDA<T>::~BodySystemCUDA() {
+template <std::floating_point T> BodySystemCUDA<T>::~BodySystemCUDA() {
     _finalize();
     m_numBodies = 0;
 }
 
-template <typename T> void BodySystemCUDA<T>::_initialize(int num_bodies) {
+template <std::floating_point T> void BodySystemCUDA<T>::_initialize(int num_bodies) {
     assert(!m_bInitialized);
 
     m_numBodies = num_bodies;
@@ -214,7 +215,7 @@ template <typename T> void BodySystemCUDA<T>::_initialize(int num_bodies) {
     m_bInitialized = true;
 }
 
-template <typename T> void BodySystemCUDA<T>::_finalize() noexcept {
+template <std::floating_point T> void BodySystemCUDA<T>::_finalize() noexcept {
     assert(m_bInitialized);
 
     if (m_bUseSysMem) {
@@ -253,7 +254,7 @@ template <typename T> void BodySystemCUDA<T>::_finalize() noexcept {
     m_bInitialized = false;
 }
 
-template <typename T> void BodySystemCUDA<T>::loadTipsyFile(const std::filesystem::path& filename) {
+template <std::floating_point T> void BodySystemCUDA<T>::loadTipsyFile(const std::filesystem::path& filename) {
     if (m_bInitialized)
         _finalize();
 
@@ -271,7 +272,7 @@ template <typename T> void BodySystemCUDA<T>::loadTipsyFile(const std::filesyste
     setArray(BODYSYSTEM_VELOCITY, std::span{reinterpret_cast<const T*>(velocities.data()), nBodies * 4});
 }
 
-template <typename T> void BodySystemCUDA<T>::setSoftening(T softening) {
+template <std::floating_point T> void BodySystemCUDA<T>::setSoftening(T softening) {
     T softeningSq = softening * softening;
 
     for (unsigned int i = 0; i < m_numDevices; i++) {
@@ -283,11 +284,11 @@ template <typename T> void BodySystemCUDA<T>::setSoftening(T softening) {
     }
 }
 
-template <typename T> void BodySystemCUDA<T>::setDamping(T damping) {
+template <std::floating_point T> void BodySystemCUDA<T>::setDamping(T damping) {
     m_damping = damping;
 }
 
-template <typename T> void BodySystemCUDA<T>::update(T deltaTime) {
+template <std::floating_point T> void BodySystemCUDA<T>::update(T deltaTime) {
     assert(m_bInitialized);
 
     integrateNbodySystem<T>(m_deviceData, m_pGRes, m_currentRead, (float)deltaTime, (float)m_damping, m_numBodies, m_numDevices, m_blockSize, m_bUsePBO);
@@ -295,7 +296,7 @@ template <typename T> void BodySystemCUDA<T>::update(T deltaTime) {
     std::swap(m_currentRead, m_currentWrite);
 }
 
-template <typename T> T* BodySystemCUDA<T>::getArray(BodyArray array) {
+template <std::floating_point T> T* BodySystemCUDA<T>::getArray(BodyArray array) {
     assert(m_bInitialized);
 
     T* hdata = 0;
@@ -343,7 +344,7 @@ template <typename T> T* BodySystemCUDA<T>::getArray(BodyArray array) {
     return hdata;
 }
 
-template <typename T> void BodySystemCUDA<T>::setArray(BodyArray array, std::span<const T> data) {
+template <std::floating_point T> void BodySystemCUDA<T>::setArray(BodyArray array, std::span<const T> data) {
     assert(m_bInitialized);
 
     m_currentRead  = 0;

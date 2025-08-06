@@ -27,6 +27,7 @@
 
 #include "bodysystem.hpp"
 #include "helper_cuda.hpp"
+#include "vec.hpp"
 
 #include <GL/freeglut.h>
 

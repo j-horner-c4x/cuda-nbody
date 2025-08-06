@@ -27,8 +27,6 @@
 
 #pragma once
 
-#include <vector_types.h>
-
 #include <concepts>
 #include <filesystem>
 #include <span>
@@ -39,37 +37,6 @@ enum class NBodyConfig { NBODY_CONFIG_RANDOM, NBODY_CONFIG_SHELL, NBODY_CONFIG_E
 enum class BodyArray {
     BODYSYSTEM_POSITION,
     BODYSYSTEM_VELOCITY,
-};
-
-template <std::floating_point T> using vec3 = std::conditional_t<std::is_same_v<T, float>, float3, std::conditional_t<std::is_same_v<T, double>, double3, std::array<T, 3>>>;
-template <std::floating_point T> using vec4 = std::conditional_t<std::is_same_v<T, float>, float4, std::conditional_t<std::is_same_v<T, double>, double4, std::array<T, 4>>>;
-
-// BodySystem abstract base class
-template <std::floating_point T> class BodySystem {
- public:    // methods
-    virtual void loadTipsyFile(const std::filesystem::path& filename) = 0;
-
-    virtual void update(T deltaTime) = 0;
-
-    virtual void setSoftening(T softening) = 0;
-    virtual void setDamping(T damping)     = 0;
-
-    virtual T*   getArray(BodyArray array)                          = 0;
-    virtual void setArray(BodyArray array, std::span<const T> data) = 0;
-
-    virtual unsigned int getCurrentReadBuffer() const = 0;
-
-    virtual unsigned int getNumBodies() const = 0;
-
-    virtual void synchronizeThreads() const {};
-
-    virtual ~BodySystem() = default;
-
- protected:                    // methods
-    BodySystem() = default;    // default constructor
-
-    virtual void _initialize(int numBodies) = 0;
-    virtual void _finalize() noexcept       = 0;
 };
 
 // utility function

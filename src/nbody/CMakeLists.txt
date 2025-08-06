@@ -7,26 +7,29 @@ add_library(${PROJECT_NAME}_tipsy STATIC tipsy.cpp)
 add_library(${PROJECT_NAME}_win_coords STATIC win_coords.cpp)
 add_library(${PROJECT_NAME}_paramgl STATIC paramgl.cpp)
 add_library(${PROJECT_NAME}_param STATIC param.cpp)
+add_library(${PROJECT_NAME}_params STATIC params.cpp)
 
 add_library(${PROJECT_NAME}_bodysystemcuda STATIC bodysystemcuda.cu bodysystemcuda.cpp)
 add_library(${PROJECT_NAME}_bodysystem STATIC bodysystem.cpp)
 add_library(${PROJECT_NAME}_bodysystemcpu STATIC bodysystemcpu.cpp)
+
+add_library(${PROJECT_NAME}_compute STATIC compute.cpp)
+
+add_library(${PROJECT_NAME}_nbody_demo STATIC nbody_demo.cpp)
 
 target_link_libraries(${PROJECT_NAME}_render_particles PRIVATE CUDA::cudart_static OpenGL::GL GLEW::GLEW)
 
 target_link_libraries(${PROJECT_NAME}_win_coords PRIVATE GLUT::GLUT)
 target_link_libraries(${PROJECT_NAME}_paramgl PRIVATE GLUT::GLUT ${PROJECT_NAME}_param)
 
-
-
 target_link_libraries(${PROJECT_NAME}_tipsy PRIVATE CUDA::cudart_static)
 target_link_libraries(${PROJECT_NAME}_bodysystem PRIVATE CUDA::cudart_static)
 target_link_libraries(${PROJECT_NAME}_bodysystemcpu PRIVATE CUDA::cudart_static)
 
-target_link_libraries(${PROJECT_NAME}_bodysystemcuda
-                            PRIVATE
-                                CUDA::cudart_static    
-                                GLUT::GLUT)
+target_link_libraries(${PROJECT_NAME}_bodysystemcuda PRIVATE CUDA::cudart_static GLUT::GLUT)
+
+target_link_libraries(${PROJECT_NAME}_compute PUBLIC CUDA::cudart_static)
+target_link_libraries(${PROJECT_NAME}_nbody_demo PUBLIC ${PROJECT_NAME}_compute)
 
 #
 # set_cuda_compile_options(<target>)
