@@ -50,9 +50,8 @@ class ParamListGL {
 
     auto Render(int x, int y, bool shadow = false) -> void;
 
-    auto Mouse(int x, int y) -> bool;
-    auto Mouse(int x, int y, int button) -> bool;
-    auto Mouse(int x, int y, int button, int state) -> bool;
+    auto is_mouse_over(int x, int y) noexcept -> bool;
+    auto modify_sliders(int x, int y, int button, int state) -> void;
 
     auto Motion(int x, int y) -> bool;
 

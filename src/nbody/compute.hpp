@@ -91,6 +91,10 @@ struct ComputeConfig {
 
         return {interactionsPerSecond, gflops};
     }
+
+    auto get_milliseconds_passed() -> float;
+
+    auto restart_timer() -> void;
 };
 
 extern template auto ComputeConfig::reset<NBodyConfig::NBODY_CONFIG_EXPAND>() -> void;
