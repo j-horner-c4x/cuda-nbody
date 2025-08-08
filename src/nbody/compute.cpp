@@ -213,6 +213,28 @@ auto ComputeConfig::finalize() noexcept -> void {
     }
 }
 
+auto ComputeConfig::get_milliseconds_passed() -> float {
+    // stop timer
+    if (use_cpu) {
+        return fp64_enabled ? NBodyDemo<BodySystemCPU<double>>::get_milliseconds_passed() : NBodyDemo<BodySystemCPU<float>>::get_milliseconds_passed();
+    }
+
+    auto milliseconds = 0.f;
+
+    checkCudaErrors(cudaEventRecord(stop_event, 0));
+    checkCudaErrors(cudaEventSynchronize(stop_event));
+    checkCudaErrors(cudaEventElapsedTime(&milliseconds, start_event, stop_event));
+
+    return milliseconds;
+}
+
+auto ComputeConfig::restart_timer() -> void {
+    // restart timer
+    if (!use_cpu) {
+        checkCudaErrors(cudaEventRecord(start_event, 0));
+    }
+}
+
 template auto ComputeConfig::reset<NBodyConfig::NBODY_CONFIG_EXPAND>() -> void;
 template auto ComputeConfig::reset<NBodyConfig::NBODY_CONFIG_RANDOM>() -> void;
 template auto ComputeConfig::reset<NBodyConfig::NBODY_CONFIG_SHELL>() -> void;

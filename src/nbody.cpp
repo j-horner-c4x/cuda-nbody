@@ -36,6 +36,7 @@
 #include "nbody/bodysystemcuda.hpp"
 #include "nbody/camera.hpp"
 #include "nbody/compute.hpp"
+#include "nbody/controls.hpp"
 #include "nbody/helper_cuda.hpp"
 #include "nbody/interface.hpp"
 #include "nbody/nbody_demo.hpp"
@@ -68,12 +69,6 @@
 using Clock        = std::chrono::steady_clock;
 using TimePoint    = std::chrono::time_point<Clock>;
 using MilliSeconds = std::chrono::duration<float, std::milli>;
-
-struct ControlsConfig {
-    int button_state;
-    int old_x;
-    int old_y;
-};
 
 using std::ranges::copy;
 
@@ -160,20 +155,9 @@ auto display(ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& c
 
     // this displays the frame rate updated every second (independent of frame rate)
     if (fpsCount >= fpsLimit) {
-        char fps[256];
+        auto milliseconds = compute.get_milliseconds_passed();
 
-        float milliseconds = 1;
-
-        // stop timer
-        if (compute.use_cpu) {
-            milliseconds = compute.fp64_enabled ? NBodyDemo<BodySystemCPU<double>>::get_milliseconds_passed() : NBodyDemo<BodySystemCPU<float>>::get_milliseconds_passed();
-        } else {
-            checkCudaErrors(cudaEventRecord(compute.stop_event, 0));
-            checkCudaErrors(cudaEventSynchronize(compute.stop_event));
-            checkCudaErrors(cudaEventElapsedTime(&milliseconds, compute.start_event, compute.stop_event));
-        }
-
-        milliseconds /= (float)fpsCount;
+        milliseconds /= static_cast<float>(fpsCount);
         {
             const auto [interactions_per_second, g_flops] = compute.computePerfStats(milliseconds, 1);
 
@@ -181,62 +165,42 @@ auto display(ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& c
             gflops                = g_flops;
         }
 
-        ifps = 1.f / (milliseconds / 1000.f);
-        sprintf(fps,
-                "CUDA N-Body (%d bodies): "
-                "%0.1f fps | %0.1f BIPS | %0.1f GFLOP/s | %s",
-                compute.num_bodies,
-                ifps,
-                interactionsPerSecond,
-                gflops,
-                compute.fp64_enabled ? "double precision" : "single precision");
+        ifps = 1000.f / milliseconds;
 
-        glutSetWindowTitle(fps);
+        const auto fps_str =
+            std::format("CUDA N-Body ({} bodies): {:.1f} fps | {:.1f} BIPS | {:.1f} GFLOP/s | {}", compute.num_bodies, ifps, interactionsPerSecond, gflops, compute.fp64_enabled ? "double precision" : "single precision");
+
+        glutSetWindowTitle(fps_str.c_str());
         fpsCount = 0;
-        fpsLimit = (ifps > 1.f) ? (int)ifps : 1;
 
         if (compute.paused) {
             fpsLimit = 0;
+        } else if (ifps > 1.f) {
+            // setting the refresh limit (in number of frames) to be the FPS value obviously refreshes this message every second...
+            fpsLimit = static_cast<int>(ifps);
+        } else {
+            fpsLimit = 1;
         }
 
-        // restart timer
-        if (!compute.use_cpu) {
-            checkCudaErrors(cudaEventRecord(compute.start_event, 0));
-        }
+        compute.restart_timer();
     }
 
     glutReportErrors();
 }
 
-void mouse(int button, int state, int x, int y, InterfaceConfig& interface, ControlsConfig& controls, ComputeConfig& compute) {
-    if (interface.show_sliders) {
+auto mouse(int button, int state, int x, int y, InterfaceConfig& interface, ControlsConfig& controls, ComputeConfig& compute) -> void {
+    if (interface.show_sliders && interface.param_list->is_mouse_over(x, y)) {
         // call list mouse function
-        if (interface.param_list->Mouse(x, y, button, state)) {
-            compute.update_params();
-        }
+        interface.param_list->modify_sliders(x, y, button, state);
+        compute.update_params();
     }
 
-    if (state == GLUT_DOWN) {
-        controls.button_state |= 1 << button;
-    } else if (state == GLUT_UP) {
-        controls.button_state = 0;
-    }
-
-    const auto mods = glutGetModifiers();
-
-    if (mods & GLUT_ACTIVE_SHIFT) {
-        controls.button_state = 2;
-    } else if (mods & GLUT_ACTIVE_CTRL) {
-        controls.button_state = 3;
-    }
-
-    controls.old_x = x;
-    controls.old_y = y;
+    controls.set_state(button, state, x, y);
 
     glutPostRedisplay();
 }
 
-void motion(int x, int y, InterfaceConfig& interface, ControlsConfig& controls, CameraConfig& camera, ComputeConfig& compute) {
+auto motion(int x, int y, InterfaceConfig& interface, ControlsConfig& controls, CameraConfig& camera, ComputeConfig& compute) -> void {
     if (interface.show_sliders) {
         // call parameter list motion function
         if (interface.param_list->Motion(x, y)) {
@@ -246,28 +210,12 @@ void motion(int x, int y, InterfaceConfig& interface, ControlsConfig& controls, 
         }
     }
 
-    const auto dx = static_cast<float>(x - controls.old_x);
-    const auto dy = static_cast<float>(y - controls.old_y);
+    controls.move_camera(camera, x, y);
 
-    if (controls.button_state == 3) {
-        // left+middle = zoom
-        camera.translation[2] += (dy / 100.0f) * 0.5f * std::abs(camera.translation[2]);
-    } else if (controls.button_state & 2) {
-        // middle = translate
-        camera.translation[0] += dx / 100.0f;
-        camera.translation[1] -= dy / 100.0f;
-    } else if (controls.button_state & 1) {
-        // left = rotate
-        camera.rotation[0] += dy / 5.0f;
-        camera.rotation[1] += dx / 5.0f;
-    }
-
-    controls.old_x = x;
-    controls.old_y = y;
     glutPostRedisplay();
 }
 
-void key(unsigned char key, [[maybe_unused]] int x, [[maybe_unused]] int y, ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& camera) {
+auto key(unsigned char key, [[maybe_unused]] int x, [[maybe_unused]] int y, ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& camera) -> void {
     using enum NBodyConfig;
 
     switch (key) {

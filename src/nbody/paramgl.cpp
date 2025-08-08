@@ -90,43 +90,24 @@ auto ParamListGL::Render(int x, int y, bool shadow) -> void {
     }
 }
 
-auto ParamListGL::Mouse(int x, int y) -> bool {
-    return Mouse(x, y, GLUT_LEFT_BUTTON, GLUT_DOWN);
+auto ParamListGL::is_mouse_over([[maybe_unused]] int x, int y) noexcept -> bool {
+    m_active = (y >= m_start_y) && (y <= static_cast<int>(m_start_y + (m_separation * m_params.size()) - 1));
+
+    return m_active;
 }
-auto ParamListGL::Mouse(int x, int y, int button) -> bool {
-    return Mouse(x, y, button, GLUT_DOWN);
-}
 
-auto ParamListGL::Mouse(int x, int y, int button, int state) -> bool {
-    if ((y < m_start_y) || (y > (int)(m_start_y + (m_separation * m_params.size()) - 1))) {
-        m_active = false;
-        return false;
-    }
+auto ParamListGL::modify_sliders(int x, int y, int button, int state) -> void {
+    assert(m_active);
 
-    m_active = true;
-
-    int i = (y - m_start_y) / m_separation;
+    const auto i = (y - m_start_y) / m_separation;
 
     if ((button == GLUT_LEFT_BUTTON) && (state == GLUT_DOWN)) {
-#if defined(__GNUC__) && (__GNUC__ < 3)
-        m_current = &m_params[i];
-#else
-
-        // MJH: workaround since the version of vector::at used here is
-        // non-standard
-        for (m_current = m_params.begin(); m_current != m_params.end() && i > 0; m_current++, i--)
-            ;
-
-        // m_current = (std::vector<ParamBase
-        // *>::const_iterator)&m_params.at(i);
-#endif
+        m_current = m_params.begin() + i;
 
         if ((x > m_bar_x) && (x < m_bar_x + m_bar_w)) {
             Motion(x, y);
         }
     }
-
-    return true;
 }
 
 auto ParamListGL::Motion(int x, int y) -> bool {
