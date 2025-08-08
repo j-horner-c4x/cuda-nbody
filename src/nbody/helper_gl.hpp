@@ -48,17 +48,16 @@
 #include <iterator>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <cassert>
 #include <cstdio>
 
-inline void glPrint(int x, int y, const char* s, void* font) {
+auto inline glPrint(int x, int y, std::string_view str, void* font) -> void {
     glRasterPos2f((GLfloat)x, (GLfloat)y);
-    int len = (int)strlen(s);
-
-    for (int i = 0; i < len; i++) {
-        glutBitmapCharacter(font, s[i]);
+    for (const auto& c : str) {
+        glutBitmapCharacter(font, c);
     }
 }
 

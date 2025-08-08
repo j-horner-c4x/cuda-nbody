@@ -37,6 +37,7 @@
 #include "nbody/camera.hpp"
 #include "nbody/compute.hpp"
 #include "nbody/helper_cuda.hpp"
+#include "nbody/interface.hpp"
 #include "nbody/nbody_demo.hpp"
 #include "nbody/paramgl.hpp"
 #include "nbody/params.hpp"
@@ -74,20 +75,6 @@ struct ControlsConfig {
     int old_y;
 };
 
-struct InterfaceConfig {
-    bool                          display_enabled;
-    bool                          show_sliders;
-    std::unique_ptr<ParamListGL>  param_list;
-    bool                          full_screen;
-    bool                          display_interactions;
-    ParticleRenderer::DisplayMode display_mode;
-
-    auto toggle_sliders() noexcept -> void { show_sliders = !show_sliders; }
-    auto toggle_interactions() noexcept -> void { display_interactions = !display_interactions; }
-    auto cycle_display_mode() noexcept -> void { display_mode = (ParticleRenderer::DisplayMode)((display_mode + 1) % ParticleRenderer::PARTICLE_NUM_MODES); }
-    auto togle_display() noexcept -> void { display_enabled = !display_enabled; }
-};
-
 using std::ranges::copy;
 
 template <std::floating_point T> auto compare_results(int num_bodies, BodySystemCUDA<T>& nbodyCuda) -> bool {
@@ -98,15 +85,15 @@ template <std::floating_point T> auto compare_results(int num_bodies, BodySystem
     {
         using enum BodyArray;
 
-        auto nbodyCpu = std::make_unique<BodySystemCPU<T>>(num_bodies);
+        auto nbodyCpu = BodySystemCPU<T>(num_bodies);
 
-        nbodyCpu->setArray(BODYSYSTEM_POSITION, std::span{nbodyCuda.getArray(BODYSYSTEM_POSITION), static_cast<std::size_t>(num_bodies) * 4});
-        nbodyCpu->setArray(BODYSYSTEM_VELOCITY, std::span{nbodyCuda.getArray(BODYSYSTEM_VELOCITY), static_cast<std::size_t>(num_bodies) * 4});
+        nbodyCpu.setArray(BODYSYSTEM_POSITION, std::span{nbodyCuda.getArray(BODYSYSTEM_POSITION), static_cast<std::size_t>(num_bodies) * 4});
+        nbodyCpu.setArray(BODYSYSTEM_VELOCITY, std::span{nbodyCuda.getArray(BODYSYSTEM_VELOCITY), static_cast<std::size_t>(num_bodies) * 4});
 
-        nbodyCpu->update(0.001f);
+        nbodyCpu.update(0.001f);
 
         T* cudaPos = nbodyCuda.getArray(BODYSYSTEM_POSITION);
-        T* cpuPos  = nbodyCpu->getArray(BODYSYSTEM_POSITION);
+        T* cpuPos  = nbodyCpu.getArray(BODYSYSTEM_POSITION);
 
         T tolerance = 0.0005f;
 
@@ -157,93 +144,14 @@ auto initGL(int* argc, char** argv, bool full_screen) -> void {
     }
 }
 
-void display(ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& camera) {
-    static double gflops                = 0;
-    static double ifps                  = 0;
-    static double interactionsPerSecond = 0;
+auto display(ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& camera) -> void {
+    static auto gflops                = 0.f;
+    static auto ifps                  = 0.f;
+    static auto interactionsPerSecond = 0.f;
 
-    // update the simulation
-    if (!compute.paused) {
-        auto demo_time = 0.f;
+    compute.update_simulation(camera);
 
-        if (compute.use_cpu) {
-            demo_time = compute.fp64_enabled ? NBodyDemo<BodySystemCPU<double>>::get_demo_time() : NBodyDemo<BodySystemCPU<float>>::get_demo_time();
-        } else {
-            demo_time = compute.fp64_enabled ? NBodyDemo<BodySystemCUDA<double>>::get_demo_time() : NBodyDemo<BodySystemCUDA<float>>::get_demo_time();
-        }
-
-        if (compute.cycle_demo && (demo_time > compute.demoTime)) {
-            compute.next_demo(camera);
-        }
-
-        compute.update_simulation();
-
-        if (!compute.use_cpu) {
-            cudaEventRecord(compute.host_mem_sync_event, 0);    // insert an event to wait on before rendering
-        }
-    }
-
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    if (interface.display_enabled) {
-        constexpr static auto inertia = 0.1f;
-
-        // view transform
-        {
-            glMatrixMode(GL_MODELVIEW);
-            glLoadIdentity();
-
-            static auto camera_rot_lag = std::array{0.f, 0.f, 0.f};
-
-            for (int c = 0; c < 3; ++c) {
-                camera.translation_lag[c] += (camera.translation[c] - camera.translation_lag[c]) * inertia;
-                camera_rot_lag[c] += (camera.rotation[c] - camera_rot_lag[c]) * inertia;
-            }
-
-            glTranslatef(camera.translation_lag[0], camera.translation_lag[1], camera.translation_lag[2]);
-            glRotatef(camera_rot_lag[0], 1.0, 0.0, 0.0);
-            glRotatef(camera_rot_lag[1], 0.0, 1.0, 0.0);
-        }
-
-        compute.display_NBody_system(interface.display_mode);
-
-        // display user interface
-        if (interface.show_sliders) {
-            glBlendFunc(GL_ONE_MINUS_DST_COLOR, GL_ZERO);    // invert color
-            glEnable(GL_BLEND);
-            interface.param_list->Render(0, 0);
-            glDisable(GL_BLEND);
-        }
-
-        if (interface.full_screen) {
-            const auto win_coords = WinCoords{};
-
-            constexpr static auto& msg0 = "some_temp_device_name";
-            char                   msg1[256], msg2[256];
-            // char deviceName[100];
-
-            if (interface.display_interactions) {
-                sprintf(msg1, "%0.2f billion interactions per second", interactionsPerSecond);
-            } else {
-                sprintf(msg1, "%0.2f GFLOP/s", gflops);
-            }
-
-            // sprintf(msg0, "%s", deviceName);
-            sprintf(msg2, "%0.2f FPS [%s | %d bodies]", ifps, compute.fp64_enabled ? "double precision" : "single precision", compute.num_bodies);
-
-            glBlendFunc(GL_ONE_MINUS_DST_COLOR, GL_ZERO);    // invert color
-            glEnable(GL_BLEND);
-            glColor3f(0.46f, 0.73f, 0.0f);
-            glPrint(80, glutGet(GLUT_WINDOW_HEIGHT) - 122, msg0, GLUT_BITMAP_TIMES_ROMAN_24);
-            glColor3f(1.0f, 1.0f, 1.0f);
-            glPrint(80, glutGet(GLUT_WINDOW_HEIGHT) - 96, msg2, GLUT_BITMAP_TIMES_ROMAN_24);
-            glColor3f(1.0f, 1.0f, 1.0f);
-            glPrint(80, glutGet(GLUT_WINDOW_HEIGHT) - 70, msg1, GLUT_BITMAP_TIMES_ROMAN_24);
-            glDisable(GL_BLEND);
-        }
-
-        glutSwapBuffers();
-    }
+    interface.display(compute, camera, interactionsPerSecond, gflops, ifps);
 
     static int fpsCount = 0;
     static int fpsLimit = 5;

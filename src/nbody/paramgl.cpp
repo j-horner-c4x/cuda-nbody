@@ -7,7 +7,7 @@
 
 namespace {
 
-auto glPrintShadowed(int x, int y, const char* s, void* font, const float* color) -> void {
+auto glPrintShadowed(int x, int y, std::string_view s, void* font, const float* color) -> void {
     glColor3f(0.0, 0.0, 0.0);
     glPrint(x - 1, y - 1, s, font);
 
@@ -68,11 +68,11 @@ auto ParamListGL::Render(int x, int y, bool shadow) -> void {
         }
 
         if (shadow) {
-            glPrintShadowed(x + m_text_x, y + m_font_h, (*p)->GetName().c_str(), m_font, (p == m_current) ? &m_text_color_selected.r : &m_text_color_unselected.r);
-            glPrintShadowed(x + m_value_x, y + m_font_h, (*p)->GetValueString().c_str(), m_font, (p == m_current) ? &m_text_color_selected.r : &m_text_color_unselected.r);
+            glPrintShadowed(x + m_text_x, y + m_font_h, (*p)->GetName(), m_font, (p == m_current) ? &m_text_color_selected.r : &m_text_color_unselected.r);
+            glPrintShadowed(x + m_value_x, y + m_font_h, (*p)->GetValueString(), m_font, (p == m_current) ? &m_text_color_selected.r : &m_text_color_unselected.r);
         } else {
-            glPrint(x + m_text_x, y + m_font_h, (*p)->GetName().c_str(), m_font);
-            glPrint(x + m_value_x, y + m_font_h, (*p)->GetValueString().c_str(), m_font);
+            glPrint(x + m_text_x, y + m_font_h, (*p)->GetName(), m_font);
+            glPrint(x + m_value_x, y + m_font_h, (*p)->GetValueString(), m_font);
         }
 
         glColor3fv((GLfloat*)&m_bar_color_outer.r);

@@ -14,6 +14,8 @@ add_library(${PROJECT_NAME}_bodysystem STATIC bodysystem.cpp)
 add_library(${PROJECT_NAME}_bodysystemcpu STATIC bodysystemcpu.cpp)
 
 add_library(${PROJECT_NAME}_compute STATIC compute.cpp)
+add_library(${PROJECT_NAME}_camera STATIC camera.cpp)
+add_library(${PROJECT_NAME}_interface STATIC interface.cpp)
 
 add_library(${PROJECT_NAME}_nbody_demo STATIC nbody_demo.cpp)
 
@@ -28,8 +30,11 @@ target_link_libraries(${PROJECT_NAME}_bodysystemcpu PRIVATE CUDA::cudart_static)
 
 target_link_libraries(${PROJECT_NAME}_bodysystemcuda PRIVATE CUDA::cudart_static GLUT::GLUT)
 
+target_link_libraries(${PROJECT_NAME}_camera PRIVATE GLEW::GLEW OpenGL::GL)
 target_link_libraries(${PROJECT_NAME}_compute PUBLIC CUDA::cudart_static)
 target_link_libraries(${PROJECT_NAME}_nbody_demo PUBLIC ${PROJECT_NAME}_compute)
+target_link_libraries(${PROJECT_NAME}_interface PRIVATE GLEW::GLEW OpenGL::GL GLUT::GLUT ${PROJECT_NAME}_compute)
+
 
 #
 # set_cuda_compile_options(<target>)

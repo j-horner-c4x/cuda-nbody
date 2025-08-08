@@ -8,4 +8,6 @@ struct CameraConfig {
     std::array<float, 3> rotation;
 
     constexpr auto reset(const std::array<float, 3>& origin) noexcept -> void { translation = translation_lag = origin; }
+
+    auto view_transform() noexcept -> void;
 };
