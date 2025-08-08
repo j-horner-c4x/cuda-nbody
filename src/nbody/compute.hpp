@@ -73,7 +73,7 @@ struct ComputeConfig {
 
     auto select_demo(CameraConfig& camera) -> void;
 
-    auto update_simulation() -> void;
+    auto update_simulation(CameraConfig& camera) -> void;
 
     auto display_NBody_system(ParticleRenderer::DisplayMode display_mode) -> void;
 
@@ -81,7 +81,7 @@ struct ComputeConfig {
 
     auto update_params() -> void;
 
-    constexpr auto computePerfStats(float milliseconds, int iterations) const -> std::array<double, 2> {
+    constexpr auto computePerfStats(float milliseconds, int iterations) const -> std::array<float, 2> {
         // double precision uses intrinsic operation followed by refinement, resulting in higher operation count per interaction.
         // Note: Astrophysicists use 38 flops per interaction no matter what, based on "historical precedent", but they are using FLOP/s as a measure of "science throughput".
         // We are using it as a measure of hardware throughput.  They should really use interactions/s...

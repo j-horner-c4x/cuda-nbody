@@ -115,18 +115,36 @@ auto ComputeConfig::select_demo(CameraConfig& camera) -> void {
     }
 }
 
-auto ComputeConfig::update_simulation() -> void {
-    if (use_cpu) {
-        if (fp64_enabled) {
-            NBodyDemo<BodySystemCPU<double>>::updateSimulation(active_params.m_timestep);
+auto ComputeConfig::update_simulation(CameraConfig& camera) -> void {
+    if (!paused) {
+        auto demo_time = 0.f;
+
+        if (use_cpu) {
+            demo_time = fp64_enabled ? NBodyDemo<BodySystemCPU<double>>::get_demo_time() : NBodyDemo<BodySystemCPU<float>>::get_demo_time();
         } else {
-            NBodyDemo<BodySystemCPU<float>>::updateSimulation(active_params.m_timestep);
+            demo_time = fp64_enabled ? NBodyDemo<BodySystemCUDA<double>>::get_demo_time() : NBodyDemo<BodySystemCUDA<float>>::get_demo_time();
         }
-    } else {
-        if (fp64_enabled) {
-            NBodyDemo<BodySystemCUDA<double>>::updateSimulation(active_params.m_timestep);
+
+        if (cycle_demo && (demo_time > demoTime)) {
+            next_demo(camera);
+        }
+
+        if (use_cpu) {
+            if (fp64_enabled) {
+                NBodyDemo<BodySystemCPU<double>>::updateSimulation(active_params.m_timestep);
+            } else {
+                NBodyDemo<BodySystemCPU<float>>::updateSimulation(active_params.m_timestep);
+            }
         } else {
-            NBodyDemo<BodySystemCUDA<float>>::updateSimulation(active_params.m_timestep);
+            if (fp64_enabled) {
+                NBodyDemo<BodySystemCUDA<double>>::updateSimulation(active_params.m_timestep);
+            } else {
+                NBodyDemo<BodySystemCUDA<float>>::updateSimulation(active_params.m_timestep);
+            }
+        }
+
+        if (!use_cpu) {
+            cudaEventRecord(host_mem_sync_event, 0);    // insert an event to wait on before rendering
         }
     }
 }
