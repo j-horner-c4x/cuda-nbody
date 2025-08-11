@@ -25,6 +25,9 @@ struct ComputeConfig {
     bool        compare_to_cpu;
     bool        benchmark;
     bool        use_host_mem;
+    float       g_flops;
+    float       fps;
+    float       interactions_per_second;
     NBodyParams active_params;
     cudaEvent_t host_mem_sync_event;
     cudaEvent_t start_event;
@@ -81,16 +84,16 @@ struct ComputeConfig {
 
     auto update_params() -> void;
 
-    constexpr auto computePerfStats(float milliseconds, int iterations) const -> std::array<float, 2> {
+    constexpr auto compute_perf_stats(float frequency) -> void {
         // double precision uses intrinsic operation followed by refinement, resulting in higher operation count per interaction.
         // Note: Astrophysicists use 38 flops per interaction no matter what, based on "historical precedent", but they are using FLOP/s as a measure of "science throughput".
         // We are using it as a measure of hardware throughput.  They should really use interactions/s...
-        const auto interactionsPerSecond = (static_cast<float>(num_bodies * num_bodies) * 1e-9f) * iterations * (1000.0f / milliseconds);
+        interactions_per_second = (static_cast<float>(num_bodies * num_bodies) * 1e-9f) * frequency;
 
-        const auto gflops = interactionsPerSecond * static_cast<float>(flops_per_interaction);
-
-        return {interactionsPerSecond, gflops};
+        g_flops = interactions_per_second * static_cast<float>(flops_per_interaction);
     }
+
+    constexpr auto compute_perf_stats(float milliseconds, int iterations) -> void { compute_perf_stats(iterations * (1000.0f / milliseconds)); }
 
     auto get_milliseconds_passed() -> float;
 

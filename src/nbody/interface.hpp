@@ -21,5 +21,5 @@ struct InterfaceConfig {
     auto cycle_display_mode() noexcept -> void { display_mode = (ParticleRenderer::DisplayMode)((display_mode + 1) % ParticleRenderer::PARTICLE_NUM_MODES); }
     auto togle_display() noexcept -> void { display_enabled = !display_enabled; }
 
-    auto display(ComputeConfig& compute, CameraConfig& camera, float interactions_per_second, float gflops, float ifps) -> void;
+    auto display(ComputeConfig& compute, CameraConfig& camera) -> void;
 };

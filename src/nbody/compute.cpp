@@ -75,11 +75,11 @@ template <typename BodySystem> auto ComputeConfig::run_benchmark(int iterations,
         checkCudaErrors(cudaEventElapsedTime(&milliseconds, start_event, stop_event));
     }
 
-    const auto [interactionsPerSecond, gflops] = computePerfStats(milliseconds, iterations);
+    compute_perf_stats(milliseconds, iterations);
 
     std::println("{} bodies, total time for {} iterations: {:3} ms", num_bodies, iterations, milliseconds);
-    std::println("= {:3} billion interactions per second", interactionsPerSecond);
-    std::println("= {:3} {}-precision GFLOP/s at {} flops per interaction", gflops, std::is_same_v<typename BodySystem::Type, double> ? "double" : "single", flops_per_interaction);
+    std::println("= {:3} billion interactions per second", interactions_per_second);
+    std::println("= {:3} {}-precision GFLOP/s at {} flops per interaction", g_flops, std::is_same_v<typename BodySystem::Type, double> ? "double" : "single", flops_per_interaction);
 }
 
 auto ComputeConfig::switch_precision() -> void {
