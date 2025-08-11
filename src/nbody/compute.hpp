@@ -93,6 +93,8 @@ struct ComputeConfig {
         g_flops = interactions_per_second * static_cast<float>(flops_per_interaction);
     }
 
+    constexpr auto compute_perf_stats() -> void { compute_perf_stats(fps); }
+
     constexpr auto compute_perf_stats(float milliseconds, int iterations) -> void { compute_perf_stats(iterations * (1000.0f / milliseconds)); }
 
     auto get_milliseconds_passed() -> float;

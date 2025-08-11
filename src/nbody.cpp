@@ -154,10 +154,9 @@ auto display(ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& c
         const auto milliseconds_passed = compute.get_milliseconds_passed();
 
         const auto frequency = (1000.f / milliseconds_passed);
+        compute.fps          = static_cast<float>(fpsCount) * frequency;
 
-        compute.compute_perf_stats(frequency);
-
-        compute.fps = static_cast<float>(fpsCount) * frequency;
+        compute.compute_perf_stats();
 
         const auto fps_str = std::format(
             "CUDA N-Body ({} bodies): {:.1f} fps | {:.1f} BIPS | {:.1f} GFLOP/s | {}",
@@ -178,7 +177,6 @@ auto display(ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& c
         } else {
             fpsLimit = 1;
         }
-
         compute.restart_timer();
     }
 
