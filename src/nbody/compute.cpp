@@ -235,6 +235,16 @@ auto ComputeConfig::restart_timer() -> void {
     }
 }
 
+auto ComputeConfig::calculate_fps(int fps_count) -> void {
+    const auto milliseconds_passed = get_milliseconds_passed();
+    restart_timer();
+
+    const auto frequency = (1000.f / milliseconds_passed);
+    fps                  = static_cast<float>(fps_count) * frequency;
+
+    compute_perf_stats();
+}
+
 template auto ComputeConfig::reset<NBodyConfig::NBODY_CONFIG_EXPAND>() -> void;
 template auto ComputeConfig::reset<NBodyConfig::NBODY_CONFIG_RANDOM>() -> void;
 template auto ComputeConfig::reset<NBodyConfig::NBODY_CONFIG_SHELL>() -> void;

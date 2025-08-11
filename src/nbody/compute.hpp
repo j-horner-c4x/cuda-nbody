@@ -100,6 +100,8 @@ struct ComputeConfig {
     auto get_milliseconds_passed() -> float;
 
     auto restart_timer() -> void;
+
+    auto calculate_fps(int fps_count) -> void;
 };
 
 extern template auto ComputeConfig::reset<NBodyConfig::NBODY_CONFIG_EXPAND>() -> void;
