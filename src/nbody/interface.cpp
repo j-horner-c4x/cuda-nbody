@@ -8,7 +8,7 @@
 
 #include <format>
 
-auto InterfaceConfig::display(ComputeConfig& compute, CameraConfig& camera, float interactions_per_second, float gflops, float ifps) -> void {
+auto InterfaceConfig::display(ComputeConfig& compute, CameraConfig& camera) -> void {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     if (display_enabled) {
@@ -29,9 +29,9 @@ auto InterfaceConfig::display(ComputeConfig& compute, CameraConfig& camera, floa
 
             constexpr static auto msg0 = std::string_view{"some_temp_device_name"};
 
-            const auto msg1 = display_interactions ? std::format("{:.2} billion interactions per second", interactions_per_second) : std::format("{:.2} GFLOP/s", gflops);
+            const auto msg1 = display_interactions ? std::format("{:.2} billion interactions per second", compute.interactions_per_second) : std::format("{:.2} GFLOP/s", compute.g_flops);
 
-            const auto msg2 = std::format("{:.2} FPS [{} | {} bodies]", ifps, compute.fp64_enabled ? "double precision" : "single precision", compute.num_bodies);
+            const auto msg2 = std::format("{:.2} FPS [{} | {} bodies]", compute.fps, compute.fp64_enabled ? "double precision" : "single precision", compute.num_bodies);
 
             glBlendFunc(GL_ONE_MINUS_DST_COLOR, GL_ZERO);    // invert color
             glEnable(GL_BLEND);

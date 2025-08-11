@@ -140,13 +140,9 @@ auto initGL(int* argc, char** argv, bool full_screen) -> void {
 }
 
 auto display(ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& camera) -> void {
-    static auto gflops                = 0.f;
-    static auto ifps                  = 0.f;
-    static auto interactionsPerSecond = 0.f;
-
     compute.update_simulation(camera);
 
-    interface.display(compute, camera, interactionsPerSecond, gflops, ifps);
+    interface.display(compute, camera);
 
     static int fpsCount = 0;
     static int fpsLimit = 5;
@@ -155,34 +151,27 @@ auto display(ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& c
 
     // this displays the frame rate updated every second (independent of frame rate)
     if (fpsCount >= fpsLimit) {
-        auto milliseconds = compute.get_milliseconds_passed();
+        compute.calculate_fps(fpsCount);
 
-        milliseconds /= static_cast<float>(fpsCount);
-        {
-            const auto [interactions_per_second, g_flops] = compute.computePerfStats(milliseconds, 1);
-
-            interactionsPerSecond = interactions_per_second;
-            gflops                = g_flops;
-        }
-
-        ifps = 1000.f / milliseconds;
-
-        const auto fps_str =
-            std::format("CUDA N-Body ({} bodies): {:.1f} fps | {:.1f} BIPS | {:.1f} GFLOP/s | {}", compute.num_bodies, ifps, interactionsPerSecond, gflops, compute.fp64_enabled ? "double precision" : "single precision");
+        const auto fps_str = std::format(
+            "CUDA N-Body ({} bodies): {:.1f} fps | {:.1f} BIPS | {:.1f} GFLOP/s | {}",
+            compute.num_bodies,
+            compute.fps,
+            compute.interactions_per_second,
+            compute.g_flops,
+            compute.fp64_enabled ? "double precision" : "single precision");
 
         glutSetWindowTitle(fps_str.c_str());
         fpsCount = 0;
 
         if (compute.paused) {
             fpsLimit = 0;
-        } else if (ifps > 1.f) {
+        } else if (compute.fps > 1.f) {
             // setting the refresh limit (in number of frames) to be the FPS value obviously refreshes this message every second...
-            fpsLimit = static_cast<int>(ifps);
+            fpsLimit = static_cast<int>(compute.fps);
         } else {
             fpsLimit = 1;
         }
-
-        compute.restart_timer();
     }
 
     glutReportErrors();
@@ -573,21 +562,24 @@ int main(int argc, char** argv) {
         show_sliders    = tipsy_file.empty();
 
         auto compute = ComputeConfig{
-            .paused                = false,
-            .fp64_enabled          = cmd_options.fp64,
-            .cycle_demo            = cycle_demo,
-            .active_demo           = 0,
-            .use_cpu               = cmd_options.cpu,
-            .num_bodies            = 16384,
-            .double_supported      = cmd_options.cpu,
-            .flops_per_interaction = cmd_options.fp64 ? 30 : 20,
-            .compare_to_cpu        = compare_to_cpu,
-            .benchmark             = cmd_options.benchmark,
-            .use_host_mem          = use_host_mem,
-            .active_params         = ComputeConfig::demoParams[0],
-            .host_mem_sync_event   = cudaEvent_t{},
-            .start_event           = cudaEvent_t{},
-            .stop_event            = cudaEvent_t{}};
+            .paused                  = false,
+            .fp64_enabled            = cmd_options.fp64,
+            .cycle_demo              = cycle_demo,
+            .active_demo             = 0,
+            .use_cpu                 = cmd_options.cpu,
+            .num_bodies              = 16384,
+            .double_supported        = cmd_options.cpu,
+            .flops_per_interaction   = cmd_options.fp64 ? 30 : 20,
+            .compare_to_cpu          = compare_to_cpu,
+            .benchmark               = cmd_options.benchmark,
+            .use_host_mem            = use_host_mem,
+            .g_flops                 = 0.f,
+            .fps                     = 0.f,
+            .interactions_per_second = 0.f,
+            .active_params           = ComputeConfig::demoParams[0],
+            .host_mem_sync_event     = cudaEvent_t{},
+            .start_event             = cudaEvent_t{},
+            .stop_event              = cudaEvent_t{}};
 
         const auto enable_graphics = !compute.benchmark && !compute.compare_to_cpu;
 
