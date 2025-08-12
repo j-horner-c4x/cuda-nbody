@@ -34,11 +34,6 @@
 
 enum class NBodyConfig { NBODY_CONFIG_RANDOM, NBODY_CONFIG_SHELL, NBODY_CONFIG_EXPAND, NBODY_NUM_CONFIGS };
 
-enum class BodyArray {
-    BODYSYSTEM_POSITION,
-    BODYSYSTEM_VELOCITY,
-};
-
 // utility function
 template <std::floating_point T> void randomizeBodies(NBodyConfig config, T* pos, T* vel, float* color, float clusterScale, float velocityScale, int numBodies, bool vec4vel);
 

@@ -54,7 +54,7 @@ template <typename BodySystem> auto NBodyDemo<BodySystem>::display(const Compute
             cudaEventSynchronize(compute.host_mem_sync_event);
         }
 
-        m_singleton->m_renderer->setPositions(m_singleton->m_nbody->getArray(BodyArray::BODYSYSTEM_POSITION), m_singleton->m_nbody->getNumBodies());
+        m_singleton->m_renderer->setPositions(m_singleton->m_nbody->get_position());
     } else {
         m_singleton->m_renderer->setPBO(m_singleton->m_nbody->getCurrentReadBuffer(), m_singleton->m_nbody->getNumBodies(), std::is_same_v<PrecisionType, double>);
     }
@@ -64,11 +64,12 @@ template <typename BodySystem> auto NBodyDemo<BodySystem>::display(const Compute
 }
 
 template <typename BodySystem> auto NBodyDemo<BodySystem>::getArrays(std::vector<PrecisionType>& pos, std::vector<PrecisionType>& vel) -> void {
-    using enum BodyArray;
-    auto _pos = m_singleton->m_nbody->getArray(BODYSYSTEM_POSITION);
-    auto _vel = m_singleton->m_nbody->getArray(BODYSYSTEM_VELOCITY);
-    copy(_pos, _pos + m_singleton->m_nbody->getNumBodies() * 4, pos.begin());
-    copy(_vel, _vel + m_singleton->m_nbody->getNumBodies() * 4, vel.begin());
+    using std::ranges::copy;
+
+    auto _pos = m_singleton->m_nbody->get_position();
+    auto _vel = m_singleton->m_nbody->get_velocity();
+    copy(_pos, pos.begin());
+    copy(_vel, vel.begin());
 }
 
 template <typename BodySystem> auto NBodyDemo<BodySystem>::setArrays(const std::vector<PrecisionType>& pos, const std::vector<PrecisionType>& vel, const ComputeConfig& compute) -> void {
@@ -82,10 +83,8 @@ template <typename BodySystem> auto NBodyDemo<BodySystem>::setArrays(const std::
         copy(vel, m_singleton->m_hVel.begin());
     }
 
-    using enum BodyArray;
-
-    m_singleton->m_nbody->setArray(BODYSYSTEM_POSITION, m_singleton->m_hPos);
-    m_singleton->m_nbody->setArray(BODYSYSTEM_VELOCITY, m_singleton->m_hVel);
+    m_singleton->m_nbody->set_position(m_singleton->m_hPos);
+    m_singleton->m_nbody->set_velocity(m_singleton->m_hVel);
 
     if (!compute.benchmark && !compute.use_cpu && !compute.compare_to_cpu) {
         m_singleton->_resetRenderer(compute.active_params.m_pointSize);

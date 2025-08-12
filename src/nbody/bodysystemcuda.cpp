@@ -266,10 +266,8 @@ template <std::floating_point T> void BodySystemCUDA<T>::loadTipsyFile(const std
 
     _initialize(static_cast<int>(nBodies));
 
-    using enum BodyArray;
-
-    setArray(BODYSYSTEM_POSITION, std::span{reinterpret_cast<const T*>(positions.data()), nBodies * 4});
-    setArray(BODYSYSTEM_VELOCITY, std::span{reinterpret_cast<const T*>(velocities.data()), nBodies * 4});
+    set_position({reinterpret_cast<const T*>(positions.data()), nBodies * 4});
+    set_velocity({reinterpret_cast<const T*>(velocities.data()), nBodies * 4});
 }
 
 template <std::floating_point T> void BodySystemCUDA<T>::setSoftening(T softening) {
@@ -296,7 +294,7 @@ template <std::floating_point T> void BodySystemCUDA<T>::update(T deltaTime) {
     std::swap(m_currentRead, m_currentWrite);
 }
 
-template <std::floating_point T> T* BodySystemCUDA<T>::getArray(BodyArray array) {
+template <std::floating_point T> auto BodySystemCUDA<T>::get_position() -> std::span<T> {
     assert(m_bInitialized);
 
     T* hdata = 0;
@@ -306,24 +304,11 @@ template <std::floating_point T> T* BodySystemCUDA<T>::getArray(BodyArray array)
 
     int currentReadHost = m_bUseSysMem ? m_currentRead : 0;
 
-    using enum BodyArray;
+    hdata = m_hPos[currentReadHost];
+    ddata = m_deviceData[0].dPos[m_currentRead];
 
-    switch (array) {
-        default:
-        case BODYSYSTEM_POSITION:
-            hdata = m_hPos[currentReadHost];
-            ddata = m_deviceData[0].dPos[m_currentRead];
-
-            if (m_bUsePBO) {
-                pgres = m_pGRes[m_currentRead];
-            }
-
-            break;
-
-        case BODYSYSTEM_VELOCITY:
-            hdata = m_hVel;
-            ddata = m_deviceData[0].dVel;
-            break;
+    if (m_bUsePBO) {
+        pgres = m_pGRes[m_currentRead];
     }
 
     if (!m_bUseSysMem) {
@@ -341,49 +326,73 @@ template <std::floating_point T> T* BodySystemCUDA<T>::getArray(BodyArray array)
         }
     }
 
-    return hdata;
+    return {hdata, m_numBodies * 4};
+}
+template <std::floating_point T> auto BodySystemCUDA<T>::get_velocity() -> std::span<T> {
+    assert(m_bInitialized);
+
+    T* hdata = 0;
+    T* ddata = 0;
+
+    cudaGraphicsResource* pgres = NULL;
+
+    hdata = m_hVel;
+    ddata = m_deviceData[0].dVel;
+
+    if (!m_bUseSysMem) {
+        if (pgres) {
+            checkCudaErrors(cudaGraphicsResourceSetMapFlags(pgres, cudaGraphicsMapFlagsReadOnly));
+            checkCudaErrors(cudaGraphicsMapResources(1, &pgres, 0));
+            size_t bytes;
+            checkCudaErrors(cudaGraphicsResourceGetMappedPointer((void**)&ddata, &bytes, pgres));
+        }
+
+        checkCudaErrors(cudaMemcpy(hdata, ddata, m_numBodies * 4 * sizeof(T), cudaMemcpyDeviceToHost));
+
+        if (pgres) {
+            checkCudaErrors(cudaGraphicsUnmapResources(1, &pgres, 0));
+        }
+    }
+
+    return {hdata, m_numBodies * 4};
 }
 
-template <std::floating_point T> void BodySystemCUDA<T>::setArray(BodyArray array, std::span<const T> data) {
+template <std::floating_point T> auto BodySystemCUDA<T>::set_position(std::span<const T> data) -> void {
     assert(m_bInitialized);
 
     m_currentRead  = 0;
     m_currentWrite = 1;
 
-    using enum BodyArray;
+    if (m_bUsePBO) {
+        glBindBuffer(GL_ARRAY_BUFFER, m_pbo[m_currentRead]);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, 4 * sizeof(T) * m_numBodies, data.data());
 
-    switch (array) {
-        default:
-        case BODYSYSTEM_POSITION:
-            {
-                if (m_bUsePBO) {
-                    glBindBuffer(GL_ARRAY_BUFFER, m_pbo[m_currentRead]);
-                    glBufferSubData(GL_ARRAY_BUFFER, 0, 4 * sizeof(T) * m_numBodies, data.data());
+        int size = 0;
+        glGetBufferParameteriv(GL_ARRAY_BUFFER, GL_BUFFER_SIZE, (GLint*)&size);
 
-                    int size = 0;
-                    glGetBufferParameteriv(GL_ARRAY_BUFFER, GL_BUFFER_SIZE, (GLint*)&size);
+        if ((unsigned)size != 4 * (sizeof(T) * m_numBodies)) {
+            fprintf(stderr, "WARNING: Pixel Buffer Object download failed!n");
+        }
 
-                    if ((unsigned)size != 4 * (sizeof(T) * m_numBodies)) {
-                        fprintf(stderr, "WARNING: Pixel Buffer Object download failed!n");
-                    }
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+    } else {
+        if (m_bUseSysMem) {
+            memcpy(m_hPos[m_currentRead], data.data(), m_numBodies * 4 * sizeof(T));
+        } else
+            checkCudaErrors(cudaMemcpy(m_deviceData[0].dPos[m_currentRead], data.data(), m_numBodies * 4 * sizeof(T), cudaMemcpyHostToDevice));
+    }
+}
 
-                    glBindBuffer(GL_ARRAY_BUFFER, 0);
-                } else {
-                    if (m_bUseSysMem) {
-                        memcpy(m_hPos[m_currentRead], data.data(), m_numBodies * 4 * sizeof(T));
-                    } else
-                        checkCudaErrors(cudaMemcpy(m_deviceData[0].dPos[m_currentRead], data.data(), m_numBodies * 4 * sizeof(T), cudaMemcpyHostToDevice));
-                }
-            }
-            break;
+template <std::floating_point T> auto BodySystemCUDA<T>::set_velocity(std::span<const T> data) -> void {
+    assert(m_bInitialized);
 
-        case BODYSYSTEM_VELOCITY:
-            if (m_bUseSysMem) {
-                memcpy(m_hVel, data.data(), m_numBodies * 4 * sizeof(T));
-            } else
-                checkCudaErrors(cudaMemcpy(m_deviceData[0].dVel, data.data(), m_numBodies * 4 * sizeof(T), cudaMemcpyHostToDevice));
+    m_currentRead  = 0;
+    m_currentWrite = 1;
 
-            break;
+    if (m_bUseSysMem) {
+        memcpy(m_hVel, data.data(), m_numBodies * 4 * sizeof(T));
+    } else {
+        checkCudaErrors(cudaMemcpy(m_deviceData[0].dVel, data.data(), m_numBodies * 4 * sizeof(T), cudaMemcpyHostToDevice));
     }
 }
 
