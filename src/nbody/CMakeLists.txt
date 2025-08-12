@@ -20,6 +20,8 @@ add_library(${PROJECT_NAME}_controls STATIC controls.cpp)
 
 add_library(${PROJECT_NAME}_nbody_demo STATIC nbody_demo.cpp)
 
+add_library(${PROJECT_NAME}_graphics_loop STATIC graphics_loop.cpp)
+
 target_link_libraries(${PROJECT_NAME}_render_particles PRIVATE CUDA::cudart_static OpenGL::GL GLEW::GLEW)
 
 target_link_libraries(${PROJECT_NAME}_win_coords PRIVATE GLUT::GLUT)
@@ -38,6 +40,13 @@ target_link_libraries(${PROJECT_NAME}_nbody_demo PUBLIC ${PROJECT_NAME}_compute)
 target_link_libraries(${PROJECT_NAME}_interface 
                         PUBLIC
                             ${PROJECT_NAME}_paramgl
+                        PRIVATE
+                            GLEW::GLEW
+                            OpenGL::GL
+                            GLUT::GLUT
+                            ${PROJECT_NAME}_compute)
+
+target_link_libraries(${PROJECT_NAME}_graphics_loop 
                         PRIVATE
                             GLEW::GLEW
                             OpenGL::GL

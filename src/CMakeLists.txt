@@ -38,5 +38,6 @@ target_link_libraries(${PROJECT_NAME}_exe
                             ${PROJECT_NAME}_compute
                             ${PROJECT_NAME}_camera
                             ${PROJECT_NAME}_interface
-                            ${PROJECT_NAME}_controls)
+                            ${PROJECT_NAME}_controls
+                            ${PROJECT_NAME}_graphics_loop)
 
