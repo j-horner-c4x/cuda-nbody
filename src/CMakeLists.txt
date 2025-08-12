@@ -25,19 +25,10 @@ target_link_libraries(${PROJECT_NAME}_exe
                             OpenGL::GL
                             GLUT::GLUT
                             GLEW::GLEW
-                            CUDA::cudart_static
-                            ${PROJECT_NAME}_render_particles
-                            ${PROJECT_NAME}_tipsy
-                            ${PROJECT_NAME}_bodysystemcuda
-                            ${PROJECT_NAME}_win_coords
-                            ${PROJECT_NAME}_paramgl
-                            ${PROJECT_NAME}_bodysystem
-                            ${PROJECT_NAME}_bodysystemcpu
-                            ${PROJECT_NAME}_nbody_demo
-                            ${PROJECT_NAME}_params
                             ${PROJECT_NAME}_compute
                             ${PROJECT_NAME}_camera
                             ${PROJECT_NAME}_interface
                             ${PROJECT_NAME}_controls
-                            ${PROJECT_NAME}_graphics_loop)
+                            ${PROJECT_NAME}_graphics_loop
+                            ${PROJECT_NAME}_params)
 
