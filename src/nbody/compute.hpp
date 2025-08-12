@@ -14,25 +14,6 @@
 struct CameraConfig;
 
 struct ComputeConfig {
-    bool        paused;
-    bool        fp64_enabled;
-    bool        cycle_demo;
-    int         active_demo;
-    bool        use_cpu;
-    int         num_bodies;
-    bool        double_supported;
-    int         flops_per_interaction;
-    bool        compare_to_cpu;
-    bool        benchmark;
-    bool        use_host_mem;
-    float       g_flops;
-    float       fps;
-    float       interactions_per_second;
-    NBodyParams active_params;
-    cudaEvent_t host_mem_sync_event;
-    cudaEvent_t start_event;
-    cudaEvent_t stop_event;
-
     constexpr static auto demoParams = std::array{
         NBodyParams{0.016f, 1.54f, 8.0f, 0.1f, 1.0f, 1.0f, 0, -2, -100},
         NBodyParams{0.016f, 0.68f, 20.0f, 0.1f, 1.0f, 0.8f, 0, -2, -30},
@@ -46,9 +27,48 @@ struct ComputeConfig {
 
     constexpr static auto demoTime = 10000.0f;    // ms
 
+    bool        paused = false;
+    bool        fp64_enabled;
+    bool        cycle_demo;
+    int         active_demo = 0;
+    bool        use_cpu;
+    int         num_bodies            = 16384;
+    bool        double_supported      = true;
+    int         flops_per_interaction = fp64_enabled ? 30 : 20;
+    bool        compare_to_cpu;
+    bool        benchmark;
+    int         nb_iterations;
+    bool        use_host_mem;
+    float       g_flops                 = 0.f;
+    float       fps                     = 0.f;
+    float       interactions_per_second = 0.f;
+    NBodyParams active_params           = demoParams[0];
+    cudaEvent_t host_mem_sync_event{};
+    cudaEvent_t start_event{};
+    cudaEvent_t stop_event{};
+
+    ComputeConfig(bool                         enable_fp64,
+                  bool                         enable_cycle_demo,
+                  bool                         enable_cpu,
+                  bool                         enable_compare_to_cpu,
+                  bool                         enable_benchmark,
+                  bool                         enable_host_memory,
+                  int                          device,
+                  std::size_t                  nb_requested_devices,
+                  std::size_t                  iterations,
+                  std::size_t                  block_size,
+                  std::size_t                  nb_bodies,
+                  const std::filesystem::path& tipsy_file);
+
     template <std::floating_point T_new, std::floating_point T_old> auto switch_demo_precision() -> void;
 
-    template <typename BodySystem> auto run_benchmark(int iterations, BodySystem& nbody) -> void;
+    template <typename BodySystem> auto run_benchmark(BodySystem& nbody) -> void;
+
+    template <std::floating_point T> auto run_benchmark() -> void;
+
+    auto run_benchmark() -> void;
+
+    auto compare_results() -> bool;
 
     auto select_demo() -> void {
         assert(active_demo < numDemos);
@@ -111,7 +131,10 @@ extern template auto ComputeConfig::reset<NBodyConfig::NBODY_CONFIG_SHELL>() -> 
 template <std::floating_point> class BodySystemCPU;
 template <std::floating_point> class BodySystemCUDA;
 
-extern template auto ComputeConfig::run_benchmark<BodySystemCPU<float>>(int iterations, BodySystemCPU<float>& nbody) -> void;
-extern template auto ComputeConfig::run_benchmark<BodySystemCPU<double>>(int iterations, BodySystemCPU<double>& nbody) -> void;
-extern template auto ComputeConfig::run_benchmark<BodySystemCUDA<float>>(int iterations, BodySystemCUDA<float>& nbody) -> void;
-extern template auto ComputeConfig::run_benchmark<BodySystemCUDA<double>>(int iterations, BodySystemCUDA<double>& nbody) -> void;
+extern template auto ComputeConfig::run_benchmark<BodySystemCPU<float>>(BodySystemCPU<float>& nbody) -> void;
+extern template auto ComputeConfig::run_benchmark<BodySystemCPU<double>>(BodySystemCPU<double>& nbody) -> void;
+extern template auto ComputeConfig::run_benchmark<BodySystemCUDA<float>>(BodySystemCUDA<float>& nbody) -> void;
+extern template auto ComputeConfig::run_benchmark<BodySystemCUDA<double>>(BodySystemCUDA<double>& nbody) -> void;
+
+extern template auto ComputeConfig::run_benchmark<float>() -> void;
+extern template auto ComputeConfig::run_benchmark<double>() -> void;

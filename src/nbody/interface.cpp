@@ -9,6 +9,8 @@
 #include <format>
 
 auto InterfaceConfig::display(ComputeConfig& compute, CameraConfig& camera) -> void {
+    compute.update_simulation(camera);
+
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     if (display_enabled) {
@@ -46,4 +48,33 @@ auto InterfaceConfig::display(ComputeConfig& compute, CameraConfig& camera) -> v
 
         glutSwapBuffers();
     }
+
+    ++fps_count;
+
+    // this displays the frame rate updated every second (independent of frame rate)
+    if (fps_count >= fps_limit) {
+        compute.calculate_fps(fps_count);
+
+        const auto fps_str = std::format(
+            "CUDA N-Body ({} bodies): {:.1f} fps | {:.1f} BIPS | {:.1f} GFLOP/s | {}",
+            compute.num_bodies,
+            compute.fps,
+            compute.interactions_per_second,
+            compute.g_flops,
+            compute.fp64_enabled ? "double precision" : "single precision");
+
+        glutSetWindowTitle(fps_str.c_str());
+        fps_count = 0;
+
+        if (compute.paused) {
+            fps_limit = 0;
+        } else if (compute.fps > 1.f) {
+            // setting the refresh limit (in number of frames) to be the FPS value obviously refreshes this message every second...
+            fps_limit = static_cast<int>(compute.fps);
+        } else {
+            fps_limit = 1;
+        }
+    }
+
+    glutReportErrors();
 }

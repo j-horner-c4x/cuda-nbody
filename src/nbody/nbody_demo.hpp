@@ -28,7 +28,7 @@ template <typename BodySystem> class NBodyDemo {
 
     static void selectDemo(ComputeConfig& compute, CameraConfig& camera);
 
-    static void runBenchmark(int iterations, ComputeConfig& compute);
+    static void runBenchmark(ComputeConfig& compute);
 
     static void updateParams(const NBodyParams& active_params);
 

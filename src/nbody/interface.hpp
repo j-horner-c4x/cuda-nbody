@@ -1,5 +1,6 @@
 #pragma once
 
+#include "paramgl.hpp"
 #include "render_particles.hpp"
 
 #include <memory>
@@ -15,6 +16,8 @@ struct InterfaceConfig {
     bool                          full_screen;
     bool                          display_interactions;
     ParticleRenderer::DisplayMode display_mode;
+    int                           fps_count;
+    int                           fps_limit;
 
     auto toggle_sliders() noexcept -> void { show_sliders = !show_sliders; }
     auto toggle_interactions() noexcept -> void { display_interactions = !display_interactions; }

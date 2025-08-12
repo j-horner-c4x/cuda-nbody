@@ -37,6 +37,7 @@
 #include "nbody/camera.hpp"
 #include "nbody/compute.hpp"
 #include "nbody/controls.hpp"
+#include "nbody/graphics_loop.hpp"
 #include "nbody/helper_cuda.hpp"
 #include "nbody/interface.hpp"
 #include "nbody/nbody_demo.hpp"
@@ -72,39 +73,6 @@ using MilliSeconds = std::chrono::duration<float, std::milli>;
 
 using std::ranges::copy;
 
-template <std::floating_point T> auto compare_results(int num_bodies, BodySystemCUDA<T>& nbodyCuda) -> bool {
-    bool passed = true;
-
-    nbodyCuda.update(0.001f);
-
-    {
-        using enum BodyArray;
-
-        auto nbodyCpu = BodySystemCPU<T>(num_bodies);
-
-        nbodyCpu.setArray(BODYSYSTEM_POSITION, std::span{nbodyCuda.getArray(BODYSYSTEM_POSITION), static_cast<std::size_t>(num_bodies) * 4});
-        nbodyCpu.setArray(BODYSYSTEM_VELOCITY, std::span{nbodyCuda.getArray(BODYSYSTEM_VELOCITY), static_cast<std::size_t>(num_bodies) * 4});
-
-        nbodyCpu.update(0.001f);
-
-        T* cudaPos = nbodyCuda.getArray(BODYSYSTEM_POSITION);
-        T* cpuPos  = nbodyCpu.getArray(BODYSYSTEM_POSITION);
-
-        T tolerance = 0.0005f;
-
-        for (int i = 0; i < num_bodies; i++) {
-            if (std::abs(cpuPos[i] - cudaPos[i]) > tolerance) {
-                passed = false;
-                std::println("Error: (host){} != (device){}", cpuPos[i], cudaPos[i]);
-            }
-        }
-    }
-    if (passed) {
-        std::println("  OK");
-    }
-    return passed;
-}
-
 auto initGL(int* argc, char** argv, bool full_screen) -> void {
     // First initialize OpenGL context, so we can properly set the GL for CUDA.
     // This is necessary in order to achieve optimal performance with OpenGL/CUDA interop.
@@ -137,143 +105,6 @@ auto initGL(int* argc, char** argv, bool full_screen) -> void {
     while ((error = glGetError()) != GL_NO_ERROR) {
         std::println(stderr, "initGL: error - {}", reinterpret_cast<const char*>(gluErrorString(error)));
     }
-}
-
-auto display(ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& camera) -> void {
-    compute.update_simulation(camera);
-
-    interface.display(compute, camera);
-
-    static int fpsCount = 0;
-    static int fpsLimit = 5;
-
-    fpsCount++;
-
-    // this displays the frame rate updated every second (independent of frame rate)
-    if (fpsCount >= fpsLimit) {
-        compute.calculate_fps(fpsCount);
-
-        const auto fps_str = std::format(
-            "CUDA N-Body ({} bodies): {:.1f} fps | {:.1f} BIPS | {:.1f} GFLOP/s | {}",
-            compute.num_bodies,
-            compute.fps,
-            compute.interactions_per_second,
-            compute.g_flops,
-            compute.fp64_enabled ? "double precision" : "single precision");
-
-        glutSetWindowTitle(fps_str.c_str());
-        fpsCount = 0;
-
-        if (compute.paused) {
-            fpsLimit = 0;
-        } else if (compute.fps > 1.f) {
-            // setting the refresh limit (in number of frames) to be the FPS value obviously refreshes this message every second...
-            fpsLimit = static_cast<int>(compute.fps);
-        } else {
-            fpsLimit = 1;
-        }
-    }
-
-    glutReportErrors();
-}
-
-auto mouse(int button, int state, int x, int y, InterfaceConfig& interface, ControlsConfig& controls, ComputeConfig& compute) -> void {
-    if (interface.show_sliders && interface.param_list->is_mouse_over(x, y)) {
-        // call list mouse function
-        interface.param_list->modify_sliders(x, y, button, state);
-        compute.update_params();
-    }
-
-    controls.set_state(button, state, x, y);
-
-    glutPostRedisplay();
-}
-
-auto motion(int x, int y, InterfaceConfig& interface, ControlsConfig& controls, CameraConfig& camera, ComputeConfig& compute) -> void {
-    if (interface.show_sliders) {
-        // call parameter list motion function
-        if (interface.param_list->Motion(x, y)) {
-            compute.update_params();
-            glutPostRedisplay();
-            return;
-        }
-    }
-
-    controls.move_camera(camera, x, y);
-
-    glutPostRedisplay();
-}
-
-auto key(unsigned char key, [[maybe_unused]] int x, [[maybe_unused]] int y, ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& camera) -> void {
-    using enum NBodyConfig;
-
-    switch (key) {
-        case ' ':
-            compute.pause();
-            break;
-
-        case 27:    // escape
-        case 'q':
-        case 'Q':
-            compute.finalize();
-            exit(EXIT_SUCCESS);
-            break;
-
-        case 13:    // return
-            compute.switch_precision();
-            break;
-
-        case '`':
-            interface.toggle_sliders();
-            break;
-
-        case 'g':
-        case 'G':
-            interface.toggle_interactions();
-            break;
-
-        case 'p':
-        case 'P':
-            interface.cycle_display_mode();
-            break;
-
-        case 'c':
-        case 'C':
-            compute.toggle_cycle_demo();
-            break;
-
-        case '[':
-            compute.previous_demo(camera);
-            break;
-
-        case ']':
-            compute.next_demo(camera);
-            break;
-
-        case 'd':
-        case 'D':
-            interface.togle_display();
-            break;
-
-        case 'o':
-        case 'O':
-            compute.active_params.print();
-            break;
-
-        case '1':
-            compute.reset<NBODY_CONFIG_SHELL>();
-            break;
-
-        case '2':
-            compute.reset<NBODY_CONFIG_RANDOM>();
-            break;
-
-        case '3':
-            compute.reset<NBODY_CONFIG_EXPAND>();
-            break;
-    }
-
-    glutPostRedisplay();
 }
 
 ///
@@ -356,111 +187,6 @@ auto parse_args(int argc, char** argv) -> std::pair<Status, Options> {
     return std::pair(Status::OK, std::move(options));
 }
 
-// get the parameter list of a lambda (with some minor fixes): https://stackoverflow.com/a/70954691
-template <typename T> struct Signature;
-template <typename C, typename... Args> struct Signature<void (C::*)(Args...) const> {
-    using type = typename std::tuple<Args...>;
-};
-template <typename C> struct Signature<void (C::*)() const> {
-    using type = void;
-};
-
-template <typename F>
-concept is_functor = std::is_class_v<std::decay_t<F>> && requires(F&& t) { &std::decay_t<F>::operator(); };
-
-template <is_functor T> auto arguments(T&& t) -> Signature<decltype(&std::decay_t<T>::operator())>::type;
-
-template <auto GLUTFunction, typename T> struct RegisterCallback;
-
-template <auto GLUTFunction> struct RegisterCallback<GLUTFunction, void> {
-    template <is_functor F> static auto callback(void* f_data) -> void {
-        const auto* obj = static_cast<F*>(f_data);
-
-        return obj->operator()();
-    }
-
-    template <typename F> static auto register_callback(F& func) -> void { GLUTFunction(callback<F>, static_cast<void*>(&func)); }
-};
-
-template <auto GLUTFunction, typename... Args> struct RegisterCallback<GLUTFunction, std::tuple<Args...>> {
-    template <is_functor F> static auto callback(Args... args, void* f_data) -> void {
-        const auto* obj = static_cast<F*>(f_data);
-
-        return obj->operator()(args...);
-    }
-
-    template <typename F> static auto register_callback(F& func) -> void { GLUTFunction(callback<F>, static_cast<void*>(&func)); }
-};
-
-template <auto GLUTFunction, typename F> auto register_callback(F& func) -> void {
-    using Args = std::decay_t<decltype(arguments(func))>;
-    RegisterCallback<GLUTFunction, Args>::register_callback(func);
-}
-
-auto execute_graphics_loop(ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& camera, ControlsConfig& controls) -> void {
-    auto display_ = [&]() { display(compute, interface, camera); };
-
-    auto reshape_ = [](int w, int h) {
-        glMatrixMode(GL_PROJECTION);
-        glLoadIdentity();
-        gluPerspective(60.0, static_cast<float>(w) / static_cast<float>(h), 0.1, 1000.0);
-
-        glMatrixMode(GL_MODELVIEW);
-        glViewport(0, 0, w, h);
-    };
-
-    auto mouse_   = [&](int button, int state, int x, int y) { mouse(button, state, x, y, interface, controls, compute); };
-    auto motion_  = [&](int x, int y) { motion(x, y, interface, controls, camera, compute); };
-    auto key_     = [&](unsigned char k, int x, int y) { key(k, x, y, compute, interface, camera); };
-    auto special_ = [&](int key, int x, int y) {
-        interface.param_list->Special(key, x, y);
-        glutPostRedisplay();
-    };
-    auto idle_ = []() { glutPostRedisplay(); };
-
-    static_assert(std::is_same_v<decltype(arguments(display_)), void>);
-    static_assert(std::is_same_v<decltype(arguments(reshape_)), std::tuple<int, int>>);
-
-    register_callback<glutDisplayFuncUcall>(display_);
-    register_callback<glutReshapeFuncUcall>(reshape_);
-    register_callback<glutMotionFuncUcall>(motion_);
-    register_callback<glutMouseFuncUcall>(mouse_);
-    register_callback<glutKeyboardFuncUcall>(key_);
-    register_callback<glutSpecialFuncUcall>(special_);
-    register_callback<glutIdleFuncUcall>(idle_);
-
-    if (!compute.use_cpu) {
-        checkCudaErrors(cudaEventRecord(compute.start_event, 0));
-    }
-
-    glutMainLoop();
-}
-
-template <std::floating_point T> auto run_program(int nb_iterations, ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& camera, ControlsConfig& controls) -> bool {
-    if (compute.benchmark) {
-        if (nb_iterations <= 0) {
-            nb_iterations = 10;
-        }
-
-        if (compute.use_cpu) {
-            NBodyDemo<BodySystemCPU<T>>::runBenchmark(nb_iterations, compute);
-        } else {
-            NBodyDemo<BodySystemCUDA<T>>::runBenchmark(nb_iterations, compute);
-        }
-
-        return true;
-    }
-    if (compute.compare_to_cpu) {
-        return compare_results(compute.num_bodies, NBodyDemo<BodySystemCUDA<T>>::get_impl());
-    }
-
-    assert(interface.param_list != nullptr);
-
-    execute_graphics_loop(compute, interface, camera, controls);
-
-    return true;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // Program main
 ////////////////////////////////////////////////////////////////////////////////
@@ -483,8 +209,6 @@ int main(int argc, char** argv) {
 
         const auto cmd_options = program_state.second;
 
-        bool bTestResults = true;
-
 #if defined(__linux__)
         setenv("DISPLAY", ":0", 0);
 #endif
@@ -497,277 +221,64 @@ int main(int argc, char** argv) {
 
         auto show_sliders = !full_screen;
 
-        auto compare_to_cpu = cmd_options.compare || cmd_options.qatest;
-
-        auto use_host_mem = cmd_options.hostmem;
-
-        auto numDevsRequested = 1;
-
-        if (cmd_options.numdevices > 0) {
-            numDevsRequested = static_cast<int>(cmd_options.numdevices);
-            std::println("number of CUDA devices  = {}", numDevsRequested);
-        }
-
-        auto customGPU = false;
-        {
-            int numDevsAvailable = 0;
-            cudaGetDeviceCount(&numDevsAvailable);
-
-            if (numDevsAvailable < numDevsRequested) {
-                throw std::invalid_argument(std::format("Error: only {} Devices available, {} requested.", numDevsAvailable, numDevsRequested));
-            }
-        }
-
-        auto useP2P = true;    // this is always optimal to use P2P path when available
-
-        if (numDevsRequested > 1) {
-            // If user did not explicitly request host memory to be used, we default to P2P.
-            // We fallback to host memory, if any of GPUs does not support P2P.
-            auto allGPUsSupportP2P = true;
-            if (!use_host_mem) {
-                // Enable P2P only in one direction, as every peer will access gpu0
-                for (int i = 1; i < numDevsRequested; ++i) {
-                    int canAccessPeer;
-                    checkCudaErrors(cudaDeviceCanAccessPeer(&canAccessPeer, i, 0));
-
-                    if (canAccessPeer != 1) {
-                        allGPUsSupportP2P = false;
-                    }
-                }
-
-                if (!allGPUsSupportP2P) {
-                    use_host_mem = true;
-                    useP2P       = false;
-                }
-            }
-        }
-
-        std::println("> Simulation data stored in {} memory", use_host_mem ? "system" : "video");
-        std::println("> {} precision floating point simulation", cmd_options.fp64 ? "Double" : "Single");
-        std::println("> {} Devices used for simulation", numDevsRequested);
-
-        if (cmd_options.cpu) {
-            use_host_mem   = true;
-            compare_to_cpu = false;
-
-#ifdef OPENMP
-            std::println("> Simulation with CPU using OpenMP");
-#else
-            std::println("> Simulation with CPU");
-#endif
-        }
-
         auto tipsy_file = cmd_options.tipsy;
         auto cycle_demo = tipsy_file.empty();
         show_sliders    = tipsy_file.empty();
 
-        auto compute = ComputeConfig{
-            .paused                  = false,
-            .fp64_enabled            = cmd_options.fp64,
-            .cycle_demo              = cycle_demo,
-            .active_demo             = 0,
-            .use_cpu                 = cmd_options.cpu,
-            .num_bodies              = 16384,
-            .double_supported        = cmd_options.cpu,
-            .flops_per_interaction   = cmd_options.fp64 ? 30 : 20,
-            .compare_to_cpu          = compare_to_cpu,
-            .benchmark               = cmd_options.benchmark,
-            .use_host_mem            = use_host_mem,
-            .g_flops                 = 0.f,
-            .fps                     = 0.f,
-            .interactions_per_second = 0.f,
-            .active_params           = ComputeConfig::demoParams[0],
-            .host_mem_sync_event     = cudaEvent_t{},
-            .start_event             = cudaEvent_t{},
-            .stop_event              = cudaEvent_t{}};
-
-        const auto enable_graphics = !compute.benchmark && !compute.compare_to_cpu;
-
         // Initialize GL and GLUT if necessary
-        if (enable_graphics) {
+        // TODO: graphics stuf is curently setup inside ComputeConfig so this needs to be invoked first
+        if ((!cmd_options.compare) && (!cmd_options.benchmark) && (!cmd_options.qatest)) {
             initGL(&argc, argv, full_screen);
         }
 
-        int devID = 0;
+        auto compute = ComputeConfig(
+            cmd_options.fp64,
+            cycle_demo,
+            cmd_options.cpu,
+            cmd_options.compare || cmd_options.qatest,
+            cmd_options.benchmark,
+            cmd_options.hostmem,
+            cmd_options.device,
+            cmd_options.numdevices,
+            cmd_options.i,
+            cmd_options.block_size,
+            cmd_options.numbodies,
+            tipsy_file);
 
-        cudaDeviceProp props{};
-        if (!cmd_options.cpu) {
-            if (cmd_options.device != -1) {
-                customGPU = true;
-            }
-
-            // If the command-line has a device number specified, use it
-            if (customGPU) {
-                devID = cmd_options.device;
-                assert(devID >= 0);
-
-                const auto new_dev_ID = gpuDeviceInit(devID);
-
-                if (new_dev_ID < 0) {
-                    throw std::invalid_argument(std::format("Could not use custom CUDA device: {}", devID));
-                }
-
-                devID = new_dev_ID;
-
-            } else {
-                // Otherwise pick the device with highest Gflops/s
-                devID = gpuGetMaxGflopsDeviceId();
-                checkCudaErrors(cudaSetDevice(devID));
-                int major = 0, minor = 0;
-                checkCudaErrors(cudaDeviceGetAttribute(&major, cudaDevAttrComputeCapabilityMajor, devID));
-                checkCudaErrors(cudaDeviceGetAttribute(&minor, cudaDevAttrComputeCapabilityMinor, devID));
-                std::println(R"(GPU Device {}: "{}" with compute capability {}.{}\n)", devID, _ConvertSMVer2ArchName(major, minor), major, minor);
-            }
-
-            checkCudaErrors(cudaGetDevice(&devID));
-            checkCudaErrors(cudaGetDeviceProperties(&props, devID));
-
-            compute.double_supported = true;
-
-            // Initialize devices
-            assert(!(customGPU && (numDevsRequested > 1)));
-
-            if (customGPU || numDevsRequested == 1) {
-                cudaDeviceProp props1;
-                checkCudaErrors(cudaGetDeviceProperties(&props1, devID));
-                std::println("> Compute {}.{} CUDA device: [{}]", props1.major, props1.minor, props1.name);
-                // CC 1.2 and earlier do not support double precision
-                if (props1.major * 10 + props1.minor <= 12) {
-                    compute.double_supported = false;
-                }
-
-            } else {
-                for (int i = 0; i < numDevsRequested; i++) {
-                    cudaDeviceProp props2;
-                    checkCudaErrors(cudaGetDeviceProperties(&props2, i));
-
-                    std::println("> Compute {}.{} CUDA device: [{}]", props2.major, props2.minor, props2.name);
-
-                    if (compute.use_host_mem) {
-                        if (!props2.canMapHostMemory) {
-                            throw std::invalid_argument(std::format("Device {} cannot map host memory!", i));
-                        }
-
-                        if (numDevsRequested > 1) {
-                            checkCudaErrors(cudaSetDevice(i));
-                        }
-
-                        checkCudaErrors(cudaSetDeviceFlags(cudaDeviceMapHost));
-                    }
-
-                    // CC 1.2 and earlier do not support double precision
-                    if (props2.major * 10 + props2.minor <= 12) {
-                        compute.double_supported = false;
-                    }
-                }
-            }
-
-            if (compute.fp64_enabled && !compute.double_supported) {
-                throw std::invalid_argument("One or more of the requested devices does not support double precision floating-point");
-            }
+        if (compute.benchmark) {
+            compute.run_benchmark();
+            compute.finalize();
+            return 0;
         }
 
-        auto numIterations = static_cast<int>(cmd_options.i);
-        auto blockSize     = static_cast<int>(cmd_options.block_size);
+        if (compute.compare_to_cpu) {
+            const auto result = compute.compare_results();
 
-        // default number of bodies is #SMs * 4 * CTA size
-        if (cmd_options.cpu) {
-#ifdef OPENMP
-            compute.num_bodies = 8192;
-#else
-            compute.num_bodies = 4096;
-#endif
-        } else if (numDevsRequested == 1) {
-            compute.num_bodies = compute.compare_to_cpu ? 4096 : blockSize * 4 * props.multiProcessorCount;
-        } else {
-            compute.num_bodies = 0;
-            for (int i = 0; i < numDevsRequested; i++) {
-                cudaDeviceProp props1;
-                checkCudaErrors(cudaGetDeviceProperties(&props1, i));
-                compute.num_bodies += blockSize * (props1.major >= 2 ? 4 : 1) * props1.multiProcessorCount;
-            }
-        }
+            compute.finalize();
 
-        if (cmd_options.numbodies != 0u) {
-            compute.num_bodies = static_cast<int>(cmd_options.numbodies);
-
-            assert(compute.num_bodies >= 1);
-
-            if (compute.num_bodies % blockSize) {
-                int newNumBodies = ((compute.num_bodies / blockSize) + 1) * blockSize;
-                std::println(R"(Warning: "number of bodies" specified {} is not a multiple of {}.)", compute.num_bodies, blockSize);
-                std::println("Rounding up to the nearest multiple: {}.", newNumBodies);
-                compute.num_bodies = newNumBodies;
-            } else {
-                std::println("number of bodies = {}", compute.num_bodies);
-            }
-        }
-
-        if (compute.num_bodies <= 1024) {
-            compute.active_params.m_clusterScale  = 1.52f;
-            compute.active_params.m_velocityScale = 2.f;
-        } else if (compute.num_bodies <= 2048) {
-            compute.active_params.m_clusterScale  = 1.56f;
-            compute.active_params.m_velocityScale = 2.64f;
-        } else if (compute.num_bodies <= 4096) {
-            compute.active_params.m_clusterScale  = 1.68f;
-            compute.active_params.m_velocityScale = 2.98f;
-        } else if (compute.num_bodies <= 8192) {
-            compute.active_params.m_clusterScale  = 1.98f;
-            compute.active_params.m_velocityScale = 2.9f;
-        } else if (compute.num_bodies <= 16384) {
-            compute.active_params.m_clusterScale  = 1.54f;
-            compute.active_params.m_velocityScale = 8.f;
-        } else if (compute.num_bodies <= 32768) {
-            compute.active_params.m_clusterScale  = 1.44f;
-            compute.active_params.m_velocityScale = 11.f;
+            return static_cast<int>(!result);
         }
 
         auto interface = InterfaceConfig{
             .display_enabled      = true,
             .show_sliders         = show_sliders,
-            .param_list           = enable_graphics ? compute.active_params.create_sliders() : nullptr,
+            .param_list           = compute.active_params.create_sliders(),
             .full_screen          = full_screen,
             .display_interactions = false,
-            .display_mode         = ParticleRenderer::PARTICLE_SPRITES_COLOR};
+            .display_mode         = ParticleRenderer::PARTICLE_SPRITES_COLOR,
+            .fps_count            = 0,
+            .fps_limit            = 5};
 
         auto camera = CameraConfig{.translation_lag = {0.f, -2.f, -150.f}, .translation = {0.f, -2.f, -150.f}, .rotation = {0.f, 0.f, 0.f}};
 
         auto controls = ControlsConfig{.button_state = 0, .old_x = 0, .old_y = 0};
 
-        using enum NBodyConfig;
+        execute_graphics_loop(compute, interface, camera, controls);
 
-        // Create the demo -- either double (fp64) or float (fp32, default)
-        // implementation
-        NBodyDemo<BodySystemCPU<float>>::Create(tipsy_file);
-        NBodyDemo<BodySystemCPU<float>>::init(numDevsRequested, blockSize, useP2P, devID, compute);
-        NBodyDemo<BodySystemCPU<float>>::reset(compute, NBODY_CONFIG_SHELL);
-
-        NBodyDemo<BodySystemCUDA<float>>::Create(tipsy_file);
-        NBodyDemo<BodySystemCUDA<float>>::init(numDevsRequested, blockSize, useP2P, devID, compute);
-        NBodyDemo<BodySystemCUDA<float>>::reset(compute, NBODY_CONFIG_SHELL);
-
-        if (compute.double_supported) {
-            NBodyDemo<BodySystemCPU<double>>::Create(tipsy_file);
-            NBodyDemo<BodySystemCPU<double>>::init(numDevsRequested, blockSize, useP2P, devID, compute);
-            NBodyDemo<BodySystemCPU<double>>::reset(compute, NBODY_CONFIG_SHELL);
-
-            NBodyDemo<BodySystemCUDA<double>>::Create(tipsy_file);
-            NBodyDemo<BodySystemCUDA<double>>::init(numDevsRequested, blockSize, useP2P, devID, compute);
-            NBodyDemo<BodySystemCUDA<double>>::reset(compute, NBODY_CONFIG_SHELL);
-        }
-
-        if (compute.fp64_enabled) {
-            bTestResults = run_program<double>(numIterations, compute, interface, camera, controls);
-        } else {
-            bTestResults = run_program<float>(numIterations, compute, interface, camera, controls);
-        }
+        std::println("Stopped graphics loop");
 
         compute.finalize();
 
-        if (!bTestResults) {
-            return 1;
-        }
         return 0;
     } catch (const std::invalid_argument& e) {
         std::println(stderr, "ERROR: {}", e.what());
