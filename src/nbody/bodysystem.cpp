@@ -2,9 +2,13 @@
 
 #include <vector_types.h>
 
+#include <algorithm>
+
+#include <cmath>
+
 namespace {
 auto normalize(float3& vector) -> float {
-    const auto dist = sqrtf(vector.x * vector.x + vector.y * vector.y + vector.z * vector.z);
+    const auto dist = std::sqrt(vector.x * vector.x + vector.y * vector.y + vector.z * vector.z);
 
     if (dist > 1e-6) {
         vector.x /= dist;
@@ -35,7 +39,7 @@ template <std::floating_point T> void randomizeBodies(NBodyConfig config, T* pos
         default:
         case NBODY_CONFIG_RANDOM:
             {
-                float scale  = clusterScale * std::max<float>(1.0f, numBodies / (1024.0f));
+                float scale  = clusterScale * std::max(1.0f, numBodies / (1024.0f));
                 float vscale = velocityScale * scale;
 
                 int p = 0, v = 0;

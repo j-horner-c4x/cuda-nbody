@@ -31,6 +31,8 @@
 
 #include <cuda_runtime.h>
 
+#include <filesystem>
+#include <span>
 #include <vector>
 
 template <typename T> struct DeviceData {
