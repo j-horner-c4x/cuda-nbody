@@ -31,8 +31,8 @@ template <typename BodySystem> auto NBodyDemo<BodySystem>::selectDemo(ComputeCon
     m_singleton->_selectDemo(compute, camera);
 }
 
-template <typename BodySystem> auto NBodyDemo<BodySystem>::runBenchmark(int iterations, ComputeConfig& compute) -> void {
-    compute.run_benchmark(iterations, *(m_singleton->m_nbody));
+template <typename BodySystem> auto NBodyDemo<BodySystem>::runBenchmark(ComputeConfig& compute) -> void {
+    compute.run_benchmark(*(m_singleton->m_nbody));
 }
 
 template <typename BodySystem> auto NBodyDemo<BodySystem>::updateParams(const NBodyParams& active_params) -> void {
