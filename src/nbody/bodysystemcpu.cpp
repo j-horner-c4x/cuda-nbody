@@ -85,36 +85,13 @@ template <std::floating_point T> void BodySystemCPU<T>::update(T deltaTime) {
     _integrateNBodySystem(deltaTime);
 }
 
-template <std::floating_point T> T* BodySystemCPU<T>::getArray(BodyArray array) {
-    using enum BodyArray;
-
-    switch (array) {
-        default:
-        case BODYSYSTEM_POSITION:
-            return m_pos.data();
-            break;
-
-        case BODYSYSTEM_VELOCITY:
-            return m_vel.data();
-            break;
-    }
+template <std::floating_point T> auto BodySystemCPU<T>::set_position(std::span<const T> data) -> void {
+    assert(data.size() == m_pos.size());
+    copy(data, m_pos.begin());
 }
-
-template <std::floating_point T> void BodySystemCPU<T>::setArray(BodyArray array, std::span<const T> data) {
-    using enum BodyArray;
-
-    switch (array) {
-        default:
-        case BODYSYSTEM_POSITION:
-            assert(data.size() == m_pos.size());
-            copy(data, m_pos.begin());
-            break;
-
-        case BODYSYSTEM_VELOCITY:
-            assert(data.size() == m_vel.size());
-            copy(data, m_vel.begin());
-            break;
-    }
+template <std::floating_point T> auto BodySystemCPU<T>::set_velocity(std::span<const T> data) -> void {
+    assert(data.size() == m_vel.size());
+    copy(data, m_vel.begin());
 }
 
 template <std::floating_point T> void bodyBodyInteraction(T accel[3], T posMass0[4], T posMass1[4], T softeningSquared) {

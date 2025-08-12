@@ -1,8 +1,8 @@
 #pragma once
 
-#include "bodysystem.hpp"
 #include "bodysystemcpu.hpp"
 #include "bodysystemcuda.hpp"
+#include "nbody_config.hpp"
 #include "render_particles.hpp"
 
 #include <chrono>

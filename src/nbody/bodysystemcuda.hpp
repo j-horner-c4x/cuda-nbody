@@ -27,10 +27,10 @@
 
 #pragma once
 
-#include "bodysystem.hpp"
-
 #include <cuda_runtime.h>
 
+#include <filesystem>
+#include <span>
 #include <vector>
 
 template <typename T> struct DeviceData {
@@ -57,8 +57,11 @@ template <std::floating_point T> class BodySystemCUDA {
     void setSoftening(T softening);
     void setDamping(T damping);
 
-    T*   getArray(BodyArray array);
-    void setArray(BodyArray array, std::span<const T> data);
+    auto get_position() -> std::span<T>;
+    auto get_velocity() -> std::span<T>;
+
+    auto set_position(std::span<const T> data) -> void;
+    auto set_velocity(std::span<const T> data) -> void;
 
     unsigned int getCurrentReadBuffer() const { return m_pbo[m_currentRead]; }
 

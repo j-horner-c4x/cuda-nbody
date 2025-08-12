@@ -27,8 +27,7 @@
 
 #pragma once
 
-#include "bodysystem.hpp"
-
+#include <filesystem>
 #include <span>
 #include <vector>
 
@@ -47,8 +46,11 @@ template <std::floating_point T> class BodySystemCPU {
     void setSoftening(T softening) { m_softeningSquared = softening * softening; }
     void setDamping(T damping) { m_damping = damping; }
 
-    T*   getArray(BodyArray array);
-    void setArray(BodyArray array, std::span<const T> data);
+    auto get_position() -> std::span<T> { return m_pos; }
+    auto get_velocity() -> std::span<T> { return m_vel; }
+
+    auto set_position(std::span<const T> data) -> void;
+    auto set_velocity(std::span<const T> data) -> void;
 
     constexpr static unsigned int getCurrentReadBuffer() { return 0; }
 

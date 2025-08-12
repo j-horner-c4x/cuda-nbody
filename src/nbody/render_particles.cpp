@@ -59,31 +59,34 @@ void ParticleRenderer::resetPBO() {
     glDeleteBuffers(1, (GLuint*)&m_pbo);
 }
 
-void ParticleRenderer::setPositions(float* pos, int numParticles) {
-    m_pos          = pos;
-    m_numParticles = numParticles;
+void ParticleRenderer::setPositions(std::span<float> pos) {
+    assert(pos.size() % 4 == 0);
+
+    m_pos          = pos.data();
+    m_numParticles = static_cast<int>(pos.size() / 4);
 
     if (!m_pbo) {
         glGenBuffers(1, (GLuint*)&m_pbo);
     }
 
     glBindBuffer(GL_ARRAY_BUFFER, m_pbo);
-    glBufferData(GL_ARRAY_BUFFER, numParticles * 4 * sizeof(float), pos, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, pos.size() * sizeof(float), pos.data(), GL_STATIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     SDK_CHECK_ERROR_GL();
 }
+void ParticleRenderer::setPositions(std::span<double> pos) {
+    assert(pos.size() % 4 == 0);
 
-void ParticleRenderer::setPositions(double* pos, int numParticles) {
     m_bFp64Positions = true;
-    m_pos_fp64       = pos;
-    m_numParticles   = numParticles;
+    m_pos_fp64       = pos.data();
+    m_numParticles   = static_cast<int>(pos.size() / 4);
 
     if (!m_pbo) {
         glGenBuffers(1, (GLuint*)&m_pbo);
     }
 
     glBindBuffer(GL_ARRAY_BUFFER, m_pbo);
-    glBufferData(GL_ARRAY_BUFFER, numParticles * 4 * sizeof(double), pos, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, pos.size() * sizeof(double), pos.data(), GL_STATIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     SDK_CHECK_ERROR_GL();
 }

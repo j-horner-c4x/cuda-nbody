@@ -27,20 +27,13 @@
 
 #pragma once
 
+#include "nbody_config.hpp"
+
 #include <concepts>
-#include <filesystem>
 #include <span>
-#include <type_traits>
-
-enum class NBodyConfig { NBODY_CONFIG_RANDOM, NBODY_CONFIG_SHELL, NBODY_CONFIG_EXPAND, NBODY_NUM_CONFIGS };
-
-enum class BodyArray {
-    BODYSYSTEM_POSITION,
-    BODYSYSTEM_VELOCITY,
-};
 
 // utility function
-template <std::floating_point T> void randomizeBodies(NBodyConfig config, T* pos, T* vel, float* color, float clusterScale, float velocityScale, int numBodies, bool vec4vel);
+template <std::floating_point T> auto randomise_bodies(NBodyConfig config, std::span<T> pos, std::span<T> vel, std::span<float> colour, float clusterScale, float velocityScale) -> void;
 
-extern template void randomizeBodies<float>(NBodyConfig config, float* pos, float* vel, float* color, float clusterScale, float velocityScale, int numBodies, bool vec4vel);
-extern template void randomizeBodies<double>(NBodyConfig config, double* pos, double* vel, float* color, float clusterScale, float velocityScale, int numBodies, bool vec4vel);
+extern template auto randomise_bodies<float>(NBodyConfig config, std::span<float> pos, std::span<float> vel, std::span<float> colour, float clusterScale, float velocityScale) -> void;
+extern template auto randomise_bodies<double>(NBodyConfig config, std::span<double> pos, std::span<double> vel, std::span<float> colour, float clusterScale, float velocityScale) -> void;

@@ -14,19 +14,17 @@ template <std::floating_point T> auto compare_results(int num_bodies, BodySystem
     nbodyCuda.update(0.001f);
 
     {
-        using enum BodyArray;
-
         auto nbodyCpu = BodySystemCPU<T>(num_bodies);
 
-        nbodyCpu.setArray(BODYSYSTEM_POSITION, std::span{nbodyCuda.getArray(BODYSYSTEM_POSITION), static_cast<std::size_t>(num_bodies) * 4});
-        nbodyCpu.setArray(BODYSYSTEM_VELOCITY, std::span{nbodyCuda.getArray(BODYSYSTEM_VELOCITY), static_cast<std::size_t>(num_bodies) * 4});
+        nbodyCpu.set_position(nbodyCuda.get_position());
+        nbodyCpu.set_velocity(nbodyCuda.get_position());
 
         nbodyCpu.update(0.001f);
 
-        T* cudaPos = nbodyCuda.getArray(BODYSYSTEM_POSITION);
-        T* cpuPos  = nbodyCpu.getArray(BODYSYSTEM_POSITION);
+        const auto cudaPos = nbodyCuda.get_position();
+        const auto cpuPos  = nbodyCpu.get_position();
 
-        T tolerance = 0.0005f;
+        constexpr auto tolerance = static_cast<T>(0.0005f);
 
         for (int i = 0; i < num_bodies; i++) {
             if (std::abs(cpuPos[i] - cudaPos[i]) > tolerance) {

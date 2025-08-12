@@ -28,14 +28,15 @@
 #pragma once
 
 #include <array>
+#include <span>
 
 class ParticleRenderer {
  public:
     ParticleRenderer();
     ~ParticleRenderer();
 
-    void setPositions(float* pos, int numParticles);
-    void setPositions(double* pos, int numParticles);
+    void setPositions(std::span<float> pos);
+    void setPositions(std::span<double> pos);
     void setBaseColor(const std::array<float, 4>& colour) { m_baseColor = colour; }
     void setColors(float* color, int numParticles);
     void setPBO(unsigned int pbo, int numParticles, bool fp64);

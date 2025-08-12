@@ -32,46 +32,23 @@
 #include <GL/wglew.h>
 #endif
 
-#include "nbody/bodysystemcpu.hpp"
-#include "nbody/bodysystemcuda.hpp"
 #include "nbody/camera.hpp"
 #include "nbody/compute.hpp"
 #include "nbody/controls.hpp"
 #include "nbody/graphics_loop.hpp"
-#include "nbody/helper_cuda.hpp"
 #include "nbody/interface.hpp"
-#include "nbody/nbody_demo.hpp"
-#include "nbody/paramgl.hpp"
-#include "nbody/params.hpp"
-#include "nbody/render_particles.hpp"
-#include "nbody/win_coords.hpp"
 
 #include <CLI/CLI.hpp>
 #include <GL/freeglut.h>
-#include <cuda_gl_interop.h>
-#include <cuda_runtime.h>
 
-#include <algorithm>
-#include <array>
-#include <chrono>
-#include <concepts>
 #include <filesystem>
-#include <format>
-#include <memory>
+#include <limits>
 #include <print>
+#include <stdexcept>
 #include <string_view>
+#include <utility>
 
-#include <cassert>
-#include <cmath>
 #include <cstddef>
-#include <cstdio>
-#include <cstdlib>
-
-using Clock        = std::chrono::steady_clock;
-using TimePoint    = std::chrono::time_point<Clock>;
-using MilliSeconds = std::chrono::duration<float, std::milli>;
-
-using std::ranges::copy;
 
 auto initGL(int* argc, char** argv, bool full_screen) -> void {
     // First initialize OpenGL context, so we can properly set the GL for CUDA.

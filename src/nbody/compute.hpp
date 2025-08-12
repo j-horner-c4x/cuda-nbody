@@ -1,6 +1,6 @@
 #pragma once
 
-#include "bodysystem.hpp"
+#include "nbody_config.hpp"
 #include "params.hpp"
 #include "render_particles.hpp"
 
@@ -8,6 +8,7 @@
 
 #include <array>
 #include <concepts>
+#include <filesystem>
 
 #include <cassert>
 

@@ -5,6 +5,7 @@
 #include "camera.hpp"
 #include "compute.hpp"
 #include "helper_cuda.hpp"
+#include "randomise_bodies.hpp"
 
 template <> std::unique_ptr<NBodyDemo<BodySystemCPU<double>>>  NBodyDemo<BodySystemCPU<double>>::m_singleton  = nullptr;
 template <> std::unique_ptr<NBodyDemo<BodySystemCPU<float>>>   NBodyDemo<BodySystemCPU<float>>::m_singleton   = nullptr;
@@ -54,7 +55,7 @@ template <typename BodySystem> auto NBodyDemo<BodySystem>::display(const Compute
             cudaEventSynchronize(compute.host_mem_sync_event);
         }
 
-        m_singleton->m_renderer->setPositions(m_singleton->m_nbody->getArray(BodyArray::BODYSYSTEM_POSITION), m_singleton->m_nbody->getNumBodies());
+        m_singleton->m_renderer->setPositions(m_singleton->m_nbody->get_position());
     } else {
         m_singleton->m_renderer->setPBO(m_singleton->m_nbody->getCurrentReadBuffer(), m_singleton->m_nbody->getNumBodies(), std::is_same_v<PrecisionType, double>);
     }
@@ -64,11 +65,12 @@ template <typename BodySystem> auto NBodyDemo<BodySystem>::display(const Compute
 }
 
 template <typename BodySystem> auto NBodyDemo<BodySystem>::getArrays(std::vector<PrecisionType>& pos, std::vector<PrecisionType>& vel) -> void {
-    using enum BodyArray;
-    auto _pos = m_singleton->m_nbody->getArray(BODYSYSTEM_POSITION);
-    auto _vel = m_singleton->m_nbody->getArray(BODYSYSTEM_VELOCITY);
-    copy(_pos, _pos + m_singleton->m_nbody->getNumBodies() * 4, pos.begin());
-    copy(_vel, _vel + m_singleton->m_nbody->getNumBodies() * 4, vel.begin());
+    using std::ranges::copy;
+
+    auto _pos = m_singleton->m_nbody->get_position();
+    auto _vel = m_singleton->m_nbody->get_velocity();
+    copy(_pos, pos.begin());
+    copy(_vel, vel.begin());
 }
 
 template <typename BodySystem> auto NBodyDemo<BodySystem>::setArrays(const std::vector<PrecisionType>& pos, const std::vector<PrecisionType>& vel, const ComputeConfig& compute) -> void {
@@ -82,10 +84,8 @@ template <typename BodySystem> auto NBodyDemo<BodySystem>::setArrays(const std::
         copy(vel, m_singleton->m_hVel.begin());
     }
 
-    using enum BodyArray;
-
-    m_singleton->m_nbody->setArray(BODYSYSTEM_POSITION, m_singleton->m_hPos);
-    m_singleton->m_nbody->setArray(BODYSYSTEM_VELOCITY, m_singleton->m_hVel);
+    m_singleton->m_nbody->set_position(m_singleton->m_hPos);
+    m_singleton->m_nbody->set_velocity(m_singleton->m_hVel);
 
     if (!compute.benchmark && !compute.use_cpu && !compute.compare_to_cpu) {
         m_singleton->_resetRenderer(compute.active_params.m_pointSize);
@@ -140,7 +140,7 @@ template <typename BodySystem> auto NBodyDemo<BodySystem>::_init(int numDevices,
 
 template <typename BodySystem> auto NBodyDemo<BodySystem>::_reset(ComputeConfig& compute, NBodyConfig config) -> void {
     if (tipsy_file_.empty()) {
-        randomizeBodies(config, m_hPos.data(), m_hVel.data(), m_hColor.data(), compute.active_params.m_clusterScale, compute.active_params.m_velocityScale, compute.num_bodies, true);
+        randomise_bodies<BodySystem::Type>(config, m_hPos, m_hVel, m_hColor, compute.active_params.m_clusterScale, compute.active_params.m_velocityScale);
         setArrays(m_hPos, m_hVel, compute);
     } else {
         m_nbody->loadTipsyFile(tipsy_file_);
