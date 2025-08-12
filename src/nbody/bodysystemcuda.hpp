@@ -27,8 +27,6 @@
 
 #pragma once
 
-#include "bodysystem.hpp"
-
 #include <cuda_runtime.h>
 
 #include <filesystem>

@@ -25,7 +25,6 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "bodysystem.hpp"
 #include "helper_cuda.hpp"
 #include "vec.hpp"
 

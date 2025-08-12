@@ -9,8 +9,8 @@ add_library(${PROJECT_NAME}_paramgl STATIC paramgl.cpp)
 add_library(${PROJECT_NAME}_param STATIC param.cpp)
 add_library(${PROJECT_NAME}_params STATIC params.cpp)
 
+add_library(${PROJECT_NAME}_randomise_bodies STATIC randomise_bodies.cpp)
 add_library(${PROJECT_NAME}_bodysystemcuda STATIC bodysystemcuda.cu bodysystemcuda.cpp)
-add_library(${PROJECT_NAME}_bodysystem STATIC bodysystem.cpp)
 add_library(${PROJECT_NAME}_bodysystemcpu STATIC bodysystemcpu.cpp)
 
 add_library(${PROJECT_NAME}_compute STATIC compute.cpp)
@@ -28,7 +28,7 @@ target_link_libraries(${PROJECT_NAME}_win_coords PRIVATE GLUT::GLUT)
 target_link_libraries(${PROJECT_NAME}_paramgl PRIVATE GLUT::GLUT ${PROJECT_NAME}_param ${PROJECT_NAME}_win_coords)
 
 target_link_libraries(${PROJECT_NAME}_tipsy PRIVATE CUDA::cudart_static)
-target_link_libraries(${PROJECT_NAME}_bodysystem PRIVATE CUDA::cudart_static)
+target_link_libraries(${PROJECT_NAME}_randomise_bodies PRIVATE CUDA::cudart_static)
 target_link_libraries(${PROJECT_NAME}_bodysystemcpu PRIVATE CUDA::cudart_static ${PROJECT_NAME}_tipsy)
 
 target_link_libraries(${PROJECT_NAME}_bodysystemcuda PRIVATE CUDA::cudart_static GLUT::GLUT)
@@ -43,7 +43,7 @@ target_link_libraries(${PROJECT_NAME}_compute
                             ${PROJECT_NAME}_bodysystemcuda)
 
 target_link_libraries(${PROJECT_NAME}_controls PUBLIC GLUT::GLUT ${PROJECT_NAME}_compute ${PROJECT_NAME}_interface)
-target_link_libraries(${PROJECT_NAME}_nbody_demo PUBLIC ${PROJECT_NAME}_compute ${PROJECT_NAME}_render_particles ${PROJECT_NAME}_bodysystem)
+target_link_libraries(${PROJECT_NAME}_nbody_demo PUBLIC ${PROJECT_NAME}_compute ${PROJECT_NAME}_render_particles ${PROJECT_NAME}_randomise_bodies)
 target_link_libraries(${PROJECT_NAME}_interface 
                         PUBLIC
                             ${PROJECT_NAME}_paramgl

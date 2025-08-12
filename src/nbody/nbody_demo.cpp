@@ -5,6 +5,7 @@
 #include "camera.hpp"
 #include "compute.hpp"
 #include "helper_cuda.hpp"
+#include "randomise_bodies.hpp"
 
 template <> std::unique_ptr<NBodyDemo<BodySystemCPU<double>>>  NBodyDemo<BodySystemCPU<double>>::m_singleton  = nullptr;
 template <> std::unique_ptr<NBodyDemo<BodySystemCPU<float>>>   NBodyDemo<BodySystemCPU<float>>::m_singleton   = nullptr;

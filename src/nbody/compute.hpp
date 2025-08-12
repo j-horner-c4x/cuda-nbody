@@ -1,6 +1,6 @@
 #pragma once
 
-#include "bodysystem.hpp"
+#include "nbody_config.hpp"
 #include "params.hpp"
 #include "render_particles.hpp"
 
