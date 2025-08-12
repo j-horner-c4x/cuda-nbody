@@ -139,44 +139,14 @@ auto initGL(int* argc, char** argv, bool full_screen) -> void {
     }
 }
 
-auto display(ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& camera) -> void {
-    compute.update_simulation(camera);
-
-    interface.display(compute, camera);
-
-    static int fpsCount = 0;
-    static int fpsLimit = 5;
-
-    fpsCount++;
-
-    // this displays the frame rate updated every second (independent of frame rate)
-    if (fpsCount >= fpsLimit) {
-        compute.calculate_fps(fpsCount);
-
-        const auto fps_str = std::format(
-            "CUDA N-Body ({} bodies): {:.1f} fps | {:.1f} BIPS | {:.1f} GFLOP/s | {}",
-            compute.num_bodies,
-            compute.fps,
-            compute.interactions_per_second,
-            compute.g_flops,
-            compute.fp64_enabled ? "double precision" : "single precision");
-
-        glutSetWindowTitle(fps_str.c_str());
-        fpsCount = 0;
-
-        if (compute.paused) {
-            fpsLimit = 0;
-        } else if (compute.fps > 1.f) {
-            // setting the refresh limit (in number of frames) to be the FPS value obviously refreshes this message every second...
-            fpsLimit = static_cast<int>(compute.fps);
-        } else {
-            fpsLimit = 1;
-        }
-    }
-
-    glutReportErrors();
-}
-
+///
+/// @brief When a user presses and releases mouse buttons in the window, each press and each release generates a mouse callback.
+///
+/// @param button   One of GLUT_LEFT_BUTTON, GLUT_MIDDLE_BUTTON, or GLUT_RIGHT_BUTTON
+/// @param state    Either GLUT_UP or GLUT_DOWN indicating whether the callback was due to a release or press respectively.
+/// @param x        Window relative x coordinate of the mouse.
+/// @param y        Window relative y coordinate of the mouse.
+///
 auto mouse(int button, int state, int x, int y, InterfaceConfig& interface, ControlsConfig& controls, ComputeConfig& compute) -> void {
     if (interface.show_sliders && interface.param_list->is_mouse_over(x, y)) {
         // call list mouse function
@@ -189,10 +159,15 @@ auto mouse(int button, int state, int x, int y, InterfaceConfig& interface, Cont
     glutPostRedisplay();
 }
 
+///
+///  @brief     The motion callback for a window is called when the mouse moves within the window while one or more mouse buttons are pressed.
+///             "passive_motion" would be the relevant function to use if no mouse button is pressed.
+///
 auto motion(int x, int y, InterfaceConfig& interface, ControlsConfig& controls, CameraConfig& camera, ComputeConfig& compute) -> void {
     if (interface.show_sliders) {
         // call parameter list motion function
         if (interface.param_list->Motion(x, y)) {
+            // by definition of this function, a mouse function is pressed so we need to update the parameters
             compute.update_params();
             glutPostRedisplay();
             return;
@@ -204,6 +179,17 @@ auto motion(int x, int y, InterfaceConfig& interface, ControlsConfig& controls, 
     glutPostRedisplay();
 }
 
+///
+/// @brief  When a user types into the window, each key press generating an ASCII character will generate a keyboard callback.
+///         During a keyboard callback, glutGetModifiers may be called to determine the state of modifier keys when the keystroke generating the callback occurred.
+///
+/// @param key      The generated ASCII character.
+/// @param x
+/// @param y
+/// @param compute
+/// @param
+/// @param camera
+/// @return
 auto key(unsigned char key, [[maybe_unused]] int x, [[maybe_unused]] int y, ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& camera) -> void {
     using enum NBodyConfig;
 
@@ -215,8 +201,7 @@ auto key(unsigned char key, [[maybe_unused]] int x, [[maybe_unused]] int y, Comp
         case 27:    // escape
         case 'q':
         case 'Q':
-            compute.finalize();
-            exit(EXIT_SUCCESS);
+            glutLeaveMainLoop();
             break;
 
         case 13:    // return
@@ -398,7 +383,7 @@ template <auto GLUTFunction, typename F> auto register_callback(F& func) -> void
 }
 
 auto execute_graphics_loop(ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& camera, ControlsConfig& controls) -> void {
-    auto display_ = [&]() { display(compute, interface, camera); };
+    auto display_ = [&]() { interface.display(compute, camera); };
 
     auto reshape_ = [](int w, int h) {
         glMatrixMode(GL_PROJECTION);
@@ -409,9 +394,11 @@ auto execute_graphics_loop(ComputeConfig& compute, InterfaceConfig& interface, C
         glViewport(0, 0, w, h);
     };
 
-    auto mouse_   = [&](int button, int state, int x, int y) { mouse(button, state, x, y, interface, controls, compute); };
-    auto motion_  = [&](int x, int y) { motion(x, y, interface, controls, camera, compute); };
-    auto key_     = [&](unsigned char k, int x, int y) { key(k, x, y, compute, interface, camera); };
+    auto mouse_  = [&](int button, int state, int x, int y) { mouse(button, state, x, y, interface, controls, compute); };
+    auto motion_ = [&](int x, int y) { motion(x, y, interface, controls, camera, compute); };
+    auto key_    = [&](unsigned char k, int x, int y) { key(k, x, y, compute, interface, camera); };
+
+    // The special keyboard callback is triggered when keyboard function or directional keys are pressed.
     auto special_ = [&](int key, int x, int y) {
         interface.param_list->Special(key, x, y);
         glutPostRedisplay();
@@ -457,6 +444,8 @@ template <std::floating_point T> auto run_program(int nb_iterations, ComputeConf
     assert(interface.param_list != nullptr);
 
     execute_graphics_loop(compute, interface, camera, controls);
+
+    std::println("Stopped graphics loop");
 
     return true;
 }
@@ -729,7 +718,9 @@ int main(int argc, char** argv) {
             .param_list           = enable_graphics ? compute.active_params.create_sliders() : nullptr,
             .full_screen          = full_screen,
             .display_interactions = false,
-            .display_mode         = ParticleRenderer::PARTICLE_SPRITES_COLOR};
+            .display_mode         = ParticleRenderer::PARTICLE_SPRITES_COLOR,
+            .fps_count            = 0,
+            .fps_limit            = 5};
 
         auto camera = CameraConfig{.translation_lag = {0.f, -2.f, -150.f}, .translation = {0.f, -2.f, -150.f}, .rotation = {0.f, 0.f, 0.f}};
 
