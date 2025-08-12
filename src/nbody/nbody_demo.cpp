@@ -140,7 +140,7 @@ template <typename BodySystem> auto NBodyDemo<BodySystem>::_init(int numDevices,
 
 template <typename BodySystem> auto NBodyDemo<BodySystem>::_reset(ComputeConfig& compute, NBodyConfig config) -> void {
     if (tipsy_file_.empty()) {
-        randomizeBodies(config, m_hPos.data(), m_hVel.data(), m_hColor.data(), compute.active_params.m_clusterScale, compute.active_params.m_velocityScale, compute.num_bodies, true);
+        randomise_bodies<BodySystem::Type>(config, m_hPos, m_hVel, m_hColor, compute.active_params.m_clusterScale, compute.active_params.m_velocityScale);
         setArrays(m_hPos, m_hVel, compute);
     } else {
         m_nbody->loadTipsyFile(tipsy_file_);
