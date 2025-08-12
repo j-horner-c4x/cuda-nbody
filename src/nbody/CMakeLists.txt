@@ -33,9 +33,16 @@ target_link_libraries(${PROJECT_NAME}_bodysystemcuda PRIVATE CUDA::cudart_static
 
 target_link_libraries(${PROJECT_NAME}_camera PRIVATE GLEW::GLEW OpenGL::GL)
 target_link_libraries(${PROJECT_NAME}_compute PUBLIC CUDA::cudart_static)
-target_link_libraries(${PROJECT_NAME}_controls PUBLIC GLUT::GLUT)
+target_link_libraries(${PROJECT_NAME}_controls PUBLIC GLUT::GLUT ${PROJECT_NAME}_compute ${PROJECT_NAME}_interface)
 target_link_libraries(${PROJECT_NAME}_nbody_demo PUBLIC ${PROJECT_NAME}_compute)
-target_link_libraries(${PROJECT_NAME}_interface PRIVATE GLEW::GLEW OpenGL::GL GLUT::GLUT ${PROJECT_NAME}_compute)
+target_link_libraries(${PROJECT_NAME}_interface 
+                        PUBLIC
+                            ${PROJECT_NAME}_paramgl
+                        PRIVATE
+                            GLEW::GLEW
+                            OpenGL::GL
+                            GLUT::GLUT
+                            ${PROJECT_NAME}_compute)
 
 
 #

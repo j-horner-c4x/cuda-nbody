@@ -1,6 +1,8 @@
 #include "controls.hpp"
 
 #include "camera.hpp"
+#include "compute.hpp"
+#include "interface.hpp"
 
 #include <GL/freeglut.h>
 
@@ -42,4 +44,108 @@ auto ControlsConfig::move_camera(CameraConfig& camera, int x, int y) -> void {
 
     old_x = x;
     old_y = y;
+}
+
+auto ControlsConfig::mouse(int button, int state, int x, int y, InterfaceConfig& interface, ComputeConfig& compute) -> void {
+    if (interface.show_sliders && interface.param_list->is_mouse_over(x, y)) {
+        // call list mouse function
+        interface.param_list->modify_sliders(x, y, button, state);
+        compute.update_params();
+    }
+
+    set_state(button, state, x, y);
+
+    glutPostRedisplay();
+}
+
+auto ControlsConfig::motion(int x, int y, InterfaceConfig& interface, CameraConfig& camera, ComputeConfig& compute) -> void {
+    if (interface.show_sliders) {
+        // call parameter list motion function
+        if (interface.param_list->Motion(x, y)) {
+            // by definition of this function, a mouse function is pressed so we need to update the parameters
+            compute.update_params();
+            glutPostRedisplay();
+            return;
+        }
+    }
+
+    move_camera(camera, x, y);
+
+    glutPostRedisplay();
+}
+
+auto ControlsConfig::keyboard(unsigned char key, [[maybe_unused]] int x, [[maybe_unused]] int y, ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& camera) -> void {
+    using enum NBodyConfig;
+
+    switch (key) {
+        case ' ':
+            compute.pause();
+            break;
+
+        case 27:    // escape
+        case 'q':
+        case 'Q':
+            glutLeaveMainLoop();
+            break;
+
+        case 13:    // return
+            compute.switch_precision();
+            break;
+
+        case '`':
+            interface.toggle_sliders();
+            break;
+
+        case 'g':
+        case 'G':
+            interface.toggle_interactions();
+            break;
+
+        case 'p':
+        case 'P':
+            interface.cycle_display_mode();
+            break;
+
+        case 'c':
+        case 'C':
+            compute.toggle_cycle_demo();
+            break;
+
+        case '[':
+            compute.previous_demo(camera);
+            break;
+
+        case ']':
+            compute.next_demo(camera);
+            break;
+
+        case 'd':
+        case 'D':
+            interface.togle_display();
+            break;
+
+        case 'o':
+        case 'O':
+            compute.active_params.print();
+            break;
+
+        case '1':
+            compute.reset<NBODY_CONFIG_SHELL>();
+            break;
+
+        case '2':
+            compute.reset<NBODY_CONFIG_RANDOM>();
+            break;
+
+        case '3':
+            compute.reset<NBODY_CONFIG_EXPAND>();
+            break;
+    }
+
+    glutPostRedisplay();
+}
+
+auto ControlsConfig::special(int key, int x, int y, InterfaceConfig& interface) -> void {
+    interface.param_list->Special(key, x, y);
+    glutPostRedisplay();
 }

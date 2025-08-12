@@ -107,128 +107,6 @@ auto initGL(int* argc, char** argv, bool full_screen) -> void {
 }
 
 ///
-/// @brief When a user presses and releases mouse buttons in the window, each press and each release generates a mouse callback.
-///
-/// @param button   One of GLUT_LEFT_BUTTON, GLUT_MIDDLE_BUTTON, or GLUT_RIGHT_BUTTON
-/// @param state    Either GLUT_UP or GLUT_DOWN indicating whether the callback was due to a release or press respectively.
-/// @param x        Window relative x coordinate of the mouse.
-/// @param y        Window relative y coordinate of the mouse.
-///
-auto mouse(int button, int state, int x, int y, InterfaceConfig& interface, ControlsConfig& controls, ComputeConfig& compute) -> void {
-    if (interface.show_sliders && interface.param_list->is_mouse_over(x, y)) {
-        // call list mouse function
-        interface.param_list->modify_sliders(x, y, button, state);
-        compute.update_params();
-    }
-
-    controls.set_state(button, state, x, y);
-
-    glutPostRedisplay();
-}
-
-///
-///  @brief     The motion callback for a window is called when the mouse moves within the window while one or more mouse buttons are pressed.
-///             "passive_motion" would be the relevant function to use if no mouse button is pressed.
-///
-auto motion(int x, int y, InterfaceConfig& interface, ControlsConfig& controls, CameraConfig& camera, ComputeConfig& compute) -> void {
-    if (interface.show_sliders) {
-        // call parameter list motion function
-        if (interface.param_list->Motion(x, y)) {
-            // by definition of this function, a mouse function is pressed so we need to update the parameters
-            compute.update_params();
-            glutPostRedisplay();
-            return;
-        }
-    }
-
-    controls.move_camera(camera, x, y);
-
-    glutPostRedisplay();
-}
-
-///
-/// @brief  When a user types into the window, each key press generating an ASCII character will generate a keyboard callback.
-///         During a keyboard callback, glutGetModifiers may be called to determine the state of modifier keys when the keystroke generating the callback occurred.
-///
-/// @param key      The generated ASCII character.
-/// @param x
-/// @param y
-/// @param compute
-/// @param
-/// @param camera
-/// @return
-auto key(unsigned char key, [[maybe_unused]] int x, [[maybe_unused]] int y, ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& camera) -> void {
-    using enum NBodyConfig;
-
-    switch (key) {
-        case ' ':
-            compute.pause();
-            break;
-
-        case 27:    // escape
-        case 'q':
-        case 'Q':
-            glutLeaveMainLoop();
-            break;
-
-        case 13:    // return
-            compute.switch_precision();
-            break;
-
-        case '`':
-            interface.toggle_sliders();
-            break;
-
-        case 'g':
-        case 'G':
-            interface.toggle_interactions();
-            break;
-
-        case 'p':
-        case 'P':
-            interface.cycle_display_mode();
-            break;
-
-        case 'c':
-        case 'C':
-            compute.toggle_cycle_demo();
-            break;
-
-        case '[':
-            compute.previous_demo(camera);
-            break;
-
-        case ']':
-            compute.next_demo(camera);
-            break;
-
-        case 'd':
-        case 'D':
-            interface.togle_display();
-            break;
-
-        case 'o':
-        case 'O':
-            compute.active_params.print();
-            break;
-
-        case '1':
-            compute.reset<NBODY_CONFIG_SHELL>();
-            break;
-
-        case '2':
-            compute.reset<NBODY_CONFIG_RANDOM>();
-            break;
-
-        case '3':
-            compute.reset<NBODY_CONFIG_EXPAND>();
-            break;
-    }
-
-    glutPostRedisplay();
-}
-
-///
 /// @brief  Describes the various outcomes after parsing the command-line arguments.
 ///
 enum class Status {
@@ -361,16 +239,13 @@ auto execute_graphics_loop(ComputeConfig& compute, InterfaceConfig& interface, C
         glViewport(0, 0, w, h);
     };
 
-    auto mouse_  = [&](int button, int state, int x, int y) { mouse(button, state, x, y, interface, controls, compute); };
-    auto motion_ = [&](int x, int y) { motion(x, y, interface, controls, camera, compute); };
-    auto key_    = [&](unsigned char k, int x, int y) { key(k, x, y, compute, interface, camera); };
+    auto mouse_    = [&](int button, int state, int x, int y) { controls.mouse(button, state, x, y, interface, compute); };
+    auto motion_   = [&](int x, int y) { controls.motion(x, y, interface, camera, compute); };
+    auto keyboard_ = [&](unsigned char k, int x, int y) { ControlsConfig::keyboard(k, x, y, compute, interface, camera); };
 
     // The special keyboard callback is triggered when keyboard function or directional keys are pressed.
-    auto special_ = [&](int key, int x, int y) {
-        interface.param_list->Special(key, x, y);
-        glutPostRedisplay();
-    };
-    auto idle_ = []() { glutPostRedisplay(); };
+    auto special_ = [&](int key, int x, int y) { ControlsConfig::special(key, x, y, interface); };
+    auto idle_    = []() { glutPostRedisplay(); };
 
     static_assert(std::is_same_v<decltype(arguments(display_)), void>);
     static_assert(std::is_same_v<decltype(arguments(reshape_)), std::tuple<int, int>>);
@@ -379,7 +254,7 @@ auto execute_graphics_loop(ComputeConfig& compute, InterfaceConfig& interface, C
     register_callback<glutReshapeFuncUcall>(reshape_);
     register_callback<glutMotionFuncUcall>(motion_);
     register_callback<glutMouseFuncUcall>(mouse_);
-    register_callback<glutKeyboardFuncUcall>(key_);
+    register_callback<glutKeyboardFuncUcall>(keyboard_);
     register_callback<glutSpecialFuncUcall>(special_);
     register_callback<glutIdleFuncUcall>(idle_);
 

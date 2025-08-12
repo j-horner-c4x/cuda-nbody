@@ -1,5 +1,6 @@
 #pragma once
 
+#include "paramgl.hpp"
 #include "render_particles.hpp"
 
 #include <memory>
