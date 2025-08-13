@@ -24,7 +24,7 @@ template <std::floating_point T> auto compare_results(int num_bodies, BodySystem
         const auto cudaPos = nbodyCuda.get_position();
         const auto cpuPos  = nbodyCpu.get_position();
 
-        constexpr auto tolerance = static_cast<T>(0.0005f);
+        constexpr auto tolerance = T{0.0005f};
 
         for (int i = 0; i < num_bodies; i++) {
             if (std::abs(cpuPos[i] - cudaPos[i]) > tolerance) {
@@ -351,9 +351,9 @@ template <typename BodySystem> auto ComputeConfig::run_benchmark(BodySystem& nbo
 
 template <std::floating_point T> auto ComputeConfig::run_benchmark() -> void {
     if (use_cpu) {
-        NBodyDemo<BodySystemCPU<T>>::runBenchmark(*this);
+        run_benchmark(NBodyDemo<BodySystemCPU<T>>::get_impl());
     } else {
-        NBodyDemo<BodySystemCUDA<T>>::runBenchmark(*this);
+        run_benchmark(NBodyDemo<BodySystemCUDA<T>>::get_impl());
     }
 }
 
@@ -375,17 +375,21 @@ auto ComputeConfig::toggle_cycle_demo() -> void {
 }
 
 auto ComputeConfig::select_demo(CameraConfig& camera) -> void {
+    select_demo();
+
+    camera.reset(active_params.camera_origin);
+
     if (use_cpu) {
         if (fp64_enabled) {
-            NBodyDemo<BodySystemCPU<double>>::selectDemo(*this, camera);
+            NBodyDemo<BodySystemCPU<double>>::selectDemo(*this);
         } else {
-            NBodyDemo<BodySystemCPU<float>>::selectDemo(*this, camera);
+            NBodyDemo<BodySystemCPU<float>>::selectDemo(*this);
         }
     } else {
         if (fp64_enabled) {
-            NBodyDemo<BodySystemCUDA<double>>::selectDemo(*this, camera);
+            NBodyDemo<BodySystemCUDA<double>>::selectDemo(*this);
         } else {
-            NBodyDemo<BodySystemCUDA<float>>::selectDemo(*this, camera);
+            NBodyDemo<BodySystemCUDA<float>>::selectDemo(*this);
         }
     }
 }

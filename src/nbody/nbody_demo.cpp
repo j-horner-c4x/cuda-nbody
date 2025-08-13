@@ -28,12 +28,8 @@ template <typename BodySystem> auto NBodyDemo<BodySystem>::reset(ComputeConfig& 
     m_singleton->_reset(compute, config);
 }
 
-template <typename BodySystem> auto NBodyDemo<BodySystem>::selectDemo(ComputeConfig& compute, CameraConfig& camera) -> void {
-    m_singleton->_selectDemo(compute, camera);
-}
-
-template <typename BodySystem> auto NBodyDemo<BodySystem>::runBenchmark(ComputeConfig& compute) -> void {
-    compute.run_benchmark(*(m_singleton->m_nbody));
+template <typename BodySystem> auto NBodyDemo<BodySystem>::selectDemo(ComputeConfig& compute) -> void {
+    m_singleton->_selectDemo(compute);
 }
 
 template <typename BodySystem> auto NBodyDemo<BodySystem>::updateParams(const NBodyParams& active_params) -> void {
@@ -64,7 +60,7 @@ template <typename BodySystem> auto NBodyDemo<BodySystem>::display(const Compute
     m_singleton->m_renderer->display(display_mode);
 }
 
-template <typename BodySystem> auto NBodyDemo<BodySystem>::getArrays(std::vector<PrecisionType>& pos, std::vector<PrecisionType>& vel) -> void {
+template <typename BodySystem> auto NBodyDemo<BodySystem>::getArrays(std::span<PrecisionType> pos, std::span<PrecisionType> vel) -> void {
     using std::ranges::copy;
 
     auto _pos = m_singleton->m_nbody->get_position();
@@ -73,7 +69,7 @@ template <typename BodySystem> auto NBodyDemo<BodySystem>::getArrays(std::vector
     copy(_vel, vel.begin());
 }
 
-template <typename BodySystem> auto NBodyDemo<BodySystem>::setArrays(const std::vector<PrecisionType>& pos, const std::vector<PrecisionType>& vel, const ComputeConfig& compute) -> void {
+template <typename BodySystem> auto NBodyDemo<BodySystem>::setArrays(std::span<const PrecisionType> pos, std::span<const PrecisionType> vel, const ComputeConfig& compute) -> void {
     using std::ranges::copy;
 
     if (pos.data() != m_singleton->m_hPos.data()) {
@@ -156,11 +152,7 @@ template <typename BodySystem> auto NBodyDemo<BodySystem>::_resetRenderer(float 
     m_renderer->setSpriteSize(point_size);
 }
 
-template <typename BodySystem> auto NBodyDemo<BodySystem>::_selectDemo(ComputeConfig& compute, CameraConfig& camera) -> void {
-    compute.select_demo();
-
-    camera.reset(compute.active_params.camera_origin);
-
+template <typename BodySystem> auto NBodyDemo<BodySystem>::_selectDemo(ComputeConfig& compute) -> void {
     _reset(compute, NBodyConfig::NBODY_CONFIG_SHELL);
 
     demo_reset_time_ = Clock::now();

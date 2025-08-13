@@ -12,7 +12,6 @@
 #include <vector>
 
 struct ComputeConfig;
-struct CameraConfig;
 struct NBodyParams;
 
 template <typename BodySystem> class NBodyDemo {
@@ -26,9 +25,7 @@ template <typename BodySystem> class NBodyDemo {
 
     static void reset(ComputeConfig& compute, NBodyConfig config);
 
-    static void selectDemo(ComputeConfig& compute, CameraConfig& camera);
-
-    static void runBenchmark(ComputeConfig& compute);
+    static void selectDemo(ComputeConfig& compute);
 
     static void updateParams(const NBodyParams& active_params);
 
@@ -36,9 +33,9 @@ template <typename BodySystem> class NBodyDemo {
 
     static void display(const ComputeConfig& compute, ParticleRenderer::DisplayMode display_mode);
 
-    static void getArrays(std::vector<PrecisionType>& pos, std::vector<PrecisionType>& vel);
+    static void getArrays(std::span<PrecisionType> pos, std::span<PrecisionType> vel);
 
-    static void setArrays(const std::vector<PrecisionType>& pos, const std::vector<PrecisionType>& vel, const ComputeConfig& compute);
+    static void setArrays(std::span<const PrecisionType> pos, std::span<const PrecisionType> vel, const ComputeConfig& compute);
 
     static auto get_demo_time() -> float;
 
@@ -76,7 +73,7 @@ template <typename BodySystem> class NBodyDemo {
 
     void _resetRenderer(float point_size);
 
-    void _selectDemo(ComputeConfig& compute, CameraConfig& camera);
+    void _selectDemo(ComputeConfig& compute);
 };
 
 template <std::floating_point T> class BodySystemCPU;
