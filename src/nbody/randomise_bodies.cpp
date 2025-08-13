@@ -35,12 +35,12 @@ template <std::floating_point T> constexpr auto cross(vec3<T> v0, vec3<T> v1) no
 }
 
 template <std::floating_point T> auto rng() noexcept {
-    return rand() / static_cast<T>(RAND_MAX);
-};    // [0, 1]
+    return rand() / static_cast<T>(RAND_MAX);    // [0, 1]
+};
 
 template <std::floating_point T> auto rng_2() noexcept {
-    return rand() * (T{2.0f} / static_cast<T>(RAND_MAX)) - T{1.0f};
-};    // [-1, 1]
+    return rand() * (T{2.0f} / static_cast<T>(RAND_MAX)) - T{1.0f};    // [-1, 1]
+};
 
 }    // namespace
 
@@ -56,7 +56,7 @@ template <std::floating_point T> auto randomise_bodies(NBodyConfig config, std::
         default:
         case NBODY_CONFIG_RANDOM:
             {
-                const auto scale  = clusterScale * std::max(1.0f, nb_bodies / (1024.0f));
+                const auto scale  = clusterScale * std::max(T{1}, nb_bodies / T{1024});
                 const auto vscale = velocityScale * scale;
 
                 auto p = std::size_t{0};
@@ -64,8 +64,7 @@ template <std::floating_point T> auto randomise_bodies(NBodyConfig config, std::
                 auto i = std::size_t{0};
 
                 while (i < nb_bodies) {
-                    auto point = vec3<T>{};
-                    // const int scale = 16;
+                    auto point  = vec3<T>{};
                     point.x     = rng_2<T>();
                     point.y     = rng_2<T>();
                     point.z     = rng_2<T>();
@@ -104,14 +103,13 @@ template <std::floating_point T> auto randomise_bodies(NBodyConfig config, std::
                 const auto scale  = clusterScale;
                 const auto vscale = scale * velocityScale;
                 const auto inner  = T{2.5f} * scale;
-                const auto outer  = T{4.0f} * scale;
+                const auto outer  = T{4} * scale;
 
                 auto i = std::size_t{0};
                 auto p = std::size_t{0};
                 auto v = std::size_t{0};
 
-                while (i < nb_bodies)    // for(int i=0; i < nb_bodies; i++)
-                {
+                while (i < nb_bodies) {
                     auto x = rng_2<T>();
                     auto y = rng_2<T>();
                     auto z = rng_2<T>();
@@ -127,19 +125,14 @@ template <std::floating_point T> auto randomise_bodies(NBodyConfig config, std::
                     pos[p++] = point.z * (inner + (outer - inner) * rng<T>());
                     pos[p++] = 1.0f;
 
-                    x         = 0.0f;    // * (rand() / (float) RAND_MAX * 2 - 1);
-                    y         = 0.0f;    // * (rand() / (float) RAND_MAX * 2 - 1);
-                    z         = 1.0f;    // * (rand() / (float) RAND_MAX * 2 - 1);
-                    auto axis = vec3<T>{x, y, z};
-                    normalize<T>(axis);
+                    auto axis = vec3<T>{0, 0, 1};
 
-                    if (1 - dot<T>(point, axis) < 1e-6) {
+                    if (1 - point.z < 1e-6) {
                         axis.x = point.y;
                         axis.y = point.x;
                         normalize<T>(axis);
                     }
 
-                    // if (point.y < 0) axis = scalevec(axis, -1);
                     auto vv  = vec3<T>{pos[4 * i], pos[4 * i + 1], pos[4 * i + 2]};
                     vv       = cross<T>(vv, axis);
                     vel[v++] = vv.x * vscale;
@@ -155,9 +148,9 @@ template <std::floating_point T> auto randomise_bodies(NBodyConfig config, std::
 
         case NBODY_CONFIG_EXPAND:
             {
-                auto scale = clusterScale * nb_bodies / (1024.f);
+                auto scale = clusterScale * nb_bodies / T{1024};
 
-                if (scale < 1.0f) {
+                if (scale < 1) {
                     scale = clusterScale;
                 }
 

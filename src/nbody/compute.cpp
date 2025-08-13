@@ -24,7 +24,7 @@ template <std::floating_point T> auto compare_results(int num_bodies, BodySystem
         const auto cudaPos = nbodyCuda.get_position();
         const auto cpuPos  = nbodyCpu.get_position();
 
-        constexpr auto tolerance = static_cast<T>(0.0005f);
+        constexpr auto tolerance = T{0.0005f};
 
         for (int i = 0; i < num_bodies; i++) {
             if (std::abs(cpuPos[i] - cudaPos[i]) > tolerance) {
@@ -255,26 +255,30 @@ ComputeConfig::ComputeConfig(
 
     // Create the demo -- either double (fp64) or float (fp32, default)
     // implementation
-    NBodyDemo<BodySystemCPU<float>>::Create(tipsy_file);
-    NBodyDemo<BodySystemCPU<float>>::init(nb_devices_requested, blockSize, use_p2p, dev_id, *this);
-    NBodyDemo<BodySystemCPU<float>>::reset(*this, NBODY_CONFIG_SHELL);
 
-    NBodyDemo<BodySystemCUDA<float>>::Create(tipsy_file);
-    NBodyDemo<BodySystemCUDA<float>>::init(nb_devices_requested, blockSize, use_p2p, dev_id, *this);
-    NBodyDemo<BodySystemCUDA<float>>::reset(*this, NBODY_CONFIG_SHELL);
+    nbody_cpu_fp32  = std::make_unique<NBodyDemo<BodySystemCPU<float>>>(tipsy_file, *this);
+    nbody_cuda_fp32 = std::make_unique<NBodyDemo<BodySystemCUDA<float>>>(tipsy_file, *this, nb_devices_requested, blockSize, use_p2p, dev_id);
+
+    nbody_cpu_fp32->_reset(*this, NBODY_CONFIG_SHELL);
+    nbody_cuda_fp32->_reset(*this, NBODY_CONFIG_SHELL);
 
     if (double_supported) {
-        NBodyDemo<BodySystemCPU<double>>::Create(tipsy_file);
-        NBodyDemo<BodySystemCPU<double>>::init(nb_devices_requested, blockSize, use_p2p, dev_id, *this);
-        NBodyDemo<BodySystemCPU<double>>::reset(*this, NBODY_CONFIG_SHELL);
+        nbody_cpu_fp64  = std::make_unique<NBodyDemo<BodySystemCPU<double>>>(tipsy_file, *this);
+        nbody_cuda_fp64 = std::make_unique<NBodyDemo<BodySystemCUDA<double>>>(tipsy_file, *this, nb_devices_requested, blockSize, use_p2p, dev_id);
 
-        NBodyDemo<BodySystemCUDA<double>>::Create(tipsy_file);
-        NBodyDemo<BodySystemCUDA<double>>::init(nb_devices_requested, blockSize, use_p2p, dev_id, *this);
-        NBodyDemo<BodySystemCUDA<double>>::reset(*this, NBODY_CONFIG_SHELL);
+        nbody_cpu_fp64->_reset(*this, NBODY_CONFIG_SHELL);
+        nbody_cuda_fp64->_reset(*this, NBODY_CONFIG_SHELL);
     }
 }
 
-template <std::floating_point T_new, std::floating_point T_old> auto ComputeConfig::switch_demo_precision() -> void {
+ComputeConfig ::~ComputeConfig() noexcept {
+    finalize();
+}
+
+template <typename BodySystemNew, typename BodySystemOld> auto ComputeConfig::switch_precision(BodySystemNew& new_nbody, BodySystemOld& old_nbody) -> void {
+    using T_new = BodySystemNew::PrecisionType;
+    using T_old = BodySystemOld::PrecisionType;
+
     static_assert(!std::is_same_v<T_new, T_old>);
 
     cudaDeviceSynchronize();
@@ -287,11 +291,7 @@ template <std::floating_point T_new, std::floating_point T_old> auto ComputeConf
     auto oldPos = std::vector<T_old>(nb_bodies_4);
     auto oldVel = std::vector<T_old>(nb_bodies_4);
 
-    if (use_cpu) {
-        NBodyDemo<BodySystemCPU<T_old>>::getArrays(oldPos, oldVel);
-    } else {
-        NBodyDemo<BodySystemCUDA<T_old>>::getArrays(oldPos, oldVel);
-    }
+    old_nbody.get_arrays(oldPos, oldVel);
 
     // convert float to double
     auto newPos = std::vector<T_new>(nb_bodies_4);
@@ -302,11 +302,7 @@ template <std::floating_point T_new, std::floating_point T_old> auto ComputeConf
         newVel[i] = static_cast<T_new>(oldVel[i]);
     }
 
-    if (use_cpu) {
-        NBodyDemo<BodySystemCPU<T_new>>::setArrays(newPos, newVel, *this);
-    } else {
-        NBodyDemo<BodySystemCUDA<T_new>>::setArrays(newPos, newVel, *this);
-    }
+    new_nbody.set_arrays(newPos, newVel, *this);
 
     cudaDeviceSynchronize();
 }
@@ -349,21 +345,21 @@ template <typename BodySystem> auto ComputeConfig::run_benchmark(BodySystem& nbo
     std::println("= {:3} {}-precision GFLOP/s at {} flops per interaction", g_flops, std::is_same_v<typename BodySystem::Type, double> ? "double" : "single", flops_per_interaction);
 }
 
-template <std::floating_point T> auto ComputeConfig::run_benchmark() -> void {
-    if (use_cpu) {
-        NBodyDemo<BodySystemCPU<T>>::runBenchmark(*this);
-    } else {
-        NBodyDemo<BodySystemCUDA<T>>::runBenchmark(*this);
-    }
-}
-
 auto ComputeConfig::switch_precision() -> void {
     if (double_supported) {
         if (fp64_enabled) {
-            switch_demo_precision<float, double>();
+            if (use_cpu) {
+                switch_precision(*nbody_cpu_fp32, *nbody_cpu_fp64);
+            } else {
+                switch_precision(*nbody_cuda_fp32, *nbody_cuda_fp64);
+            }
             std::println("> Double precision floating point simulation");
         } else {
-            switch_demo_precision<double, float>();
+            if (use_cpu) {
+                switch_precision(*nbody_cpu_fp64, *nbody_cpu_fp32);
+            } else {
+                switch_precision(*nbody_cuda_fp64, *nbody_cuda_fp32);
+            }
             std::println("> Single precision floating point simulation");
         }
     }
@@ -375,17 +371,21 @@ auto ComputeConfig::toggle_cycle_demo() -> void {
 }
 
 auto ComputeConfig::select_demo(CameraConfig& camera) -> void {
+    select_demo();
+
+    camera.reset(active_params.camera_origin);
+
     if (use_cpu) {
         if (fp64_enabled) {
-            NBodyDemo<BodySystemCPU<double>>::selectDemo(*this, camera);
+            nbody_cpu_fp64->_selectDemo(*this);
         } else {
-            NBodyDemo<BodySystemCPU<float>>::selectDemo(*this, camera);
+            nbody_cpu_fp32->_selectDemo(*this);
         }
     } else {
         if (fp64_enabled) {
-            NBodyDemo<BodySystemCUDA<double>>::selectDemo(*this, camera);
+            nbody_cuda_fp64->_selectDemo(*this);
         } else {
-            NBodyDemo<BodySystemCUDA<float>>::selectDemo(*this, camera);
+            nbody_cuda_fp32->_selectDemo(*this);
         }
     }
 }
@@ -395,9 +395,9 @@ auto ComputeConfig::update_simulation(CameraConfig& camera) -> void {
         auto demo_time = 0.f;
 
         if (use_cpu) {
-            demo_time = fp64_enabled ? NBodyDemo<BodySystemCPU<double>>::get_demo_time() : NBodyDemo<BodySystemCPU<float>>::get_demo_time();
+            demo_time = fp64_enabled ? nbody_cpu_fp64->_get_demo_time() : nbody_cpu_fp32->_get_demo_time();
         } else {
-            demo_time = fp64_enabled ? NBodyDemo<BodySystemCUDA<double>>::get_demo_time() : NBodyDemo<BodySystemCUDA<float>>::get_demo_time();
+            demo_time = fp64_enabled ? nbody_cuda_fp64->_get_demo_time() : nbody_cuda_fp32->_get_demo_time();
         }
 
         if (cycle_demo && (demo_time > demoTime)) {
@@ -406,15 +406,15 @@ auto ComputeConfig::update_simulation(CameraConfig& camera) -> void {
 
         if (use_cpu) {
             if (fp64_enabled) {
-                NBodyDemo<BodySystemCPU<double>>::updateSimulation(active_params.m_timestep);
+                nbody_cpu_fp64->update_simulation(active_params.m_timestep);
             } else {
-                NBodyDemo<BodySystemCPU<float>>::updateSimulation(active_params.m_timestep);
+                nbody_cpu_fp32->update_simulation(active_params.m_timestep);
             }
         } else {
             if (fp64_enabled) {
-                NBodyDemo<BodySystemCUDA<double>>::updateSimulation(active_params.m_timestep);
+                nbody_cuda_fp64->update_simulation(active_params.m_timestep);
             } else {
-                NBodyDemo<BodySystemCUDA<float>>::updateSimulation(active_params.m_timestep);
+                nbody_cuda_fp32->update_simulation(active_params.m_timestep);
             }
         }
 
@@ -427,15 +427,15 @@ auto ComputeConfig::update_simulation(CameraConfig& camera) -> void {
 auto ComputeConfig::display_NBody_system(ParticleRenderer::DisplayMode display_mode) -> void {
     if (use_cpu) {
         if (fp64_enabled) {
-            NBodyDemo<BodySystemCPU<double>>::display(*this, display_mode);
+            nbody_cpu_fp64->_display(*this, display_mode);
         } else {
-            NBodyDemo<BodySystemCPU<float>>::display(*this, display_mode);
+            nbody_cpu_fp32->_display(*this, display_mode);
         }
     } else {
         if (fp64_enabled) {
-            NBodyDemo<BodySystemCUDA<double>>::display(*this, display_mode);
+            nbody_cuda_fp64->_display(*this, display_mode);
         } else {
-            NBodyDemo<BodySystemCUDA<float>>::display(*this, display_mode);
+            nbody_cuda_fp32->_display(*this, display_mode);
         }
     }
 }
@@ -443,15 +443,15 @@ auto ComputeConfig::display_NBody_system(ParticleRenderer::DisplayMode display_m
 template <NBodyConfig InitialConfiguration> auto ComputeConfig::reset() -> void {
     if (fp64_enabled) {
         if (use_cpu) {
-            NBodyDemo<BodySystemCPU<double>>::reset(*this, InitialConfiguration);
+            nbody_cpu_fp64->_reset(*this, InitialConfiguration);
         } else {
-            NBodyDemo<BodySystemCUDA<double>>::reset(*this, InitialConfiguration);
+            nbody_cuda_fp64->_reset(*this, InitialConfiguration);
         }
     } else {
         if (use_cpu) {
-            NBodyDemo<BodySystemCPU<float>>::reset(*this, InitialConfiguration);
+            nbody_cpu_fp32->_reset(*this, InitialConfiguration);
         } else {
-            NBodyDemo<BodySystemCUDA<float>>::reset(*this, InitialConfiguration);
+            nbody_cuda_fp32->_reset(*this, InitialConfiguration);
         }
     }
 }
@@ -459,15 +459,15 @@ template <NBodyConfig InitialConfiguration> auto ComputeConfig::reset() -> void 
 auto ComputeConfig::update_params() -> void {
     if (use_cpu) {
         if (fp64_enabled) {
-            NBodyDemo<BodySystemCPU<double>>::updateParams(active_params);
+            nbody_cpu_fp64->update_params(active_params);
         } else {
-            NBodyDemo<BodySystemCPU<float>>::updateParams(active_params);
+            nbody_cpu_fp32->update_params(active_params);
         }
     } else {
         if (fp64_enabled) {
-            NBodyDemo<BodySystemCUDA<double>>::updateParams(active_params);
+            nbody_cuda_fp64->update_params(active_params);
         } else {
-            NBodyDemo<BodySystemCUDA<float>>::updateParams(active_params);
+            nbody_cuda_fp32->update_params(active_params);
         }
     }
 }
@@ -478,20 +478,12 @@ auto ComputeConfig::finalize() noexcept -> void {
         checkCudaErrors(cudaEventDestroy(stop_event));
         checkCudaErrors(cudaEventDestroy(host_mem_sync_event));
     }
-
-    NBodyDemo<BodySystemCPU<float>>::Destroy();
-    NBodyDemo<BodySystemCUDA<float>>::Destroy();
-
-    if (double_supported) {
-        NBodyDemo<BodySystemCPU<double>>::Destroy();
-        NBodyDemo<BodySystemCUDA<double>>::Destroy();
-    }
 }
 
 auto ComputeConfig::get_milliseconds_passed() -> float {
     // stop timer
     if (use_cpu) {
-        return fp64_enabled ? NBodyDemo<BodySystemCPU<double>>::get_milliseconds_passed() : NBodyDemo<BodySystemCPU<float>>::get_milliseconds_passed();
+        return fp64_enabled ? nbody_cpu_fp64->_get_milliseconds_passed() : nbody_cpu_fp32->_get_milliseconds_passed();
     }
 
     auto milliseconds = 0.f;
@@ -522,14 +514,22 @@ auto ComputeConfig::calculate_fps(int fps_count) -> void {
 
 auto ComputeConfig::run_benchmark() -> void {
     if (fp64_enabled) {
-        run_benchmark<double>();
+        if (use_cpu) {
+            run_benchmark(nbody_cpu_fp64->_get_impl());
+        } else {
+            run_benchmark(nbody_cuda_fp64->_get_impl());
+        }
     } else {
-        run_benchmark<float>();
+        if (use_cpu) {
+            run_benchmark(nbody_cpu_fp32->_get_impl());
+        } else {
+            run_benchmark(nbody_cuda_fp32->_get_impl());
+        }
     }
 }
 
 auto ComputeConfig::compare_results() -> bool {
-    return fp64_enabled ? ::compare_results(num_bodies, NBodyDemo<BodySystemCUDA<double>>::get_impl()) : ::compare_results(num_bodies, NBodyDemo<BodySystemCUDA<float>>::get_impl());
+    return fp64_enabled ? ::compare_results(num_bodies, nbody_cuda_fp64->_get_impl()) : ::compare_results(num_bodies, nbody_cuda_fp32->_get_impl());
 }
 
 template auto ComputeConfig::reset<NBodyConfig::NBODY_CONFIG_EXPAND>() -> void;
@@ -540,6 +540,3 @@ template auto ComputeConfig::run_benchmark<BodySystemCPU<float>>(BodySystemCPU<f
 template auto ComputeConfig::run_benchmark<BodySystemCPU<double>>(BodySystemCPU<double>& nbody) -> void;
 template auto ComputeConfig::run_benchmark<BodySystemCUDA<float>>(BodySystemCUDA<float>& nbody) -> void;
 template auto ComputeConfig::run_benchmark<BodySystemCUDA<double>>(BodySystemCUDA<double>& nbody) -> void;
-
-template auto ComputeConfig::run_benchmark<float>() -> void;
-template auto ComputeConfig::run_benchmark<double>() -> void;

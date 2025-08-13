@@ -9,10 +9,15 @@
 #include <array>
 #include <concepts>
 #include <filesystem>
+#include <memory>
 
 #include <cassert>
 
 struct CameraConfig;
+
+template <typename BodySystem> class NBodyDemo;
+template <std::floating_point T> class BodySystemCPU;
+template <std::floating_point T> class BodySystemCUDA;
 
 struct ComputeConfig {
     constexpr static auto demoParams = std::array{
@@ -61,11 +66,7 @@ struct ComputeConfig {
                   std::size_t                  nb_bodies,
                   const std::filesystem::path& tipsy_file);
 
-    template <std::floating_point T_new, std::floating_point T_old> auto switch_demo_precision() -> void;
-
     template <typename BodySystem> auto run_benchmark(BodySystem& nbody) -> void;
-
-    template <std::floating_point T> auto run_benchmark() -> void;
 
     auto run_benchmark() -> void;
 
@@ -123,6 +124,17 @@ struct ComputeConfig {
     auto restart_timer() -> void;
 
     auto calculate_fps(int fps_count) -> void;
+
+    ~ComputeConfig() noexcept;
+
+ private:
+    template <typename BodySystemNew, typename BodySystemOld> auto switch_precision(BodySystemNew& new_nbody, BodySystemOld& old_nbody) -> void;
+
+    std::unique_ptr<NBodyDemo<BodySystemCPU<float>>>  nbody_cpu_fp32;
+    std::unique_ptr<NBodyDemo<BodySystemCUDA<float>>> nbody_cuda_fp32;
+
+    std::unique_ptr<NBodyDemo<BodySystemCPU<double>>>  nbody_cpu_fp64;
+    std::unique_ptr<NBodyDemo<BodySystemCUDA<double>>> nbody_cuda_fp64;
 };
 
 extern template auto ComputeConfig::reset<NBodyConfig::NBODY_CONFIG_EXPAND>() -> void;
@@ -136,6 +148,3 @@ extern template auto ComputeConfig::run_benchmark<BodySystemCPU<float>>(BodySyst
 extern template auto ComputeConfig::run_benchmark<BodySystemCPU<double>>(BodySystemCPU<double>& nbody) -> void;
 extern template auto ComputeConfig::run_benchmark<BodySystemCUDA<float>>(BodySystemCUDA<float>& nbody) -> void;
 extern template auto ComputeConfig::run_benchmark<BodySystemCUDA<double>>(BodySystemCUDA<double>& nbody) -> void;
-
-extern template auto ComputeConfig::run_benchmark<float>() -> void;
-extern template auto ComputeConfig::run_benchmark<double>() -> void;
