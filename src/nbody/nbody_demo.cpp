@@ -154,7 +154,7 @@ template <typename BodySystem> auto NBodyDemo<BodySystem>::_resetRenderer(float 
     const auto colour = std::is_same_v<PrecisionType, double> ? std::array{0.4f, 0.8f, 0.1f, 1.0f} : std::array{1.0f, 0.6f, 0.3f, 1.0f};
 
     m_renderer->setBaseColor(colour);
-    m_renderer->setColors(m_hColor.data(), m_nbody->getNumBodies());
+    m_renderer->setColours(m_hColor);
     m_renderer->setSpriteSize(point_size);
 }
 

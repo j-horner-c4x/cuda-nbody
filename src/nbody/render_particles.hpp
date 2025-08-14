@@ -32,13 +32,13 @@
 
 class ParticleRenderer {
  public:
-    ParticleRenderer();
-    ~ParticleRenderer();
+    ParticleRenderer() { _initGL(); }
 
     void setPositions(std::span<float> pos);
     void setPositions(std::span<double> pos);
     void setBaseColor(const std::array<float, 4>& colour) { m_baseColor = colour; }
-    void setColors(float* color, int numParticles);
+    // void setColors(float* color, int numParticles);
+    void setColours(std::span<const float> colour);
     void setPBO(unsigned int pbo, int numParticles, bool fp64);
 
     enum DisplayMode { PARTICLE_POINTS, PARTICLE_SPRITES, PARTICLE_SPRITES_COLOR, PARTICLE_NUM_MODES };
@@ -50,29 +50,28 @@ class ParticleRenderer {
 
     void resetPBO();
 
- protected:    // methods
+ private:    // methods
     void _initGL();
-    void _createTexture(int resolution);
-    void _drawPoints(bool color = false);
+    void _createTexture();
+    void _drawPoints(bool color);
 
- protected:    // data
-    float*  m_pos;
+    float*  m_pos = nullptr;
     double* m_pos_fp64;
-    int     m_numParticles;
+    int     m_numParticles = 0;
 
-    float m_pointSize;
-    float m_spriteSize;
+    float m_pointSize  = 1.f;
+    float m_spriteSize = 2.f;
 
-    unsigned int m_vertexShader;
-    unsigned int m_vertexShaderPoints;
-    unsigned int m_pixelShader;
-    unsigned int m_programPoints;
-    unsigned int m_programSprites;
-    unsigned int m_texture;
-    unsigned int m_pbo;
-    unsigned int m_vboColor;
+    unsigned int m_vertexShader       = 0;
+    unsigned int m_vertexShaderPoints = 0;
+    unsigned int m_pixelShader        = 0;
+    unsigned int m_programPoints      = 0;
+    unsigned int m_programSprites     = 0;
+    unsigned int m_texture            = 0;
+    unsigned int m_pbo                = 0;
+    unsigned int m_vboColor           = 0;
 
     std::array<float, 4> m_baseColor;
 
-    bool m_bFp64Positions;
+    bool m_bFp64Positions = false;
 };
