@@ -136,6 +136,14 @@ struct ComputeConfig {
 
     std::unique_ptr<NBodyDemo<BodySystemCPU<double>>>  nbody_cpu_fp64;
     std::unique_ptr<NBodyDemo<BodySystemCUDA<double>>> nbody_cuda_fp64;
+
+    template <std::floating_point T> struct TipsyData {
+        std::vector<T> positions;
+        std::vector<T> velocities;
+    };
+
+    TipsyData<float>  tipsy_data_fp32_;
+    TipsyData<double> tipsy_data_fp64_;
 };
 
 extern template auto ComputeConfig::reset<NBodyConfig::NBODY_CONFIG_EXPAND>(ParticleRenderer& renderer) -> void;

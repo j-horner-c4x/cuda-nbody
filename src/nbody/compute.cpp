@@ -4,6 +4,7 @@
 #include "helper_cuda.hpp"
 #include "nbody_demo.hpp"
 #include "render_particles.hpp"
+#include "tipsy.hpp"
 
 #include <chrono>
 #include <print>
@@ -250,6 +251,23 @@ ComputeConfig::ComputeConfig(
     } else if (num_bodies <= 32768) {
         active_params.m_clusterScale  = 1.44f;
         active_params.m_velocityScale = 11.f;
+    }
+
+    if (!tipsy_file.empty()) {
+        auto [positions, velocities] = read_tipsy_file(tipsy_file);
+
+        tipsy_data_fp32_.positions.resize(positions.size());
+        tipsy_data_fp32_.velocities.resize(velocities.size());
+
+        using std::ranges::transform;
+
+        constexpr auto to_float = [](double x) noexcept { return static_cast<float>(x); };
+
+        transform(positions, tipsy_data_fp32_.positions.begin(), to_float);
+        transform(velocities, tipsy_data_fp32_.velocities.begin(), to_float);
+
+        tipsy_data_fp64_.positions  = std::move(positions);
+        tipsy_data_fp64_.velocities = std::move(velocities);
     }
 
     using enum NBodyConfig;
