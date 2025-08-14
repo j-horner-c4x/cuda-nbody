@@ -3,6 +3,7 @@
 #include "camera.hpp"
 #include "helper_cuda.hpp"
 #include "nbody_demo.hpp"
+#include "render_particles.hpp"
 
 #include <chrono>
 #include <print>
@@ -269,7 +270,7 @@ ComputeConfig ::~ComputeConfig() noexcept {
     finalize();
 }
 
-template <typename BodySystemNew, typename BodySystemOld> auto ComputeConfig::switch_precision(BodySystemNew& new_nbody, BodySystemOld& old_nbody) -> void {
+template <typename BodySystemNew, typename BodySystemOld> auto ComputeConfig::switch_precision(BodySystemNew& new_nbody, BodySystemOld& old_nbody, ParticleRenderer& renderer) -> void {
     using T_new = BodySystemNew::PrecisionType;
     using T_old = BodySystemOld::PrecisionType;
 
@@ -296,7 +297,9 @@ template <typename BodySystemNew, typename BodySystemOld> auto ComputeConfig::sw
         newVel[i] = static_cast<T_new>(oldVel[i]);
     }
 
-    new_nbody.set_arrays(newPos, newVel, *this);
+    new_nbody.set_arrays(newPos, newVel);
+
+    renderer.reset(fp64_enabled, active_params.m_pointSize);
 
     cudaDeviceSynchronize();
 }
@@ -339,20 +342,20 @@ template <typename BodySystem> auto ComputeConfig::run_benchmark(BodySystem& nbo
     std::println("= {:3} {}-precision GFLOP/s at {} flops per interaction", g_flops, std::is_same_v<typename BodySystem::Type, double> ? "double" : "single", flops_per_interaction);
 }
 
-auto ComputeConfig::switch_precision() -> void {
+auto ComputeConfig::switch_precision(ParticleRenderer& renderer) -> void {
     if (double_supported) {
         if (fp64_enabled) {
             if (use_cpu) {
-                switch_precision(*nbody_cpu_fp32, *nbody_cpu_fp64);
+                switch_precision(*nbody_cpu_fp32, *nbody_cpu_fp64, renderer);
             } else {
-                switch_precision(*nbody_cuda_fp32, *nbody_cuda_fp64);
+                switch_precision(*nbody_cuda_fp32, *nbody_cuda_fp64, renderer);
             }
             std::println("> Double precision floating point simulation");
         } else {
             if (use_cpu) {
-                switch_precision(*nbody_cpu_fp64, *nbody_cpu_fp32);
+                switch_precision(*nbody_cpu_fp64, *nbody_cpu_fp32, renderer);
             } else {
-                switch_precision(*nbody_cuda_fp64, *nbody_cuda_fp32);
+                switch_precision(*nbody_cuda_fp64, *nbody_cuda_fp32, renderer);
             }
             std::println("> Single precision floating point simulation");
         }
@@ -364,27 +367,29 @@ auto ComputeConfig::toggle_cycle_demo() -> void {
     std::println("Cycle Demo Parameters: {}\n", cycle_demo ? "ON" : "OFF");
 }
 
-auto ComputeConfig::select_demo(CameraConfig& camera) -> void {
+auto ComputeConfig::select_demo(CameraConfig& camera, ParticleRenderer& renderer) -> void {
     select_demo();
 
     camera.reset(active_params.camera_origin);
 
     if (use_cpu) {
         if (fp64_enabled) {
-            nbody_cpu_fp64->_selectDemo(*this);
+            nbody_cpu_fp64->_selectDemo(*this, renderer.colour());
         } else {
-            nbody_cpu_fp32->_selectDemo(*this);
+            nbody_cpu_fp32->_selectDemo(*this, renderer.colour());
         }
     } else {
         if (fp64_enabled) {
-            nbody_cuda_fp64->_selectDemo(*this);
+            nbody_cuda_fp64->_selectDemo(*this, renderer.colour());
         } else {
-            nbody_cuda_fp32->_selectDemo(*this);
+            nbody_cuda_fp32->_selectDemo(*this, renderer.colour());
         }
     }
+
+    renderer.reset(fp64_enabled, active_params.m_pointSize);
 }
 
-auto ComputeConfig::update_simulation(CameraConfig& camera) -> void {
+auto ComputeConfig::update_simulation(CameraConfig& camera, ParticleRenderer& renderer) -> void {
     if (!paused) {
         auto demo_time = 0.f;
 
@@ -395,7 +400,7 @@ auto ComputeConfig::update_simulation(CameraConfig& camera) -> void {
         }
 
         if (cycle_demo && (demo_time > demoTime)) {
-            next_demo(camera);
+            next_demo(camera, renderer);
         }
 
         if (use_cpu) {
@@ -418,36 +423,56 @@ auto ComputeConfig::update_simulation(CameraConfig& camera) -> void {
     }
 }
 
-auto ComputeConfig::display_NBody_system(ParticleRenderer::DisplayMode display_mode) -> void {
-    if (use_cpu) {
-        if (fp64_enabled) {
-            nbody_cpu_fp64->_display(*this, display_mode);
+auto ComputeConfig::display_NBody_system(ParticleRenderer::DisplayMode display_mode, ParticleRenderer& renderer) -> void {
+    renderer.setSpriteSize(active_params.m_pointSize);
+
+    if (use_host_mem) {
+        if (use_cpu) {
+            if (fp64_enabled) {
+                renderer.setPositions(nbody_cpu_fp64->_get_impl().get_position());
+            } else {
+                renderer.setPositions(nbody_cpu_fp32->_get_impl().get_position());
+            }
         } else {
-            nbody_cpu_fp32->_display(*this, display_mode);
+            // This event sync is required because we are rendering from the host memory that CUDA is writing.
+            // If we don't wait until CUDA is done updating it, we will render partially updated data, resulting in a jerky frame rate.
+            cudaEventSynchronize(host_mem_sync_event);
+
+            if (fp64_enabled) {
+                renderer.setPositions(nbody_cuda_fp64->_get_impl().get_position());
+            } else {
+                renderer.setPositions(nbody_cuda_fp32->_get_impl().get_position());
+            }
         }
     } else {
+        assert(!use_cpu);
         if (fp64_enabled) {
-            nbody_cuda_fp64->_display(*this, display_mode);
+            renderer.setPBO(nbody_cuda_fp64->_get_impl().getCurrentReadBuffer(), nbody_cuda_fp64->_get_impl().getNumBodies(), fp64_enabled);
         } else {
-            nbody_cuda_fp32->_display(*this, display_mode);
+            renderer.setPBO(nbody_cuda_fp32->_get_impl().getCurrentReadBuffer(), nbody_cuda_fp32->_get_impl().getNumBodies(), fp64_enabled);
         }
     }
+
+    // display particles
+    renderer.display(display_mode);
 }
 
-template <NBodyConfig InitialConfiguration> auto ComputeConfig::reset() -> void {
+template <NBodyConfig InitialConfiguration> auto ComputeConfig::reset(ParticleRenderer& renderer) -> void {
     if (fp64_enabled) {
         if (use_cpu) {
-            nbody_cpu_fp64->_reset(*this, InitialConfiguration);
+            nbody_cpu_fp64->_reset(*this, InitialConfiguration, renderer.colour());
         } else {
-            nbody_cuda_fp64->_reset(*this, InitialConfiguration);
+            nbody_cuda_fp64->_reset(*this, InitialConfiguration, renderer.colour());
         }
     } else {
         if (use_cpu) {
-            nbody_cpu_fp32->_reset(*this, InitialConfiguration);
+            nbody_cpu_fp32->_reset(*this, InitialConfiguration, renderer.colour());
         } else {
-            nbody_cuda_fp32->_reset(*this, InitialConfiguration);
+            nbody_cuda_fp32->_reset(*this, InitialConfiguration, renderer.colour());
         }
     }
+
+    renderer.reset(fp64_enabled, active_params.m_pointSize);
 }
 
 auto ComputeConfig::update_params() -> void {
@@ -526,9 +551,9 @@ auto ComputeConfig::compare_results() -> bool {
     return fp64_enabled ? ::compare_results(num_bodies, nbody_cuda_fp64->_get_impl()) : ::compare_results(num_bodies, nbody_cuda_fp32->_get_impl());
 }
 
-template auto ComputeConfig::reset<NBodyConfig::NBODY_CONFIG_EXPAND>() -> void;
-template auto ComputeConfig::reset<NBodyConfig::NBODY_CONFIG_RANDOM>() -> void;
-template auto ComputeConfig::reset<NBodyConfig::NBODY_CONFIG_SHELL>() -> void;
+template auto ComputeConfig::reset<NBodyConfig::NBODY_CONFIG_EXPAND>(ParticleRenderer& renderer) -> void;
+template auto ComputeConfig::reset<NBodyConfig::NBODY_CONFIG_RANDOM>(ParticleRenderer& renderer) -> void;
+template auto ComputeConfig::reset<NBodyConfig::NBODY_CONFIG_SHELL>(ParticleRenderer& renderer) -> void;
 
 template auto ComputeConfig::run_benchmark<BodySystemCPU<float>>(BodySystemCPU<float>& nbody) -> void;
 template auto ComputeConfig::run_benchmark<BodySystemCPU<double>>(BodySystemCPU<double>& nbody) -> void;

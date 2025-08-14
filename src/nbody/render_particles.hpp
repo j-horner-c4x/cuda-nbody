@@ -29,17 +29,26 @@
 
 #include <array>
 #include <span>
+#include <vector>
 
 class ParticleRenderer {
  public:
-    ParticleRenderer() { _initGL(); }
+    ParticleRenderer(std::size_t nb_bodies, float point_size, bool fp64);
 
+    auto colour() noexcept -> std::span<float> { return colour_; }
+
+    auto reset(bool fp64, float point_size) -> void;
+
+    // invoked by CPU impl
     void setPositions(std::span<float> pos);
     void setPositions(std::span<double> pos);
-    void setBaseColor(const std::array<float, 4>& colour) { m_baseColor = colour; }
-    // void setColors(float* color, int numParticles);
-    void setColours(std::span<const float> colour);
+    // invoked by GPU impl
     void setPBO(unsigned int pbo, int numParticles, bool fp64);
+
+    auto reset(std::span<const float> colour, bool fp64, float point_size) -> void;
+
+    void setBaseColor(const std::array<float, 4>& colour) { m_baseColor = colour; }
+    void setColours(std::span<const float> colour);
 
     enum DisplayMode { PARTICLE_POINTS, PARTICLE_SPRITES, PARTICLE_SPRITES_COLOR, PARTICLE_NUM_MODES };
 
@@ -54,6 +63,8 @@ class ParticleRenderer {
     void _initGL();
     void _createTexture();
     void _drawPoints(bool color);
+
+    std::vector<float> colour_;
 
     float*  m_pos = nullptr;
     double* m_pos_fp64;

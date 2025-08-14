@@ -3,7 +3,6 @@
 #include "bodysystemcpu.hpp"
 #include "bodysystemcuda.hpp"
 #include "nbody_config.hpp"
-#include "render_particles.hpp"
 
 #include <chrono>
 #include <concepts>
@@ -24,12 +23,12 @@ template <typename BodySystem> class NBodyDemo {
 
     template <typename = std::enable_if_t<!BodySystem::use_cpu>> NBodyDemo(std::filesystem::path tipsy_file, ComputeConfig& compute, NBodyConfig config, int numDevices, int block_size, bool use_p2p, int devID);
 
-    void _reset(ComputeConfig& compute, NBodyConfig config);
+    void _reset(const ComputeConfig& compute, NBodyConfig config, std::span<float> colour);
 
-    void _selectDemo(ComputeConfig& compute);
+    void _selectDemo(ComputeConfig& compute, std::span<float> colour);
 
     auto get_arrays(std::span<PrecisionType> pos, std::span<PrecisionType> vel) -> void;
-    auto set_arrays(std::span<const PrecisionType> pos, std::span<const PrecisionType> vel, const ComputeConfig& compute) -> void;
+    auto set_arrays(std::span<const PrecisionType> pos, std::span<const PrecisionType> vel) -> void;
 
     auto _get_demo_time() -> float;
 
@@ -37,26 +36,19 @@ template <typename BodySystem> class NBodyDemo {
 
     auto update_simulation(float dt) -> void;
 
-    auto _display(const ComputeConfig& compute, ParticleRenderer::DisplayMode display_mode) -> void;
-
     auto update_params(const NBodyParams& active_params) -> void;
 
     auto& _get_impl() noexcept { return *m_nbody; }
 
  private:
-    void _resetRenderer(float point_size);
-
     using Clock        = std::chrono::steady_clock;
     using TimePoint    = std::chrono::time_point<Clock>;
     using MilliSeconds = std::chrono::duration<float, std::milli>;
 
     std::unique_ptr<BodySystem> m_nbody;
 
-    std::unique_ptr<ParticleRenderer> m_renderer;
-
     std::vector<PrecisionType> m_hPos;
     std::vector<PrecisionType> m_hVel;
-    std::vector<float>         m_hColor;
 
     TimePoint demo_reset_time_;
 

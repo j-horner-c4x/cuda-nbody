@@ -37,6 +37,7 @@
 #include "nbody/controls.hpp"
 #include "nbody/graphics_loop.hpp"
 #include "nbody/interface.hpp"
+#include "nbody/render_particles.hpp"
 
 #include <CLI/CLI.hpp>
 #include <GL/freeglut.h>
@@ -236,6 +237,10 @@ int main(int argc, char** argv) {
             return static_cast<int>(!result);
         }
 
+        auto renderer = ParticleRenderer(compute.num_bodies, compute.active_params.m_pointSize, compute.fp64_enabled);
+
+        compute.reset<NBodyConfig::NBODY_CONFIG_SHELL>(renderer);
+
         auto interface = InterfaceConfig{
             .display_enabled      = true,
             .show_sliders         = show_sliders,
@@ -250,7 +255,7 @@ int main(int argc, char** argv) {
 
         auto controls = ControlsConfig{.button_state = 0, .old_x = 0, .old_y = 0};
 
-        execute_graphics_loop(compute, interface, camera, controls);
+        execute_graphics_loop(compute, interface, camera, controls, renderer);
 
         std::println("Stopped graphics loop");
 

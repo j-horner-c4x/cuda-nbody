@@ -40,10 +40,11 @@ target_link_libraries(${PROJECT_NAME}_compute
                         PRIVATE
                             ${PROJECT_NAME}_nbody_demo
                             ${PROJECT_NAME}_bodysystemcpu
-                            ${PROJECT_NAME}_bodysystemcuda)
+                            ${PROJECT_NAME}_bodysystemcuda
+                            ${PROJECT_NAME}_render_particles)
 
 target_link_libraries(${PROJECT_NAME}_controls PUBLIC GLUT::GLUT ${PROJECT_NAME}_compute ${PROJECT_NAME}_interface)
-target_link_libraries(${PROJECT_NAME}_nbody_demo PUBLIC ${PROJECT_NAME}_compute ${PROJECT_NAME}_render_particles ${PROJECT_NAME}_randomise_bodies)
+target_link_libraries(${PROJECT_NAME}_nbody_demo PUBLIC ${PROJECT_NAME}_compute ${PROJECT_NAME}_randomise_bodies)
 target_link_libraries(${PROJECT_NAME}_interface 
                         PUBLIC
                             ${PROJECT_NAME}_paramgl
@@ -58,7 +59,8 @@ target_link_libraries(${PROJECT_NAME}_graphics_loop
                             GLEW::GLEW
                             OpenGL::GL
                             GLUT::GLUT
-                            ${PROJECT_NAME}_compute)
+                            ${PROJECT_NAME}_compute
+                            ${PROJECT_NAME}_render_particles)
 
 
 #

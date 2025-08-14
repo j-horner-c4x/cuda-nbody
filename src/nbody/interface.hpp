@@ -8,6 +8,7 @@
 class ParamListGL;
 struct CameraConfig;
 struct ComputeConfig;
+class ParticleRenderer;
 
 struct InterfaceConfig {
     bool                          display_enabled;
@@ -24,5 +25,5 @@ struct InterfaceConfig {
     auto cycle_display_mode() noexcept -> void { display_mode = (ParticleRenderer::DisplayMode)((display_mode + 1) % ParticleRenderer::PARTICLE_NUM_MODES); }
     auto togle_display() noexcept -> void { display_enabled = !display_enabled; }
 
-    auto display(ComputeConfig& compute, CameraConfig& camera) -> void;
+    auto display(ComputeConfig& compute, CameraConfig& camera, ParticleRenderer& renderer) -> void;
 };

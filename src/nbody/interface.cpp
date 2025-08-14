@@ -4,19 +4,20 @@
 #include "compute.hpp"
 #include "helper_gl.hpp"
 #include "paramgl.hpp"
+#include "render_particles.hpp"
 #include "win_coords.hpp"
 
 #include <format>
 
-auto InterfaceConfig::display(ComputeConfig& compute, CameraConfig& camera) -> void {
-    compute.update_simulation(camera);
+auto InterfaceConfig::display(ComputeConfig& compute, CameraConfig& camera, ParticleRenderer& renderer) -> void {
+    compute.update_simulation(camera, renderer);
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     if (display_enabled) {
         camera.view_transform();
 
-        compute.display_NBody_system(display_mode);
+        compute.display_NBody_system(display_mode, renderer);
 
         // display user interface
         if (show_sliders) {

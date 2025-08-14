@@ -41,6 +41,32 @@
 #include <cassert>
 #include <cmath>
 
+namespace {
+constexpr static auto fp64_colour = std::array{0.4f, 0.8f, 0.1f, 1.0f};
+constexpr static auto fp32_colour = std::array{1.0f, 0.6f, 0.3f, 1.0f};
+}    // namespace
+
+ParticleRenderer::ParticleRenderer(std::size_t nb_bodies, float point_size, bool fp64) : colour_(nb_bodies * 4, 1.0f), m_spriteSize(point_size), m_bFp64Positions(fp64) {
+    _initGL();
+    reset(fp64, point_size);
+}
+
+auto ParticleRenderer::reset(bool fp64, float point_size) -> void {
+    const auto& base_colour = fp64 ? fp64_colour : fp32_colour;
+
+    setBaseColor(base_colour);
+    setColours(colour_);
+    setSpriteSize(point_size);
+}
+
+auto ParticleRenderer::reset(std::span<const float> colour, bool fp64, float point_size) -> void {
+    const auto& base_colour = fp64 ? fp64_colour : fp32_colour;
+
+    setBaseColor(base_colour);
+    setColours(colour);
+    setSpriteSize(point_size);
+}
+
 void ParticleRenderer::resetPBO() {
     // TODO: this function is never actually used?
     // TODO: glGenBuffers and glDeleteBuffers should be managed better
@@ -48,7 +74,7 @@ void ParticleRenderer::resetPBO() {
 }
 
 void ParticleRenderer::setPositions(std::span<float> pos) {
-    assert(pos.size() % 4 == 0);
+    assert(pos.size() == colour_.size());
 
     m_bFp64Positions = false;
     m_pos            = pos.data();
@@ -64,7 +90,7 @@ void ParticleRenderer::setPositions(std::span<float> pos) {
     SDK_CHECK_ERROR_GL();
 }
 void ParticleRenderer::setPositions(std::span<double> pos) {
-    assert(pos.size() % 4 == 0);
+    assert(pos.size() == colour_.size());
 
     m_bFp64Positions = true;
     m_pos_fp64       = pos.data();

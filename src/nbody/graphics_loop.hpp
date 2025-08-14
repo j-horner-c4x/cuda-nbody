@@ -4,5 +4,6 @@ struct ComputeConfig;
 struct InterfaceConfig;
 struct CameraConfig;
 struct ControlsConfig;
+class ParticleRenderer;
 
-auto execute_graphics_loop(ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& camera, ControlsConfig& controls) -> void;
+auto execute_graphics_loop(ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& camera, ControlsConfig& controls, ParticleRenderer& renderer) -> void;

@@ -3,6 +3,7 @@
 struct CameraConfig;
 struct InterfaceConfig;
 struct ComputeConfig;
+class ParticleRenderer;
 
 struct ControlsConfig {
     int button_state;
@@ -40,7 +41,7 @@ struct ControlsConfig {
     /// @param
     /// @param camera
     /// @return
-    static auto keyboard(unsigned char key, int x, int y, ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& camera) -> void;
+    static auto keyboard(unsigned char key, int x, int y, ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& camera, ParticleRenderer& renderer) -> void;
 
     // The special keyboard callback is triggered when keyboard function or directional keys are pressed.
     static auto special(int key, int x, int y, InterfaceConfig& interface) -> void;
