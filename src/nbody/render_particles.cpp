@@ -42,7 +42,9 @@
 #include <cmath>
 
 void ParticleRenderer::resetPBO() {
-    glDeleteBuffers(1, (GLuint*)&m_pbo);
+    // TODO: this function is never actually used?
+    // TODO: glGenBuffers and glDeleteBuffers should be managed better
+    glDeleteBuffers(1, reinterpret_cast<GLuint*>(&m_pbo));
 }
 
 void ParticleRenderer::setPositions(std::span<float> pos) {
@@ -85,9 +87,8 @@ void ParticleRenderer::setColours(std::span<const float> colour) {
 }
 
 void ParticleRenderer::setPBO(unsigned int pbo, int numParticles, bool fp64) {
-    m_pbo          = pbo;
-    m_numParticles = numParticles;
-
+    m_pbo            = pbo;
+    m_numParticles   = numParticles;
     m_bFp64Positions = fp64;
 }
 
@@ -215,14 +216,14 @@ void ParticleRenderer::display(DisplayMode mode /* = PARTICLE_POINTS */) {
 }
 
 void ParticleRenderer::_initGL() {
-    constexpr static auto& vertexShaderPoints =
+    constexpr static auto vertexShaderPoints =
         R"(void main() {
                 vec4 vert = vec4(gl_Vertex.xyz, 1.0);
                 gl_Position = gl_ProjectionMatrix * gl_ModelViewMatrix * vert;
                 gl_FrontColor = gl_Color;
             })";
 
-    constexpr static auto& vertexShader =
+    constexpr static auto vertexShader =
         R"(void main() {
                 float pointSize = 500.0 * gl_Point.size;
                 vec4 vert = gl_Vertex;
@@ -236,7 +237,7 @@ void ParticleRenderer::_initGL() {
                 gl_FrontSecondaryColor = gl_SecondaryColor;
             })";
 
-    constexpr static auto& pixelShader =
+    constexpr static auto pixelShader =
         R"(uniform sampler2D splatTexture;
            void main() {
                 vec4 color2 = gl_SecondaryColor;
@@ -244,16 +245,13 @@ void ParticleRenderer::_initGL() {
                 gl_FragColor = color * color2;      // mix(vec4(0.1, 0.0, 0.0, color.w), color2, color.w);
             })";
 
-    m_vertexShader       = glCreateShader(GL_VERTEX_SHADER);
-    m_vertexShaderPoints = glCreateShader(GL_VERTEX_SHADER);
-    m_pixelShader        = glCreateShader(GL_FRAGMENT_SHADER);
+    auto m_vertexShader       = glCreateShader(GL_VERTEX_SHADER);
+    auto m_vertexShaderPoints = glCreateShader(GL_VERTEX_SHADER);
+    auto m_pixelShader        = glCreateShader(GL_FRAGMENT_SHADER);
 
-    const char* v = vertexShader;
-    const char* p = pixelShader;
-    glShaderSource(m_vertexShader, 1, &v, 0);
-    glShaderSource(m_pixelShader, 1, &p, 0);
-    const char* vp = vertexShaderPoints;
-    glShaderSource(m_vertexShaderPoints, 1, &vp, 0);
+    glShaderSource(m_vertexShader, 1, &vertexShader, 0);
+    glShaderSource(m_pixelShader, 1, &pixelShader, 0);
+    glShaderSource(m_vertexShaderPoints, 1, &vertexShaderPoints, 0);
 
     glCompileShader(m_vertexShader);
     glCompileShader(m_vertexShaderPoints);
@@ -270,7 +268,7 @@ void ParticleRenderer::_initGL() {
 
     _createTexture();
 
-    glGenBuffers(1, (GLuint*)&m_vboColor);
+    glGenBuffers(1, reinterpret_cast<GLuint*>(&m_vboColor));
     glBindBuffer(GL_ARRAY_BUFFER, m_vboColor);
     glBufferData(GL_ARRAY_BUFFER, m_numParticles * 4 * sizeof(float), 0, GL_STATIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, 0);

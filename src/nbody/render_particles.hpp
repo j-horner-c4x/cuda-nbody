@@ -48,9 +48,9 @@ class ParticleRenderer {
     void setPointSize(float size) { m_pointSize = size; }
     void setSpriteSize(float size) { m_spriteSize = size; }
 
+ private:    // methods
     void resetPBO();
 
- private:    // methods
     void _initGL();
     void _createTexture();
     void _drawPoints(bool color);
@@ -62,14 +62,11 @@ class ParticleRenderer {
     float m_pointSize  = 1.f;
     float m_spriteSize = 2.f;
 
-    unsigned int m_vertexShader       = 0;
-    unsigned int m_vertexShaderPoints = 0;
-    unsigned int m_pixelShader        = 0;
-    unsigned int m_programPoints      = 0;
-    unsigned int m_programSprites     = 0;
-    unsigned int m_texture            = 0;
-    unsigned int m_pbo                = 0;
-    unsigned int m_vboColor           = 0;
+    unsigned int m_programPoints  = 0;
+    unsigned int m_programSprites = 0;
+    unsigned int m_texture        = 0;
+    unsigned int m_pbo            = 0;
+    unsigned int m_vboColor       = 0;
 
     std::array<float, 4> m_baseColor;
 
