@@ -19,15 +19,6 @@ template <typename BodySystem> template <typename> NBodyDemo<BodySystem>::NBodyD
     m_nbody->setSoftening(compute.active_params.m_softening);
     m_nbody->setDamping(compute.active_params.m_damping);
 
-    if (compute.use_cpu) {
-        reset_time_ = Clock::now();
-    } else {
-        checkCudaErrors(cudaEventCreate(&compute.start_event));
-        checkCudaErrors(cudaEventCreate(&compute.stop_event));
-        checkCudaErrors(cudaEventCreate(&compute.host_mem_sync_event));
-    }
-
-    demo_reset_time_ = Clock::now();
     _reset(compute, config, {});
     compute.num_bodies = m_nbody->getNumBodies();
 }
@@ -47,15 +38,6 @@ NBodyDemo<BodySystem>::NBodyDemo(std::filesystem::path tipsy_file, ComputeConfig
     m_nbody->setSoftening(compute.active_params.m_softening);
     m_nbody->setDamping(compute.active_params.m_damping);
 
-    if (compute.use_cpu) {
-        reset_time_ = Clock::now();
-    } else {
-        checkCudaErrors(cudaEventCreate(&compute.start_event));
-        checkCudaErrors(cudaEventCreate(&compute.stop_event));
-        checkCudaErrors(cudaEventCreate(&compute.host_mem_sync_event));
-    }
-
-    demo_reset_time_ = Clock::now();
     _reset(compute, config, {});
     compute.num_bodies = m_nbody->getNumBodies();
 }
@@ -76,22 +58,9 @@ template <typename BodySystem> auto NBodyDemo<BodySystem>::get_arrays(std::span<
     copy(m_nbody->get_velocity(), vel.begin());
 }
 
-template <typename BodySystem> auto NBodyDemo<BodySystem>::set_arrays(std::span<const PrecisionType> pos, std::span<const PrecisionType> vel /*, const ComputeConfig& compute*/) -> void {
+template <typename BodySystem> auto NBodyDemo<BodySystem>::set_arrays(std::span<const PrecisionType> pos, std::span<const PrecisionType> vel) -> void {
     m_nbody->set_position(pos);
     m_nbody->set_velocity(vel);
-}
-
-template <typename BodySystem> auto NBodyDemo<BodySystem>::_get_demo_time() -> float {
-    return MilliSeconds{Clock::now() - demo_reset_time_}.count();
-}
-
-template <typename BodySystem> auto NBodyDemo<BodySystem>::_get_milliseconds_passed() -> float {
-    const auto now          = Clock::now();
-    const auto milliseconds = MilliSeconds{now - reset_time_}.count();
-
-    reset_time_ = now;
-
-    return milliseconds;
 }
 
 template <typename BodySystem> auto NBodyDemo<BodySystem>::_reset(const ComputeConfig& compute, NBodyConfig config, std::span<float> colour) -> void {
@@ -111,8 +80,6 @@ template <typename BodySystem> auto NBodyDemo<BodySystem>::_reset(const ComputeC
 
 template <typename BodySystem> auto NBodyDemo<BodySystem>::_selectDemo(ComputeConfig& compute, std::span<float> colour) -> void {
     _reset(compute, NBodyConfig::NBODY_CONFIG_SHELL, colour);
-
-    demo_reset_time_ = Clock::now();
 }
 
 template NBodyDemo<BodySystemCPU<float>>;

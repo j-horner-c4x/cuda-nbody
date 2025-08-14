@@ -4,7 +4,7 @@
 #include "bodysystemcuda.hpp"
 #include "nbody_config.hpp"
 
-#include <chrono>
+// #include <chrono>
 #include <concepts>
 #include <filesystem>
 #include <memory>
@@ -30,10 +30,6 @@ template <typename BodySystem> class NBodyDemo {
     auto get_arrays(std::span<PrecisionType> pos, std::span<PrecisionType> vel) -> void;
     auto set_arrays(std::span<const PrecisionType> pos, std::span<const PrecisionType> vel) -> void;
 
-    auto _get_demo_time() -> float;
-
-    auto _get_milliseconds_passed() -> float;
-
     auto update_simulation(float dt) -> void;
 
     auto update_params(const NBodyParams& active_params) -> void;
@@ -41,18 +37,10 @@ template <typename BodySystem> class NBodyDemo {
     auto& _get_impl() noexcept { return *m_nbody; }
 
  private:
-    using Clock        = std::chrono::steady_clock;
-    using TimePoint    = std::chrono::time_point<Clock>;
-    using MilliSeconds = std::chrono::duration<float, std::milli>;
-
     std::unique_ptr<BodySystem> m_nbody;
 
     std::vector<PrecisionType> m_hPos;
     std::vector<PrecisionType> m_hVel;
-
-    TimePoint demo_reset_time_;
-
-    TimePoint reset_time_;
 
     std::filesystem::path tipsy_file_;
 };

@@ -282,6 +282,16 @@ ComputeConfig::ComputeConfig(
         nbody_cpu_fp64  = std::make_unique<NBodyDemo<BodySystemCPU<double>>>(tipsy_file, *this, NBODY_CONFIG_SHELL);
         nbody_cuda_fp64 = std::make_unique<NBodyDemo<BodySystemCUDA<double>>>(tipsy_file, *this, NBODY_CONFIG_SHELL, nb_devices_requested, blockSize, use_p2p, dev_id);
     }
+
+    if (use_cpu) {
+        reset_time_ = Clock::now();
+    } else {
+        checkCudaErrors(cudaEventCreate(&start_event));
+        checkCudaErrors(cudaEventCreate(&stop_event));
+        checkCudaErrors(cudaEventCreate(&host_mem_sync_event));
+    }
+
+    demo_reset_time_ = Clock::now();
 }
 
 ComputeConfig ::~ComputeConfig() noexcept {
@@ -403,19 +413,22 @@ auto ComputeConfig::select_demo(CameraConfig& camera, ParticleRenderer& renderer
             nbody_cuda_fp32->_selectDemo(*this, renderer.colour());
         }
     }
+    demo_reset_time_ = Clock::now();
 
     renderer.reset(fp64_enabled, active_params.m_pointSize);
 }
 
 auto ComputeConfig::update_simulation(CameraConfig& camera, ParticleRenderer& renderer) -> void {
     if (!paused) {
-        auto demo_time = 0.f;
+        const auto demo_time = MilliSeconds{Clock::now() - demo_reset_time_}.count();
+
+        /* auto demo_time = 0.f;
 
         if (use_cpu) {
             demo_time = fp64_enabled ? nbody_cpu_fp64->_get_demo_time() : nbody_cpu_fp32->_get_demo_time();
         } else {
             demo_time = fp64_enabled ? nbody_cuda_fp64->_get_demo_time() : nbody_cuda_fp32->_get_demo_time();
-        }
+        }*/
 
         if (cycle_demo && (demo_time > demoTime)) {
             next_demo(camera, renderer);
@@ -520,7 +533,14 @@ auto ComputeConfig::finalize() noexcept -> void {
 auto ComputeConfig::get_milliseconds_passed() -> float {
     // stop timer
     if (use_cpu) {
-        return fp64_enabled ? nbody_cpu_fp64->_get_milliseconds_passed() : nbody_cpu_fp32->_get_milliseconds_passed();
+        // return fp64_enabled ? nbody_cpu_fp64->_get_milliseconds_passed() : nbody_cpu_fp32->_get_milliseconds_passed();
+
+        const auto now          = Clock::now();
+        const auto milliseconds = MilliSeconds{now - reset_time_}.count();
+
+        reset_time_ = now;
+
+        return milliseconds;
     }
 
     auto milliseconds = 0.f;

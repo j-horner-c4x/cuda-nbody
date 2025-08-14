@@ -7,6 +7,7 @@
 #include <cuda_runtime.h>
 
 #include <array>
+#include <chrono>
 #include <concepts>
 #include <filesystem>
 #include <memory>
@@ -144,6 +145,14 @@ struct ComputeConfig {
 
     TipsyData<float>  tipsy_data_fp32_;
     TipsyData<double> tipsy_data_fp64_;
+
+    using Clock        = std::chrono::steady_clock;
+    using TimePoint    = std::chrono::time_point<Clock>;
+    using MilliSeconds = std::chrono::duration<float, std::milli>;
+
+    TimePoint demo_reset_time_;
+
+    TimePoint reset_time_;
 };
 
 extern template auto ComputeConfig::reset<NBodyConfig::NBODY_CONFIG_EXPAND>(ParticleRenderer& renderer) -> void;
