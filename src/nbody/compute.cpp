@@ -256,18 +256,12 @@ ComputeConfig::ComputeConfig(
     // Create the demo -- either double (fp64) or float (fp32, default)
     // implementation
 
-    nbody_cpu_fp32  = std::make_unique<NBodyDemo<BodySystemCPU<float>>>(tipsy_file, *this);
-    nbody_cuda_fp32 = std::make_unique<NBodyDemo<BodySystemCUDA<float>>>(tipsy_file, *this, nb_devices_requested, blockSize, use_p2p, dev_id);
-
-    nbody_cpu_fp32->_reset(*this, NBODY_CONFIG_SHELL);
-    nbody_cuda_fp32->_reset(*this, NBODY_CONFIG_SHELL);
+    nbody_cpu_fp32  = std::make_unique<NBodyDemo<BodySystemCPU<float>>>(tipsy_file, *this, NBODY_CONFIG_SHELL);
+    nbody_cuda_fp32 = std::make_unique<NBodyDemo<BodySystemCUDA<float>>>(tipsy_file, *this, NBODY_CONFIG_SHELL, nb_devices_requested, blockSize, use_p2p, dev_id);
 
     if (double_supported) {
-        nbody_cpu_fp64  = std::make_unique<NBodyDemo<BodySystemCPU<double>>>(tipsy_file, *this);
-        nbody_cuda_fp64 = std::make_unique<NBodyDemo<BodySystemCUDA<double>>>(tipsy_file, *this, nb_devices_requested, blockSize, use_p2p, dev_id);
-
-        nbody_cpu_fp64->_reset(*this, NBODY_CONFIG_SHELL);
-        nbody_cuda_fp64->_reset(*this, NBODY_CONFIG_SHELL);
+        nbody_cpu_fp64  = std::make_unique<NBodyDemo<BodySystemCPU<double>>>(tipsy_file, *this, NBODY_CONFIG_SHELL);
+        nbody_cuda_fp64 = std::make_unique<NBodyDemo<BodySystemCUDA<double>>>(tipsy_file, *this, NBODY_CONFIG_SHELL, nb_devices_requested, blockSize, use_p2p, dev_id);
     }
 }
 
