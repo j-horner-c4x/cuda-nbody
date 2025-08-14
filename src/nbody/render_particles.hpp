@@ -29,17 +29,26 @@
 
 #include <array>
 #include <span>
+#include <vector>
 
 class ParticleRenderer {
  public:
-    ParticleRenderer();
-    ~ParticleRenderer();
+    ParticleRenderer(std::size_t nb_bodies, float point_size, bool fp64);
 
+    auto colour() noexcept -> std::span<float> { return colour_; }
+
+    auto reset(bool fp64, float point_size) -> void;
+
+    // invoked by CPU impl
     void setPositions(std::span<float> pos);
     void setPositions(std::span<double> pos);
-    void setBaseColor(const std::array<float, 4>& colour) { m_baseColor = colour; }
-    void setColors(float* color, int numParticles);
+    // invoked by GPU impl
     void setPBO(unsigned int pbo, int numParticles, bool fp64);
+
+    auto reset(std::span<const float> colour, bool fp64, float point_size) -> void;
+
+    void setBaseColor(const std::array<float, 4>& colour) { m_baseColor = colour; }
+    void setColours(std::span<const float> colour);
 
     enum DisplayMode { PARTICLE_POINTS, PARTICLE_SPRITES, PARTICLE_SPRITES_COLOR, PARTICLE_NUM_MODES };
 
@@ -48,31 +57,29 @@ class ParticleRenderer {
     void setPointSize(float size) { m_pointSize = size; }
     void setSpriteSize(float size) { m_spriteSize = size; }
 
+ private:    // methods
     void resetPBO();
 
- protected:    // methods
     void _initGL();
-    void _createTexture(int resolution);
-    void _drawPoints(bool color = false);
+    void _createTexture();
+    void _drawPoints(bool color);
 
- protected:    // data
-    float*  m_pos;
+    std::vector<float> colour_;
+
+    float*  m_pos = nullptr;
     double* m_pos_fp64;
-    int     m_numParticles;
+    int     m_numParticles = 0;
 
-    float m_pointSize;
-    float m_spriteSize;
+    float m_pointSize  = 1.f;
+    float m_spriteSize = 2.f;
 
-    unsigned int m_vertexShader;
-    unsigned int m_vertexShaderPoints;
-    unsigned int m_pixelShader;
-    unsigned int m_programPoints;
-    unsigned int m_programSprites;
-    unsigned int m_texture;
-    unsigned int m_pbo;
-    unsigned int m_vboColor;
+    unsigned int m_programPoints  = 0;
+    unsigned int m_programSprites = 0;
+    unsigned int m_texture        = 0;
+    unsigned int m_pbo            = 0;
+    unsigned int m_vboColor       = 0;
 
     std::array<float, 4> m_baseColor;
 
-    bool m_bFp64Positions;
+    bool m_bFp64Positions = false;
 };

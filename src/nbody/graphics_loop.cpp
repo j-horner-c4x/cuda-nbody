@@ -6,6 +6,7 @@
 #include "helper_cuda.hpp"
 #include "helper_gl.hpp"
 #include "interface.hpp"
+#include "render_particles.hpp"
 
 #if defined(WIN32) || defined(_WIN32) || defined(WIN64) || defined(_WIN64)
 #define NOMINMAX
@@ -59,8 +60,8 @@ template <auto GLUTFunction, typename F> auto register_callback(F& func) -> void
     RegisterCallback<GLUTFunction, Args>::register_callback(func);
 }
 
-auto execute_graphics_loop(ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& camera, ControlsConfig& controls) -> void {
-    auto display_ = [&]() { interface.display(compute, camera); };
+auto execute_graphics_loop(ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& camera, ControlsConfig& controls, ParticleRenderer& renderer) -> void {
+    auto display_ = [&]() { interface.display(compute, camera, renderer); };
 
     auto reshape_ = [](int w, int h) {
         glMatrixMode(GL_PROJECTION);
@@ -73,7 +74,7 @@ auto execute_graphics_loop(ComputeConfig& compute, InterfaceConfig& interface, C
 
     auto mouse_    = [&](int button, int state, int x, int y) { controls.mouse(button, state, x, y, interface, compute); };
     auto motion_   = [&](int x, int y) { controls.motion(x, y, interface, camera, compute); };
-    auto keyboard_ = [&](unsigned char k, int x, int y) { ControlsConfig::keyboard(k, x, y, compute, interface, camera); };
+    auto keyboard_ = [&](unsigned char k, int x, int y) { ControlsConfig::keyboard(k, x, y, compute, interface, camera, renderer); };
 
     // The special keyboard callback is triggered when keyboard function or directional keys are pressed.
     auto special_ = [&](int key, int x, int y) { ControlsConfig::special(key, x, y, interface); };

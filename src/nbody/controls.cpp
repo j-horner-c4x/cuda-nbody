@@ -3,6 +3,7 @@
 #include "camera.hpp"
 #include "compute.hpp"
 #include "interface.hpp"
+#include "render_particles.hpp"
 
 #include <GL/freeglut.h>
 
@@ -74,7 +75,7 @@ auto ControlsConfig::motion(int x, int y, InterfaceConfig& interface, CameraConf
     glutPostRedisplay();
 }
 
-auto ControlsConfig::keyboard(unsigned char key, [[maybe_unused]] int x, [[maybe_unused]] int y, ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& camera) -> void {
+auto ControlsConfig::keyboard(unsigned char key, [[maybe_unused]] int x, [[maybe_unused]] int y, ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& camera, ParticleRenderer& renderer) -> void {
     using enum NBodyConfig;
 
     switch (key) {
@@ -89,7 +90,7 @@ auto ControlsConfig::keyboard(unsigned char key, [[maybe_unused]] int x, [[maybe
             break;
 
         case 13:    // return
-            compute.switch_precision();
+            compute.switch_precision(renderer);
             break;
 
         case '`':
@@ -112,11 +113,11 @@ auto ControlsConfig::keyboard(unsigned char key, [[maybe_unused]] int x, [[maybe
             break;
 
         case '[':
-            compute.previous_demo(camera);
+            compute.previous_demo(camera, renderer);
             break;
 
         case ']':
-            compute.next_demo(camera);
+            compute.next_demo(camera, renderer);
             break;
 
         case 'd':
@@ -130,15 +131,15 @@ auto ControlsConfig::keyboard(unsigned char key, [[maybe_unused]] int x, [[maybe
             break;
 
         case '1':
-            compute.reset<NBODY_CONFIG_SHELL>();
+            compute.reset<NBODY_CONFIG_SHELL>(renderer);
             break;
 
         case '2':
-            compute.reset<NBODY_CONFIG_RANDOM>();
+            compute.reset<NBODY_CONFIG_RANDOM>(renderer);
             break;
 
         case '3':
-            compute.reset<NBODY_CONFIG_EXPAND>();
+            compute.reset<NBODY_CONFIG_EXPAND>(renderer);
             break;
     }
 

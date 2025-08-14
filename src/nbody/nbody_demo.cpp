@@ -7,7 +7,7 @@
 #include "helper_cuda.hpp"
 #include "randomise_bodies.hpp"
 
-template <typename BodySystem> template <typename> NBodyDemo<BodySystem>::NBodyDemo(std::filesystem::path tipsy_file, ComputeConfig& compute) : tipsy_file_(std::move(tipsy_file)) {
+template <typename BodySystem> template <typename> NBodyDemo<BodySystem>::NBodyDemo(std::filesystem::path tipsy_file, ComputeConfig& compute, NBodyConfig config) : tipsy_file_(std::move(tipsy_file)) {
     m_nbody = std::make_unique<BodySystem>(compute.num_bodies);
 
     const auto nb_bodies_4 = compute.num_bodies * 4;
@@ -15,30 +15,17 @@ template <typename BodySystem> template <typename> NBodyDemo<BodySystem>::NBodyD
     // allocate host memory
     m_hPos.resize(nb_bodies_4);
     m_hVel.resize(nb_bodies_4);
-    m_hColor.resize(nb_bodies_4);
 
     m_nbody->setSoftening(compute.active_params.m_softening);
     m_nbody->setDamping(compute.active_params.m_damping);
 
-    if (compute.use_cpu) {
-        reset_time_ = Clock::now();
-    } else {
-        checkCudaErrors(cudaEventCreate(&compute.start_event));
-        checkCudaErrors(cudaEventCreate(&compute.stop_event));
-        checkCudaErrors(cudaEventCreate(&compute.host_mem_sync_event));
-    }
-
-    if (!compute.benchmark && !compute.compare_to_cpu) {
-        m_renderer = std::make_unique<ParticleRenderer>();
-        _resetRenderer(compute.active_params.m_pointSize);
-    }
-
-    demo_reset_time_ = Clock::now();
+    _reset(compute, config, {});
+    compute.num_bodies = m_nbody->getNumBodies();
 }
 
 template <typename BodySystem>
 template <typename>
-NBodyDemo<BodySystem>::NBodyDemo(std::filesystem::path tipsy_file, ComputeConfig& compute, int numDevices, int block_size, bool use_p2p, int devID) : tipsy_file_(std::move(tipsy_file)) {
+NBodyDemo<BodySystem>::NBodyDemo(std::filesystem::path tipsy_file, ComputeConfig& compute, NBodyConfig config, int numDevices, int block_size, bool use_p2p, int devID) : tipsy_file_(std::move(tipsy_file)) {
     const auto use_pbo = !(compute.benchmark || compute.compare_to_cpu || compute.use_host_mem);
     m_nbody            = std::make_unique<BodySystem>(compute.num_bodies, numDevices, block_size, use_pbo, compute.use_host_mem, use_p2p, devID);
 
@@ -47,25 +34,12 @@ NBodyDemo<BodySystem>::NBodyDemo(std::filesystem::path tipsy_file, ComputeConfig
     // allocate host memory
     m_hPos.resize(nb_bodies_4);
     m_hVel.resize(nb_bodies_4);
-    m_hColor.resize(nb_bodies_4);
 
     m_nbody->setSoftening(compute.active_params.m_softening);
     m_nbody->setDamping(compute.active_params.m_damping);
 
-    if (compute.use_cpu) {
-        reset_time_ = Clock::now();
-    } else {
-        checkCudaErrors(cudaEventCreate(&compute.start_event));
-        checkCudaErrors(cudaEventCreate(&compute.stop_event));
-        checkCudaErrors(cudaEventCreate(&compute.host_mem_sync_event));
-    }
-
-    if (!compute.benchmark && !compute.compare_to_cpu) {
-        m_renderer = std::make_unique<ParticleRenderer>();
-        _resetRenderer(compute.active_params.m_pointSize);
-    }
-
-    demo_reset_time_ = Clock::now();
+    _reset(compute, config, {});
+    compute.num_bodies = m_nbody->getNumBodies();
 }
 
 template <typename BodySystem> auto NBodyDemo<BodySystem>::update_params(const NBodyParams& active_params) -> void {
@@ -77,25 +51,6 @@ template <typename BodySystem> auto NBodyDemo<BodySystem>::update_simulation(flo
     m_nbody->update(dt);
 }
 
-template <typename BodySystem> auto NBodyDemo<BodySystem>::_display(const ComputeConfig& compute, ParticleRenderer::DisplayMode display_mode) -> void {
-    m_renderer->setSpriteSize(compute.active_params.m_pointSize);
-
-    if (compute.use_host_mem) {
-        // This event sync is required because we are rendering from the host memory that CUDA is writing.
-        // If we don't wait until CUDA is done updating it, we will render partially updated data, resulting in a jerky frame rate.
-        if (!compute.use_cpu) {
-            cudaEventSynchronize(compute.host_mem_sync_event);
-        }
-
-        m_renderer->setPositions(m_nbody->get_position());
-    } else {
-        m_renderer->setPBO(m_nbody->getCurrentReadBuffer(), m_nbody->getNumBodies(), std::is_same_v<PrecisionType, double>);
-    }
-
-    // display particles
-    m_renderer->display(display_mode);
-}
-
 template <typename BodySystem> auto NBodyDemo<BodySystem>::get_arrays(std::span<PrecisionType> pos, std::span<PrecisionType> vel) -> void {
     using std::ranges::copy;
 
@@ -103,94 +58,28 @@ template <typename BodySystem> auto NBodyDemo<BodySystem>::get_arrays(std::span<
     copy(m_nbody->get_velocity(), vel.begin());
 }
 
-template <typename BodySystem> auto NBodyDemo<BodySystem>::set_arrays(std::span<const PrecisionType> pos, std::span<const PrecisionType> vel, const ComputeConfig& compute) -> void {
-    using std::ranges::copy;
-
-    if (pos.data() != m_hPos.data()) {
-        copy(pos, m_hPos.begin());
-    }
-
-    if (vel.data() != m_hVel.data()) {
-        copy(vel, m_hVel.begin());
-    }
-
-    m_nbody->set_position(m_hPos);
-    m_nbody->set_velocity(m_hVel);
-
-    if (!compute.benchmark && !compute.use_cpu && !compute.compare_to_cpu) {
-        _resetRenderer(compute.active_params.m_pointSize);
-    }
+template <typename BodySystem> auto NBodyDemo<BodySystem>::set_arrays(std::span<const PrecisionType> pos, std::span<const PrecisionType> vel) -> void {
+    m_nbody->set_position(pos);
+    m_nbody->set_velocity(vel);
 }
 
-template <typename BodySystem> auto NBodyDemo<BodySystem>::_get_demo_time() -> float {
-    return MilliSeconds{Clock::now() - demo_reset_time_}.count();
-}
-
-template <typename BodySystem> auto NBodyDemo<BodySystem>::_get_milliseconds_passed() -> float {
-    const auto now          = Clock::now();
-    const auto milliseconds = MilliSeconds{now - reset_time_}.count();
-
-    reset_time_ = now;
-
-    return milliseconds;
-}
-
-template <typename BodySystem> auto NBodyDemo<BodySystem>::_init(int numDevices, int block_size, bool use_p2p, int devID, ComputeConfig& compute) -> void {
-    if constexpr (BodySystem::use_cpu) {
-        m_nbody = std::make_unique<BodySystem>(compute.num_bodies);
-    } else {
-        const auto use_pbo = !(compute.benchmark || compute.compare_to_cpu || compute.use_host_mem);
-        m_nbody            = std::make_unique<BodySystem>(compute.num_bodies, numDevices, block_size, use_pbo, compute.use_host_mem, use_p2p, devID);
-    }
-
-    const auto nb_bodies_4 = compute.num_bodies * 4;
-
-    // allocate host memory
-    m_hPos.resize(nb_bodies_4);
-    m_hVel.resize(nb_bodies_4);
-    m_hColor.resize(nb_bodies_4);
-
-    m_nbody->setSoftening(compute.active_params.m_softening);
-    m_nbody->setDamping(compute.active_params.m_damping);
-
-    if (compute.use_cpu) {
-        reset_time_ = Clock::now();
-    } else {
-        checkCudaErrors(cudaEventCreate(&compute.start_event));
-        checkCudaErrors(cudaEventCreate(&compute.stop_event));
-        checkCudaErrors(cudaEventCreate(&compute.host_mem_sync_event));
-    }
-
-    if (!compute.benchmark && !compute.compare_to_cpu) {
-        m_renderer = std::make_unique<ParticleRenderer>();
-        _resetRenderer(compute.active_params.m_pointSize);
-    }
-
-    demo_reset_time_ = Clock::now();
-}
-
-template <typename BodySystem> auto NBodyDemo<BodySystem>::_reset(ComputeConfig& compute, NBodyConfig config) -> void {
+template <typename BodySystem> auto NBodyDemo<BodySystem>::_reset(const ComputeConfig& compute, NBodyConfig config, std::span<float> colour) -> void {
     if (tipsy_file_.empty()) {
-        randomise_bodies<BodySystem::Type>(config, m_hPos, m_hVel, m_hColor, compute.active_params.m_clusterScale, compute.active_params.m_velocityScale);
-        set_arrays(m_hPos, m_hVel, compute);
+        if constexpr (BodySystem::use_cpu) {
+            randomise_bodies<BodySystem::Type>(config, m_nbody->get_position(), m_nbody->get_velocity(), colour, compute.active_params.m_clusterScale, compute.active_params.m_velocityScale);
+        } else {
+            randomise_bodies<BodySystem::Type>(config, m_hPos, m_hVel, colour, compute.active_params.m_clusterScale, compute.active_params.m_velocityScale);
+            m_nbody->set_position(m_hPos);
+            m_nbody->set_velocity(m_hVel);
+        }
+
     } else {
         m_nbody->loadTipsyFile(tipsy_file_);
-        compute.num_bodies = m_nbody->getNumBodies();
     }
 }
 
-template <typename BodySystem> auto NBodyDemo<BodySystem>::_resetRenderer(float point_size) -> void {
-    const auto colour = std::is_same_v<PrecisionType, double> ? std::array{0.4f, 0.8f, 0.1f, 1.0f} : std::array{1.0f, 0.6f, 0.3f, 1.0f};
-
-    m_renderer->setBaseColor(colour);
-    m_renderer->setColors(m_hColor.data(), m_nbody->getNumBodies());
-    m_renderer->setSpriteSize(point_size);
-}
-
-template <typename BodySystem> auto NBodyDemo<BodySystem>::_selectDemo(ComputeConfig& compute) -> void {
-    _reset(compute, NBodyConfig::NBODY_CONFIG_SHELL);
-
-    demo_reset_time_ = Clock::now();
+template <typename BodySystem> auto NBodyDemo<BodySystem>::_selectDemo(ComputeConfig& compute, std::span<float> colour) -> void {
+    _reset(compute, NBodyConfig::NBODY_CONFIG_SHELL, colour);
 }
 
 template NBodyDemo<BodySystemCPU<float>>;
@@ -198,7 +87,7 @@ template NBodyDemo<BodySystemCPU<double>>;
 template NBodyDemo<BodySystemCUDA<float>>;
 template NBodyDemo<BodySystemCUDA<double>>;
 
-template NBodyDemo<BodySystemCPU<float>>::NBodyDemo(std::filesystem::path tipsy_file, ComputeConfig& compute);
-template NBodyDemo<BodySystemCPU<double>>::NBodyDemo(std::filesystem::path tipsy_file, ComputeConfig& compute);
-template NBodyDemo<BodySystemCUDA<float>>::NBodyDemo(std::filesystem::path tipsy_file, ComputeConfig& compute, int numDevices, int block_size, bool use_p2p, int devID);
-template NBodyDemo<BodySystemCUDA<double>>::NBodyDemo(std::filesystem::path tipsy_file, ComputeConfig& compute, int numDevices, int block_size, bool use_p2p, int devID);
+template NBodyDemo<BodySystemCPU<float>>::NBodyDemo(std::filesystem::path tipsy_file, ComputeConfig& compute, NBodyConfig config);
+template NBodyDemo<BodySystemCPU<double>>::NBodyDemo(std::filesystem::path tipsy_file, ComputeConfig& compute, NBodyConfig config);
+template NBodyDemo<BodySystemCUDA<float>>::NBodyDemo(std::filesystem::path tipsy_file, ComputeConfig& compute, NBodyConfig config, int numDevices, int block_size, bool use_p2p, int devID);
+template NBodyDemo<BodySystemCUDA<double>>::NBodyDemo(std::filesystem::path tipsy_file, ComputeConfig& compute, NBodyConfig config, int numDevices, int block_size, bool use_p2p, int devID);

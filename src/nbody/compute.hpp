@@ -7,6 +7,7 @@
 #include <cuda_runtime.h>
 
 #include <array>
+#include <chrono>
 #include <concepts>
 #include <filesystem>
 #include <memory>
@@ -14,6 +15,7 @@
 #include <cassert>
 
 struct CameraConfig;
+class ParticleRenderer;
 
 template <typename BodySystem> class NBodyDemo;
 template <std::floating_point T> class BodySystemCPU;
@@ -82,27 +84,27 @@ struct ComputeConfig {
 
     auto pause() noexcept -> void { paused = !paused; }
 
-    auto switch_precision() -> void;
+    auto switch_precision(ParticleRenderer& renderer) -> void;
 
     auto toggle_cycle_demo() -> void;
 
-    auto previous_demo(CameraConfig& camera) -> void {
+    auto previous_demo(CameraConfig& camera, ParticleRenderer& renderer) -> void {
         active_demo = (active_demo == 0) ? numDemos - 1 : (active_demo - 1) % numDemos;
-        select_demo(camera);
+        select_demo(camera, renderer);
     }
 
-    auto next_demo(CameraConfig& camera) -> void {
+    auto next_demo(CameraConfig& camera, ParticleRenderer& renderer) -> void {
         active_demo = (active_demo + 1) % numDemos;
-        select_demo(camera);
+        select_demo(camera, renderer);
     }
 
-    auto select_demo(CameraConfig& camera) -> void;
+    auto select_demo(CameraConfig& camera, ParticleRenderer& renderer) -> void;
 
-    auto update_simulation(CameraConfig& camera) -> void;
+    auto update_simulation(CameraConfig& camera, ParticleRenderer& renderer) -> void;
 
-    auto display_NBody_system(ParticleRenderer::DisplayMode display_mode) -> void;
+    auto display_NBody_system(ParticleRenderer::DisplayMode display_mode, ParticleRenderer& renderer) -> void;
 
-    template <NBodyConfig InitialConfiguration> auto reset() -> void;
+    template <NBodyConfig InitialConfiguration> auto reset(ParticleRenderer& renderer) -> void;
 
     auto update_params() -> void;
 
@@ -128,18 +130,34 @@ struct ComputeConfig {
     ~ComputeConfig() noexcept;
 
  private:
-    template <typename BodySystemNew, typename BodySystemOld> auto switch_precision(BodySystemNew& new_nbody, BodySystemOld& old_nbody) -> void;
+    template <typename BodySystemNew, typename BodySystemOld> auto switch_precision(BodySystemNew& new_nbody, BodySystemOld& old_nbody, ParticleRenderer& renderer) -> void;
 
     std::unique_ptr<NBodyDemo<BodySystemCPU<float>>>  nbody_cpu_fp32;
     std::unique_ptr<NBodyDemo<BodySystemCUDA<float>>> nbody_cuda_fp32;
 
     std::unique_ptr<NBodyDemo<BodySystemCPU<double>>>  nbody_cpu_fp64;
     std::unique_ptr<NBodyDemo<BodySystemCUDA<double>>> nbody_cuda_fp64;
+
+    template <std::floating_point T> struct TipsyData {
+        std::vector<T> positions;
+        std::vector<T> velocities;
+    };
+
+    TipsyData<float>  tipsy_data_fp32_;
+    TipsyData<double> tipsy_data_fp64_;
+
+    using Clock        = std::chrono::steady_clock;
+    using TimePoint    = std::chrono::time_point<Clock>;
+    using MilliSeconds = std::chrono::duration<float, std::milli>;
+
+    TimePoint demo_reset_time_;
+
+    TimePoint reset_time_;
 };
 
-extern template auto ComputeConfig::reset<NBodyConfig::NBODY_CONFIG_EXPAND>() -> void;
-extern template auto ComputeConfig::reset<NBodyConfig::NBODY_CONFIG_RANDOM>() -> void;
-extern template auto ComputeConfig::reset<NBodyConfig::NBODY_CONFIG_SHELL>() -> void;
+extern template auto ComputeConfig::reset<NBodyConfig::NBODY_CONFIG_EXPAND>(ParticleRenderer& renderer) -> void;
+extern template auto ComputeConfig::reset<NBodyConfig::NBODY_CONFIG_RANDOM>(ParticleRenderer& renderer) -> void;
+extern template auto ComputeConfig::reset<NBodyConfig::NBODY_CONFIG_SHELL>(ParticleRenderer& renderer) -> void;
 
 template <std::floating_point> class BodySystemCPU;
 template <std::floating_point> class BodySystemCUDA;

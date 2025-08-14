@@ -41,32 +41,47 @@
 #include <cassert>
 #include <cmath>
 
-#define GL_POINT_SPRITE_ARB             0x8861
-#define GL_COORD_REPLACE_ARB            0x8862
-#define GL_VERTEX_PROGRAM_POINT_SIZE_NV 0x8642
+namespace {
+constexpr static auto fp64_colour = std::array{0.4f, 0.8f, 0.1f, 1.0f};
+constexpr static auto fp32_colour = std::array{1.0f, 0.6f, 0.3f, 1.0f};
+}    // namespace
 
-ParticleRenderer::ParticleRenderer()
-    : m_pos(0), m_numParticles(0), m_pointSize(1.0f), m_spriteSize(2.0f), m_vertexShader(0), m_vertexShaderPoints(0), m_pixelShader(0), m_programPoints(0), m_programSprites(0), m_texture(0), m_pbo(0), m_vboColor(0),
-      m_bFp64Positions(false) {
+ParticleRenderer::ParticleRenderer(std::size_t nb_bodies, float point_size, bool fp64) : colour_(nb_bodies * 4, 1.0f), m_spriteSize(point_size), m_bFp64Positions(fp64) {
     _initGL();
+    reset(fp64, point_size);
 }
 
-ParticleRenderer::~ParticleRenderer() {
-    m_pos = 0;
+auto ParticleRenderer::reset(bool fp64, float point_size) -> void {
+    const auto& base_colour = fp64 ? fp64_colour : fp32_colour;
+
+    setBaseColor(base_colour);
+    setColours(colour_);
+    setSpriteSize(point_size);
+}
+
+auto ParticleRenderer::reset(std::span<const float> colour, bool fp64, float point_size) -> void {
+    const auto& base_colour = fp64 ? fp64_colour : fp32_colour;
+
+    setBaseColor(base_colour);
+    setColours(colour);
+    setSpriteSize(point_size);
 }
 
 void ParticleRenderer::resetPBO() {
-    glDeleteBuffers(1, (GLuint*)&m_pbo);
+    // TODO: this function is never actually used?
+    // TODO: glGenBuffers and glDeleteBuffers should be managed better
+    glDeleteBuffers(1, reinterpret_cast<GLuint*>(&m_pbo));
 }
 
 void ParticleRenderer::setPositions(std::span<float> pos) {
-    assert(pos.size() % 4 == 0);
+    assert(pos.size() == colour_.size());
 
-    m_pos          = pos.data();
-    m_numParticles = static_cast<int>(pos.size() / 4);
+    m_bFp64Positions = false;
+    m_pos            = pos.data();
+    m_numParticles   = static_cast<int>(pos.size() / 4);
 
     if (!m_pbo) {
-        glGenBuffers(1, (GLuint*)&m_pbo);
+        glGenBuffers(1, reinterpret_cast<GLuint*>(&m_pbo));
     }
 
     glBindBuffer(GL_ARRAY_BUFFER, m_pbo);
@@ -75,14 +90,14 @@ void ParticleRenderer::setPositions(std::span<float> pos) {
     SDK_CHECK_ERROR_GL();
 }
 void ParticleRenderer::setPositions(std::span<double> pos) {
-    assert(pos.size() % 4 == 0);
+    assert(pos.size() == colour_.size());
 
     m_bFp64Positions = true;
     m_pos_fp64       = pos.data();
     m_numParticles   = static_cast<int>(pos.size() / 4);
 
     if (!m_pbo) {
-        glGenBuffers(1, (GLuint*)&m_pbo);
+        glGenBuffers(1, reinterpret_cast<GLuint*>(&m_pbo));
     }
 
     glBindBuffer(GL_ARRAY_BUFFER, m_pbo);
@@ -91,18 +106,16 @@ void ParticleRenderer::setPositions(std::span<double> pos) {
     SDK_CHECK_ERROR_GL();
 }
 
-void ParticleRenderer::setColors(float* color, int numParticles) {
+void ParticleRenderer::setColours(std::span<const float> colour) {
     glBindBuffer(GL_ARRAY_BUFFER, m_vboColor);
-    glBufferData(GL_ARRAY_BUFFER, numParticles * 4 * sizeof(float), color, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, colour.size() * sizeof(float), colour.data(), GL_STATIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
 void ParticleRenderer::setPBO(unsigned int pbo, int numParticles, bool fp64) {
-    m_pbo          = pbo;
-    m_numParticles = numParticles;
-
-    if (fp64)
-        m_bFp64Positions = true;
+    m_pbo            = pbo;
+    m_numParticles   = numParticles;
+    m_bFp64Positions = fp64;
 }
 
 void ParticleRenderer::_drawPoints(bool color) {
@@ -112,9 +125,10 @@ void ParticleRenderer::_drawPoints(bool color) {
             int k = 0;
 
             for (int i = 0; i < m_numParticles; ++i) {
-                if (m_bFp64Positions)
+                if (m_bFp64Positions) {
                     glVertex3dv(&m_pos_fp64[k]);
-                else {
+
+                } else {
                     glVertex3fv(&m_pos[k]);
                 }
 
@@ -127,10 +141,11 @@ void ParticleRenderer::_drawPoints(bool color) {
 
         glBindBuffer(GL_ARRAY_BUFFER, m_pbo);
 
-        if (m_bFp64Positions)
+        if (m_bFp64Positions) {
             glVertexPointer(4, GL_DOUBLE, 0, 0);
-        else
+        } else {
             glVertexPointer(4, GL_FLOAT, 0, 0);
+        }
 
         if (color) {
             glEnableClientState(GL_COLOR_ARRAY);
@@ -153,7 +168,7 @@ void ParticleRenderer::display(DisplayMode mode /* = PARTICLE_POINTS */) {
             glColor3f(1, 1, 1);
             glPointSize(m_pointSize);
             glUseProgram(m_programPoints);
-            _drawPoints();
+            _drawPoints(false);
             glUseProgram(0);
             break;
 
@@ -179,7 +194,7 @@ void ParticleRenderer::display(DisplayMode mode /* = PARTICLE_POINTS */) {
                 glColor3f(1, 1, 1);
                 glSecondaryColor3fv(m_baseColor.data());
 
-                _drawPoints();
+                _drawPoints(false);
 
                 glUseProgram(0);
 
@@ -226,62 +241,43 @@ void ParticleRenderer::display(DisplayMode mode /* = PARTICLE_POINTS */) {
     SDK_CHECK_ERROR_GL();
 }
 
-const char vertexShaderPoints[] = {
-    "void main()                                                            \n"
-    "{                                                                      \n"
-    "    vec4 vert = vec4(gl_Vertex.xyz, 1.0);  			       "
-    " "
-    "              \n"
-    "    gl_Position = gl_ProjectionMatrix * gl_ModelViewMatrix * vert;        "
-    "                   \n"
-    "    gl_FrontColor = gl_Color;                                          \n"
-    "}                                                                      "
-    "\n"};
-
-const char vertexShader[] = {
-    "void main()                                                            \n"
-    "{                                                                      \n"
-    "    float pointSize = 500.0 * gl_Point.size;                           \n"
-    "    vec4 vert = gl_Vertex;						"
-    "						\n"
-    "    vert.w = 1.0;							"
-    "	"
-    "						\n"
-    "    vec3 pos_eye = vec3 (gl_ModelViewMatrix * vert);                   \n"
-    "    gl_PointSize = max(1.0, pointSize / (1.0 - pos_eye.z));            \n"
-    "    gl_TexCoord[0] = gl_MultiTexCoord0;                                \n"
-    //"    gl_TexCoord[1] = gl_MultiTexCoord1; \n"
-    "    gl_Position = gl_ProjectionMatrix * gl_ModelViewMatrix * vert;     \n"
-    "    gl_FrontColor = gl_Color;                                          \n"
-    "    gl_FrontSecondaryColor = gl_SecondaryColor;                        \n"
-    "}                                                                      "
-    "\n"};
-
-const char pixelShader[] = {
-    "uniform sampler2D splatTexture;                                        \n"
-
-    "void main()                                                            \n"
-    "{                                                                      \n"
-    "    vec4 color2 = gl_SecondaryColor;                                   \n"
-    "    vec4 color = (0.6 + 0.4 * gl_Color) * texture2D(splatTexture, "
-    "gl_TexCoord[0].st); \n"
-    "    gl_FragColor =                                                     \n"
-    "         color * color2;\n"    // mix(vec4(0.1, 0.0, 0.0, color.w), color2,
-                                    // color.w);\n"
-    "}                                                                      "
-    "\n"};
-
 void ParticleRenderer::_initGL() {
-    m_vertexShader       = glCreateShader(GL_VERTEX_SHADER);
-    m_vertexShaderPoints = glCreateShader(GL_VERTEX_SHADER);
-    m_pixelShader        = glCreateShader(GL_FRAGMENT_SHADER);
+    constexpr static auto vertexShaderPoints =
+        R"(void main() {
+                vec4 vert = vec4(gl_Vertex.xyz, 1.0);
+                gl_Position = gl_ProjectionMatrix * gl_ModelViewMatrix * vert;
+                gl_FrontColor = gl_Color;
+            })";
 
-    const char* v = vertexShader;
-    const char* p = pixelShader;
-    glShaderSource(m_vertexShader, 1, &v, 0);
-    glShaderSource(m_pixelShader, 1, &p, 0);
-    const char* vp = vertexShaderPoints;
-    glShaderSource(m_vertexShaderPoints, 1, &vp, 0);
+    constexpr static auto vertexShader =
+        R"(void main() {
+                float pointSize = 500.0 * gl_Point.size;
+                vec4 vert = gl_Vertex;
+                vert.w = 1.0;
+                vec3 pos_eye = vec3 (gl_ModelViewMatrix * vert);
+                gl_PointSize = max(1.0, pointSize / (1.0 - pos_eye.z));
+                gl_TexCoord[0] = gl_MultiTexCoord0;
+                gl_TexCoord[1] = gl_MultiTexCoord1;
+                gl_Position = gl_ProjectionMatrix * gl_ModelViewMatrix * vert;
+                gl_FrontColor = gl_Color;
+                gl_FrontSecondaryColor = gl_SecondaryColor;
+            })";
+
+    constexpr static auto pixelShader =
+        R"(uniform sampler2D splatTexture;
+           void main() {
+                vec4 color2 = gl_SecondaryColor;
+                vec4 color = (0.6 + 0.4 * gl_Color) * texture2D(splatTexture, gl_TexCoord[0].st);
+                gl_FragColor = color * color2;      // mix(vec4(0.1, 0.0, 0.0, color.w), color2, color.w);
+            })";
+
+    auto m_vertexShader       = glCreateShader(GL_VERTEX_SHADER);
+    auto m_vertexShaderPoints = glCreateShader(GL_VERTEX_SHADER);
+    auto m_pixelShader        = glCreateShader(GL_FRAGMENT_SHADER);
+
+    glShaderSource(m_vertexShader, 1, &vertexShader, 0);
+    glShaderSource(m_pixelShader, 1, &pixelShader, 0);
+    glShaderSource(m_vertexShaderPoints, 1, &vertexShaderPoints, 0);
 
     glCompileShader(m_vertexShader);
     glCompileShader(m_vertexShaderPoints);
@@ -296,9 +292,9 @@ void ParticleRenderer::_initGL() {
     glAttachShader(m_programPoints, m_vertexShaderPoints);
     glLinkProgram(m_programPoints);
 
-    _createTexture(32);
+    _createTexture();
 
-    glGenBuffers(1, (GLuint*)&m_vboColor);
+    glGenBuffers(1, reinterpret_cast<GLuint*>(&m_vboColor));
     glBindBuffer(GL_ARRAY_BUFFER, m_vboColor);
     glBufferData(GL_ARRAY_BUFFER, m_numParticles * 4 * sizeof(float), 0, GL_STATIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -312,50 +308,46 @@ void ParticleRenderer::_initGL() {
  * EvalHermite(float pA, float pB, float vA, float vB, float u)
  * @brief Evaluates Hermite basis functions for the specified coefficients.
  */
-inline float evalHermite(float pA, float pB, float vA, float vB, float u) {
-    float u2 = (u * u), u3 = u2 * u;
-    float B0 = 2 * u3 - 3 * u2 + 1;
-    float B1 = -2 * u3 + 3 * u2;
-    float B2 = u3 - 2 * u2 + u;
-    float B3 = u3 - u;
-    return (B0 * pA + B1 * pB + B2 * vA + B3 * vB);
+constexpr auto evalHermite(float u) -> float {
+    const auto u2 = u * u;
+    const auto u3 = u2 * u;
+    return 2 * u3 - 3 * u2 + 1;
 }
 
-unsigned char* createGaussianMap(int N) {
-    float*         M = new float[2 * N * N];
-    unsigned char* B = new unsigned char[4 * N * N];
-    float          X, Y, Y2, Dist;
-    float          Incr = 2.0f / N;
-    int            i    = 0;
-    int            j    = 0;
-    Y                   = -1.0f;
+template <std::size_t N> auto createGaussianMap() {
+    constexpr auto Incr = 2.0f / N;
+
+    auto M = std::array<float, 2 * N * N>{};
+    auto B = std::array<unsigned char, 4 * N * N>{};
+    auto i = 0;
+    auto j = 0;
 
     // float mmax = 0;
-    for (int y = 0; y < N; y++, Y += Incr) {
-        Y2 = Y * Y;
-        X  = -1.0f;
+    for (auto y = 0u; y < N; ++y) {
+        const auto Y  = y * Incr - 1.0f;
+        const auto Y2 = Y * Y;
 
-        for (int x = 0; x < N; x++, X += Incr, i += 2, j += 4) {
-            Dist = (float)sqrtf(X * X + Y2);
+        for (auto x = 0u; x < N; ++x, i += 2, j += 4) {
+            const auto X     = x * Incr - 1.0f;
+            const auto X2_Y2 = X * X + Y2;
 
-            if (Dist > 1)
-                Dist = 1;
+            const auto dist = X2_Y2 > 1 ? 1.0f : std::sqrt(X2_Y2);
 
-            M[i + 1] = M[i] = evalHermite(1.0f, 0, 0, 0, Dist);
-            B[j + 3] = B[j + 2] = B[j + 1] = B[j] = (unsigned char)(M[i] * 255);
+            M[i + 1] = M[i] = evalHermite(dist);
+            B[j + 3] = B[j + 2] = B[j + 1] = B[j] = static_cast<unsigned char>(M[i] * 255);
         }
     }
 
-    delete[] M;
-    return (B);
+    return B;
 }
 
-void ParticleRenderer::_createTexture(int resolution) {
-    unsigned char* data = createGaussianMap(resolution);
-    glGenTextures(1, (GLuint*)&m_texture);
+void ParticleRenderer::_createTexture() {
+    constexpr auto resolution = 32;
+    const auto     data       = createGaussianMap<resolution>();
+    glGenTextures(1, reinterpret_cast<GLuint*>(&m_texture));
     glBindTexture(GL_TEXTURE_2D, m_texture);
     glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_TRUE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, resolution, resolution, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, resolution, resolution, 0, GL_RGBA, GL_UNSIGNED_BYTE, data.data());
 }
