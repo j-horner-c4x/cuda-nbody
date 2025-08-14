@@ -216,49 +216,33 @@ void ParticleRenderer::display(DisplayMode mode /* = PARTICLE_POINTS */) {
 
 void ParticleRenderer::_initGL() {
     constexpr static auto& vertexShaderPoints =
-        "void main()                                                            \n"
-        "{                                                                      \n"
-        "    vec4 vert = vec4(gl_Vertex.xyz, 1.0);  			       "
-        " "
-        "              \n"
-        "    gl_Position = gl_ProjectionMatrix * gl_ModelViewMatrix * vert;        "
-        "                   \n"
-        "    gl_FrontColor = gl_Color;                                          \n"
-        "}                                                                      "
-        "\n";
+        R"(void main() {
+                vec4 vert = vec4(gl_Vertex.xyz, 1.0);
+                gl_Position = gl_ProjectionMatrix * gl_ModelViewMatrix * vert;
+                gl_FrontColor = gl_Color;
+            })";
 
     constexpr static auto& vertexShader =
-        "void main()                                                            \n"
-        "{                                                                      \n"
-        "    float pointSize = 500.0 * gl_Point.size;                           \n"
-        "    vec4 vert = gl_Vertex;						"
-        "						\n"
-        "    vert.w = 1.0;							"
-        "	"
-        "						\n"
-        "    vec3 pos_eye = vec3 (gl_ModelViewMatrix * vert);                   \n"
-        "    gl_PointSize = max(1.0, pointSize / (1.0 - pos_eye.z));            \n"
-        "    gl_TexCoord[0] = gl_MultiTexCoord0;                                \n"
-        //"    gl_TexCoord[1] = gl_MultiTexCoord1; \n"
-        "    gl_Position = gl_ProjectionMatrix * gl_ModelViewMatrix * vert;     \n"
-        "    gl_FrontColor = gl_Color;                                          \n"
-        "    gl_FrontSecondaryColor = gl_SecondaryColor;                        \n"
-        "}                                                                      "
-        "\n";
+        R"(void main() {
+                float pointSize = 500.0 * gl_Point.size;
+                vec4 vert = gl_Vertex;
+                vert.w = 1.0;
+                vec3 pos_eye = vec3 (gl_ModelViewMatrix * vert);
+                gl_PointSize = max(1.0, pointSize / (1.0 - pos_eye.z));
+                gl_TexCoord[0] = gl_MultiTexCoord0;
+                gl_TexCoord[1] = gl_MultiTexCoord1;
+                gl_Position = gl_ProjectionMatrix * gl_ModelViewMatrix * vert;
+                gl_FrontColor = gl_Color;
+                gl_FrontSecondaryColor = gl_SecondaryColor;
+            })";
 
     constexpr static auto& pixelShader =
-        "uniform sampler2D splatTexture;                                        \n"
-
-        "void main()                                                            \n"
-        "{                                                                      \n"
-        "    vec4 color2 = gl_SecondaryColor;                                   \n"
-        "    vec4 color = (0.6 + 0.4 * gl_Color) * texture2D(splatTexture, "
-        "gl_TexCoord[0].st); \n"
-        "    gl_FragColor =                                                     \n"
-        "         color * color2;\n"    // mix(vec4(0.1, 0.0, 0.0, color.w), color2,
-                                        // color.w);\n"
-        "}                                                                      "
-        "\n";
+        R"(uniform sampler2D splatTexture;
+           void main() {
+                vec4 color2 = gl_SecondaryColor;
+                vec4 color = (0.6 + 0.4 * gl_Color) * texture2D(splatTexture, gl_TexCoord[0].st);
+                gl_FragColor = color * color2;      // mix(vec4(0.1, 0.0, 0.0, color.w), color2, color.w);
+            })";
 
     m_vertexShader       = glCreateShader(GL_VERTEX_SHADER);
     m_vertexShaderPoints = glCreateShader(GL_VERTEX_SHADER);
