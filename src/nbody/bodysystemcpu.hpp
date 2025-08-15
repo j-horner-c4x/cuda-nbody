@@ -27,9 +27,14 @@
 
 #pragma once
 
+#include "nbody_config.hpp"
+
 #include <filesystem>
 #include <span>
 #include <vector>
+
+struct ComputeConfig;
+struct NBodyParams;
 
 // CPU Body System
 template <std::floating_point T> class BodySystemCPU {
@@ -37,40 +42,35 @@ template <std::floating_point T> class BodySystemCPU {
     using Type                    = T;
     constexpr static auto use_cpu = true;
 
-    explicit BodySystemCPU(int numBodies);
+    explicit BodySystemCPU(const ComputeConfig& compute);
 
-    void loadTipsyFile(const std::filesystem::path& filename);
+    BodySystemCPU(const ComputeConfig& compute, std::vector<T> positions, std::vector<T> velocities);
 
-    void update(T deltaTime);
+    auto reset(const ComputeConfig& compute, NBodyConfig config, std::span<float> colour) -> void;
 
-    void setSoftening(T softening) { m_softeningSquared = softening * softening; }
-    void setDamping(T damping) { m_damping = damping; }
+    auto update(T deltaTime) noexcept -> void;
 
-    auto get_position() -> std::span<T> { return m_pos; }
-    auto get_velocity() -> std::span<T> { return m_vel; }
+    auto update_params(const NBodyParams& active_params) noexcept -> void;
 
-    auto set_position(std::span<const T> data) -> void;
-    auto set_velocity(std::span<const T> data) -> void;
+    auto get_position() const noexcept -> std::span<const T> { return m_pos; }
+    auto get_velocity() const noexcept -> std::span<const T> { return m_vel; }
 
-    constexpr static unsigned int getCurrentReadBuffer() { return 0; }
+    auto set_position(std::span<const T> data) noexcept -> void;
+    auto set_velocity(std::span<const T> data) noexcept -> void;
 
-    unsigned int getNumBodies() const { return m_numBodies; }
+ private:
+    auto setSoftening(T softening) noexcept -> void { m_softeningSquared = softening * softening; }
 
- private:    // methods
-    void _initialize(int numBodies);
-    void _finalize() noexcept {};
-
-    void _computeNBodyGravitation();
-    void _integrateNBodySystem(T deltaTime);
+    auto _computeNBodyGravitation() noexcept -> void;
 
     int m_numBodies;
 
     std::vector<T> m_pos;
     std::vector<T> m_vel;
-    std::vector<T> m_force;
+    std::vector<T> m_force = std::vector(m_numBodies * 3, T{0.f});
 
-    T m_softeningSquared;
-    T m_damping;
+    T m_softeningSquared = 0.00125f;
+    T m_damping          = 0.995f;
 };
 
 extern template BodySystemCPU<float>;

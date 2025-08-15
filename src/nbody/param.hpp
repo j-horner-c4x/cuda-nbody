@@ -27,6 +27,7 @@
 
 #pragma once
 
+#include <concepts>
 #include <string>
 #include <type_traits>
 
@@ -35,65 +36,68 @@
 // base class for named parameter
 class ParamBase {
  public:
-    ParamBase(std::string name) noexcept : m_name(std::move(name)) {}
+    ParamBase(std::string name) noexcept : name_(std::move(name)) {}
     virtual ~ParamBase() noexcept = default;
 
-    auto& GetName() const noexcept { return m_name; }
+    auto& name() const noexcept { return name_; }
 
-    auto virtual GetValueString() const noexcept -> std::string = 0;
+    auto virtual string() const -> std::string = 0;
 
-    virtual void Reset()     = 0;
-    virtual void Increment() = 0;
-    virtual void Decrement() = 0;
+    auto virtual reset() const noexcept -> void = 0;
+    auto virtual increment() const -> void      = 0;
+    auto virtual decrement() const -> void      = 0;
 
-    virtual float GetPercentage()        = 0;
-    virtual void  SetPercentage(float p) = 0;
+    auto virtual percentage() const noexcept -> float           = 0;
+    auto virtual set_percentage(float p) const noexcept -> void = 0;
 
  protected:
-    std::string m_name;
+    std::string name_;
 };
 
+template <typename T>
+concept Numerical = std::floating_point<T> || std::integral<T>;
+
 // derived class for single-valued parameter
-template <class T> class Param final : public ParamBase {
+template <Numerical T> class Param final : public ParamBase {
  public:
     static_assert(std::is_same_v<T, float>, "only Param<float> has been implemented so far");
 
-    Param(std::string name, T value, T min, T max, T step, T* ptr) : ParamBase(std::move(name)), m_ptr(ptr), m_default(value), m_min(min), m_max(max), m_step(step) {
-        assert(m_ptr);
-        *m_ptr = value;
+    Param(std::string name, T value, T min, T max, T step, T* ptr) : ParamBase(std::move(name)), ref_(ptr), default_(value), min_(min), max_(max), step_(step) {
+        assert(ref_);
+        *ref_ = value;
     }
     ~Param() = default;
 
-    auto GetValueString() const noexcept -> std::string override;
+    auto string() const -> std::string override;
 
-    float GetPercentage() override { return (*m_ptr - m_min) / (float)(m_max - m_min); }
+    auto percentage() const noexcept -> float override { return (*ref_ - min_) / static_cast<float>(max_ - min_); }
 
-    void SetPercentage(float p) override { *m_ptr = (T)(m_min + p * (m_max - m_min)); }
+    auto set_percentage(float p) const noexcept -> void override { *ref_ = static_cast<T>(min_ + p * (max_ - min_)); }
 
-    void Reset() override { *m_ptr = m_default; }
+    auto reset() const noexcept -> void override { *ref_ = default_; }
 
-    void Increment() override {
-        *m_ptr += m_step;
+    auto increment() const noexcept -> void override {
+        *ref_ += step_;
 
-        if (*m_ptr > m_max) {
-            *m_ptr = m_max;
+        if (*ref_ > max_) {
+            *ref_ = max_;
         }
     }
 
-    void Decrement() override {
-        *m_ptr -= m_step;
+    auto decrement() const noexcept -> void override {
+        *ref_ -= step_;
 
-        if (*m_ptr < m_min) {
-            *m_ptr = m_min;
+        if (*ref_ < min_) {
+            *ref_ = min_;
         }
     }
 
  private:
-    T* m_ptr;    // pointer to value declared elsewhere
-    T  m_default;
-    T  m_min;
-    T  m_max;
-    T  m_step;
+    T* ref_;    // pointer to value declared elsewhere
+    T  default_;
+    T  min_;
+    T  max_;
+    T  step_;
 };
 
-extern template auto Param<float>::GetValueString() const noexcept -> std::string;
+extern template auto Param<float>::string() const -> std::string;

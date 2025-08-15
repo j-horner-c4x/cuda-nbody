@@ -33,7 +33,7 @@
 #include <span>
 
 // utility function
-template <std::floating_point T> auto randomise_bodies(NBodyConfig config, std::span<T> pos, std::span<T> vel, std::span<float> colour, float clusterScale, float velocityScale) -> void;
+template <std::floating_point T> auto randomise_bodies(NBodyConfig config, std::span<T> pos, std::span<T> vel, std::span<float> colour, float clusterScale, float velocityScale) noexcept -> void;
 
-extern template auto randomise_bodies<float>(NBodyConfig config, std::span<float> pos, std::span<float> vel, std::span<float> colour, float clusterScale, float velocityScale) -> void;
-extern template auto randomise_bodies<double>(NBodyConfig config, std::span<double> pos, std::span<double> vel, std::span<float> colour, float clusterScale, float velocityScale) -> void;
+extern template auto randomise_bodies<float>(NBodyConfig config, std::span<float> pos, std::span<float> vel, std::span<float> colour, float clusterScale, float velocityScale) noexcept -> void;
+extern template auto randomise_bodies<double>(NBodyConfig config, std::span<double> pos, std::span<double> vel, std::span<float> colour, float clusterScale, float velocityScale) noexcept -> void;

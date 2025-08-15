@@ -18,8 +18,6 @@ add_library(${PROJECT_NAME}_camera STATIC camera.cpp)
 add_library(${PROJECT_NAME}_interface STATIC interface.cpp)
 add_library(${PROJECT_NAME}_controls STATIC controls.cpp)
 
-add_library(${PROJECT_NAME}_nbody_demo STATIC nbody_demo.cpp)
-
 add_library(${PROJECT_NAME}_graphics_loop STATIC graphics_loop.cpp)
 
 target_link_libraries(${PROJECT_NAME}_render_particles PRIVATE CUDA::cudart_static OpenGL::GL GLEW::GLEW)
@@ -29,22 +27,21 @@ target_link_libraries(${PROJECT_NAME}_paramgl PRIVATE GLUT::GLUT ${PROJECT_NAME}
 
 target_link_libraries(${PROJECT_NAME}_tipsy PRIVATE CUDA::cudart_static)
 target_link_libraries(${PROJECT_NAME}_randomise_bodies PRIVATE CUDA::cudart_static)
-target_link_libraries(${PROJECT_NAME}_bodysystemcpu PRIVATE CUDA::cudart_static ${PROJECT_NAME}_tipsy)
+target_link_libraries(${PROJECT_NAME}_bodysystemcpu PRIVATE CUDA::cudart_static ${PROJECT_NAME}_tipsy ${PROJECT_NAME}_randomise_bodies)
 
-target_link_libraries(${PROJECT_NAME}_bodysystemcuda PRIVATE CUDA::cudart_static GLUT::GLUT)
+target_link_libraries(${PROJECT_NAME}_bodysystemcuda PRIVATE CUDA::cudart_static GLUT::GLUT ${PROJECT_NAME}_randomise_bodies)
 
 target_link_libraries(${PROJECT_NAME}_camera PRIVATE GLEW::GLEW OpenGL::GL)
 target_link_libraries(${PROJECT_NAME}_compute
                         PUBLIC
                             CUDA::cudart_static
                         PRIVATE
-                            ${PROJECT_NAME}_nbody_demo
                             ${PROJECT_NAME}_bodysystemcpu
                             ${PROJECT_NAME}_bodysystemcuda
                             ${PROJECT_NAME}_render_particles)
 
 target_link_libraries(${PROJECT_NAME}_controls PUBLIC GLUT::GLUT ${PROJECT_NAME}_compute ${PROJECT_NAME}_interface)
-target_link_libraries(${PROJECT_NAME}_nbody_demo PUBLIC ${PROJECT_NAME}_compute ${PROJECT_NAME}_randomise_bodies)
+
 target_link_libraries(${PROJECT_NAME}_interface 
                         PUBLIC
                             ${PROJECT_NAME}_paramgl

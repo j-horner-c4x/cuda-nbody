@@ -1,9 +1,8 @@
 #pragma once
 
-#include <array>
-#include <memory>
+#include "paramgl.hpp"
 
-class ParamListGL;
+#include <array>
 
 ////////////////////////////////////////
 // Demo Parameters
@@ -19,5 +18,5 @@ struct NBodyParams {
 
     auto print() const -> void;
 
-    auto create_sliders() -> std::unique_ptr<ParamListGL>;
+    auto create_sliders() -> ParamListGL;
 };

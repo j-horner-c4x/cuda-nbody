@@ -241,19 +241,11 @@ int main(int argc, char** argv) {
 
         compute.reset<NBodyConfig::NBODY_CONFIG_SHELL>(renderer);
 
-        auto interface = InterfaceConfig{
-            .display_enabled      = true,
-            .show_sliders         = show_sliders,
-            .param_list           = compute.active_params.create_sliders(),
-            .full_screen          = full_screen,
-            .display_interactions = false,
-            .display_mode         = ParticleRenderer::PARTICLE_SPRITES_COLOR,
-            .fps_count            = 0,
-            .fps_limit            = 5};
+        auto interface = Interface{show_sliders, compute.active_params.create_sliders(), full_screen};
 
-        auto camera = CameraConfig{.translation_lag = {0.f, -2.f, -150.f}, .translation = {0.f, -2.f, -150.f}, .rotation = {0.f, 0.f, 0.f}};
+        auto camera = Camera{};
 
-        auto controls = ControlsConfig{.button_state = 0, .old_x = 0, .old_y = 0};
+        auto controls = Controls{};
 
         execute_graphics_loop(compute, interface, camera, controls, renderer);
 

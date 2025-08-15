@@ -60,7 +60,7 @@ template <auto GLUTFunction, typename F> auto register_callback(F& func) -> void
     RegisterCallback<GLUTFunction, Args>::register_callback(func);
 }
 
-auto execute_graphics_loop(ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& camera, ControlsConfig& controls, ParticleRenderer& renderer) -> void {
+auto execute_graphics_loop(ComputeConfig& compute, Interface& interface, Camera& camera, Controls& controls, ParticleRenderer& renderer) -> void {
     auto display_ = [&]() { interface.display(compute, camera, renderer); };
 
     auto reshape_ = [](int w, int h) {
@@ -74,10 +74,10 @@ auto execute_graphics_loop(ComputeConfig& compute, InterfaceConfig& interface, C
 
     auto mouse_    = [&](int button, int state, int x, int y) { controls.mouse(button, state, x, y, interface, compute); };
     auto motion_   = [&](int x, int y) { controls.motion(x, y, interface, camera, compute); };
-    auto keyboard_ = [&](unsigned char k, int x, int y) { ControlsConfig::keyboard(k, x, y, compute, interface, camera, renderer); };
+    auto keyboard_ = [&](unsigned char k, int x, int y) { Controls::keyboard(k, x, y, compute, interface, camera, renderer); };
 
     // The special keyboard callback is triggered when keyboard function or directional keys are pressed.
-    auto special_ = [&](int key, int x, int y) { ControlsConfig::special(key, x, y, interface); };
+    auto special_ = [&](int key, int x, int y) { interface.special(key, x, y); };
     auto idle_    = []() { glutPostRedisplay(); };
 
     static_assert(std::is_same_v<decltype(arguments(display_)), void>);

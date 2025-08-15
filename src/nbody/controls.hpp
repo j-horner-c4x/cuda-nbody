@@ -1,19 +1,12 @@
 #pragma once
 
-struct CameraConfig;
-struct InterfaceConfig;
+class Camera;
+class Interface;
 struct ComputeConfig;
 class ParticleRenderer;
 
-struct ControlsConfig {
-    int button_state;
-    int old_x;
-    int old_y;
-
-    auto set_state(int button, int state, int x, int y) noexcept -> void;
-
-    auto move_camera(CameraConfig& camera, int x, int y) -> void;
-
+class Controls {
+ public:
     ///
     /// @brief When a user presses and releases mouse buttons in the window, each press and each release generates a mouse callback.
     ///
@@ -22,13 +15,13 @@ struct ControlsConfig {
     /// @param x        Window relative x coordinate of the mouse.
     /// @param y        Window relative y coordinate of the mouse.
     ///
-    auto mouse(int button, int state, int x, int y, InterfaceConfig& interface, ComputeConfig& compute) -> void;
+    auto mouse(int button, int state, int x, int y, Interface& interface, ComputeConfig& compute) -> void;
 
     ///
     ///  @brief     The motion callback for a window is called when the mouse moves within the window while one or more mouse buttons are pressed.
     ///             "passive_motion" would be the relevant function to use if no mouse button is pressed.
     ///
-    auto motion(int x, int y, InterfaceConfig& interface, CameraConfig& camera, ComputeConfig& compute) -> void;
+    auto motion(int x, int y, const Interface& interface, Camera& camera, ComputeConfig& compute) -> void;
 
     ///
     /// @brief  When a user types into the window, each key press generating an ASCII character will generate a keyboard callback.
@@ -41,8 +34,14 @@ struct ControlsConfig {
     /// @param
     /// @param camera
     /// @return
-    static auto keyboard(unsigned char key, int x, int y, ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& camera, ParticleRenderer& renderer) -> void;
+    static auto keyboard(unsigned char key, int x, int y, ComputeConfig& compute, Interface& interface, Camera& camera, ParticleRenderer& renderer) -> void;
 
-    // The special keyboard callback is triggered when keyboard function or directional keys are pressed.
-    static auto special(int key, int x, int y, InterfaceConfig& interface) -> void;
+ private:
+    auto move_camera(Camera& camera, int x, int y) noexcept -> void;
+
+    auto set_state(int button, int state, int x, int y) noexcept -> void;
+
+    int button_state_ = 0;
+    int old_x_        = 0;
+    int old_y_        = 0;
 };
