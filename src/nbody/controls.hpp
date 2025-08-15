@@ -44,7 +44,7 @@ class Controls {
 
     auto set_state(int button, int state, int x, int y) noexcept -> void;
 
-    int button_state = 0;
-    int old_x        = 0;
-    int old_y        = 0;
+    int button_state_ = 0;
+    int old_x_        = 0;
+    int old_y_        = 0;
 };

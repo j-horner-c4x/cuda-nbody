@@ -3,46 +3,45 @@
 #include "camera.hpp"
 #include "compute.hpp"
 #include "interface.hpp"
-#include "render_particles.hpp"
 
 #include <GL/freeglut.h>
 
 auto Controls::set_state(int button, int state, int x, int y) noexcept -> void {
     if (state == GLUT_DOWN) {
-        button_state |= 1 << button;
+        button_state_ |= 1 << button;
     } else if (state == GLUT_UP) {
-        button_state = 0;
+        button_state_ = 0;
     }
 
     const auto mods = glutGetModifiers();
 
     if (mods & GLUT_ACTIVE_SHIFT) {
-        button_state = 2;
+        button_state_ = 2;
     } else if (mods & GLUT_ACTIVE_CTRL) {
-        button_state = 3;
+        button_state_ = 3;
     }
 
-    old_x = x;
-    old_y = y;
+    old_x_ = x;
+    old_y_ = y;
 }
 
 auto Controls::move_camera(Camera& camera, int x, int y) noexcept -> void {
-    const auto dx = static_cast<float>(x - old_x);
-    const auto dy = static_cast<float>(y - old_y);
+    const auto dx = static_cast<float>(x - old_x_);
+    const auto dy = static_cast<float>(y - old_y_);
 
-    if (button_state == 3) {
+    if (button_state_ == 3) {
         // left+middle = zoom
         camera.zoom(dy);
-    } else if (button_state & 2) {
+    } else if (button_state_ & 2) {
         // middle = translate
         camera.translate(dx, dy);
-    } else if (button_state & 1) {
+    } else if (button_state_ & 1) {
         // left = rotate
         camera.rotate(dx, dy);
     }
 
-    old_x = x;
-    old_y = y;
+    old_x_ = x;
+    old_y_ = y;
 }
 
 auto Controls::mouse(int button, int state, int x, int y, InterfaceConfig& interface, ComputeConfig& compute) -> void {
