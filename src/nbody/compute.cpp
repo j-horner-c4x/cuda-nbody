@@ -1,8 +1,9 @@
 #include "compute.hpp"
 
+#include "bodysystemcpu.hpp"
+#include "bodysystemcuda.hpp"
 #include "camera.hpp"
 #include "helper_cuda.hpp"
-#include "nbody_demo.hpp"
 #include "render_particles.hpp"
 #include "tipsy.hpp"
 
