@@ -51,15 +51,18 @@
 using std::ranges::copy;
 
 template <std::floating_point T>
-BodySystemCPU<T>::BodySystemCPU(ComputeConfig& compute) : m_numBodies(compute.num_bodies), m_pos(m_numBodies * 4, T{0}), m_vel(m_numBodies * 4, T{0}), m_damping(compute.active_params.m_damping) {
+BodySystemCPU<T>::BodySystemCPU(const ComputeConfig& compute) : m_numBodies(compute.num_bodies), m_pos(m_numBodies * 4, T{0}), m_vel(m_numBodies * 4, T{0}), m_damping(compute.active_params.m_damping) {
     setSoftening(compute.active_params.m_softening);
 
     reset(compute, NBodyConfig::NBODY_CONFIG_SHELL, {});
 }
 
 template <std::floating_point T>
-BodySystemCPU<T>::BodySystemCPU(ComputeConfig& compute, std::vector<T> positions, std::vector<T> velocities)
+BodySystemCPU<T>::BodySystemCPU(const ComputeConfig& compute, std::vector<T> positions, std::vector<T> velocities)
     : m_numBodies(compute.num_bodies), m_pos(std::move(positions)), m_vel(std::move(velocities)), m_damping(compute.active_params.m_damping) {
+    assert(m_pos.size() == m_numBodies * 4);
+    assert(m_vel.size() == m_pos.size());
+
     setSoftening(compute.active_params.m_softening);
 }
 
@@ -67,25 +70,21 @@ template <std::floating_point T> auto BodySystemCPU<T>::reset(const ComputeConfi
     randomise_bodies<T>(config, m_pos, m_vel, colour, compute.active_params.m_clusterScale, compute.active_params.m_velocityScale);
 }
 
-template <std::floating_point T> void BodySystemCPU<T>::update(T deltaTime) {
-    _integrateNBodySystem(deltaTime);
-}
-
-template <std::floating_point T> auto BodySystemCPU<T>::update_params(const NBodyParams& active_params) -> void {
+template <std::floating_point T> auto BodySystemCPU<T>::update_params(const NBodyParams& active_params) noexcept -> void {
     setSoftening(active_params.m_softening);
-    setDamping(active_params.m_damping);
+    m_damping = active_params.m_damping;
 }
 
-template <std::floating_point T> auto BodySystemCPU<T>::set_position(std::span<const T> data) -> void {
+template <std::floating_point T> auto BodySystemCPU<T>::set_position(std::span<const T> data) noexcept -> void {
     assert(data.size() == m_pos.size());
     copy(data, m_pos.begin());
 }
-template <std::floating_point T> auto BodySystemCPU<T>::set_velocity(std::span<const T> data) -> void {
+template <std::floating_point T> auto BodySystemCPU<T>::set_velocity(std::span<const T> data) noexcept -> void {
     assert(data.size() == m_vel.size());
     copy(data, m_vel.begin());
 }
 
-template <std::floating_point T> void bodyBodyInteraction(T accel[3], T posMass0[4], T posMass1[4], T softeningSquared) {
+template <std::floating_point T> auto bodyBodyInteraction(T accel[3], const T posMass0[4], const T posMass1[4], T softeningSquared) noexcept -> void {
     T r[3];
 
     // r_01  [3 FLOPS]
@@ -110,7 +109,7 @@ template <std::floating_point T> void bodyBodyInteraction(T accel[3], T posMass0
     accel[2] += r[2] * s;
 }
 
-template <std::floating_point T> void BodySystemCPU<T>::_computeNBodyGravitation() {
+template <std::floating_point T> auto BodySystemCPU<T>::_computeNBodyGravitation() noexcept -> void {
 #ifdef OPENMP
 #pragma omp parallel for
 #endif
@@ -140,7 +139,7 @@ template <std::floating_point T> void BodySystemCPU<T>::_computeNBodyGravitation
     }
 }
 
-template <std::floating_point T> void BodySystemCPU<T>::_integrateNBodySystem(T deltaTime) {
+template <std::floating_point T> auto BodySystemCPU<T>::update(T deltaTime) noexcept -> void {
     _computeNBodyGravitation();
 
 #ifdef OPENMP

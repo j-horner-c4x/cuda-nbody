@@ -11,7 +11,7 @@
 
 namespace {
 
-template <std::floating_point T> auto normalize(vec3<T>& vector) -> T {
+template <std::floating_point T> auto normalize(vec3<T>& vector) noexcept -> T {
     const auto dist = std::sqrt(vector.x * vector.x + vector.y * vector.y + vector.z * vector.z);
 
     if (dist > 1e-6) {
@@ -44,7 +44,7 @@ template <std::floating_point T> auto rng_2() noexcept {
 
 }    // namespace
 
-template <std::floating_point T> auto randomise_bodies(NBodyConfig config, std::span<T> pos, std::span<T> vel, std::span<float> colour, float clusterScale, float velocityScale) -> void {
+template <std::floating_point T> auto randomise_bodies(NBodyConfig config, std::span<T> pos, std::span<T> vel, std::span<float> colour, float clusterScale, float velocityScale) noexcept -> void {
     using enum NBodyConfig;
 
     assert(pos.size() % 4 == 0);
@@ -202,5 +202,5 @@ template <std::floating_point T> auto randomise_bodies(NBodyConfig config, std::
     }
 }
 
-template auto randomise_bodies<float>(NBodyConfig config, std::span<float> pos, std::span<float> vel, std::span<float> colour, float clusterScale, float velocityScale) -> void;
-template auto randomise_bodies<double>(NBodyConfig config, std::span<double> pos, std::span<double> vel, std::span<float> colour, float clusterScale, float velocityScale) -> void;
+template auto randomise_bodies<float>(NBodyConfig config, std::span<float> pos, std::span<float> vel, std::span<float> colour, float clusterScale, float velocityScale) noexcept -> void;
+template auto randomise_bodies<double>(NBodyConfig config, std::span<double> pos, std::span<double> vel, std::span<float> colour, float clusterScale, float velocityScale) noexcept -> void;

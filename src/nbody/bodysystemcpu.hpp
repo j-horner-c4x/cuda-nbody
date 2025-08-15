@@ -42,32 +42,26 @@ template <std::floating_point T> class BodySystemCPU {
     using Type                    = T;
     constexpr static auto use_cpu = true;
 
-    explicit BodySystemCPU(ComputeConfig& compute);
+    explicit BodySystemCPU(const ComputeConfig& compute);
 
-    BodySystemCPU(ComputeConfig& compute, std::vector<T> positions, std::vector<T> velocities);
+    BodySystemCPU(const ComputeConfig& compute, std::vector<T> positions, std::vector<T> velocities);
 
     auto reset(const ComputeConfig& compute, NBodyConfig config, std::span<float> colour) -> void;
 
-    void update(T deltaTime);
+    auto update(T deltaTime) noexcept -> void;
 
-    auto update_params(const NBodyParams& active_params) -> void;
+    auto update_params(const NBodyParams& active_params) noexcept -> void;
 
-    void setSoftening(T softening) { m_softeningSquared = softening * softening; }
-    void setDamping(T damping) { m_damping = damping; }
+    auto get_position() const noexcept -> std::span<const T> { return m_pos; }
+    auto get_velocity() const noexcept -> std::span<const T> { return m_vel; }
 
-    auto get_position() -> std::span<T> { return m_pos; }
-    auto get_velocity() -> std::span<T> { return m_vel; }
-
-    auto set_position(std::span<const T> data) -> void;
-    auto set_velocity(std::span<const T> data) -> void;
-
-    constexpr static unsigned int getCurrentReadBuffer() { return 0; }
-
-    unsigned int getNumBodies() const { return m_numBodies; }
+    auto set_position(std::span<const T> data) noexcept -> void;
+    auto set_velocity(std::span<const T> data) noexcept -> void;
 
  private:
-    void _computeNBodyGravitation();
-    void _integrateNBodySystem(T deltaTime);
+    auto setSoftening(T softening) noexcept -> void { m_softeningSquared = softening * softening; }
+
+    auto _computeNBodyGravitation() noexcept -> void;
 
     int m_numBodies;
 
