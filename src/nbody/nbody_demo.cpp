@@ -78,10 +78,6 @@ template <typename BodySystem> auto NBodyDemo<BodySystem>::_reset(const ComputeC
     }
 }
 
-template <typename BodySystem> auto NBodyDemo<BodySystem>::_selectDemo(ComputeConfig& compute, std::span<float> colour) -> void {
-    _reset(compute, NBodyConfig::NBODY_CONFIG_SHELL, colour);
-}
-
 template NBodyDemo<BodySystemCPU<float>>;
 template NBodyDemo<BodySystemCPU<double>>;
 template NBodyDemo<BodySystemCUDA<float>>;

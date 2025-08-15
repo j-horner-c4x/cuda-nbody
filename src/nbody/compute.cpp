@@ -396,21 +396,23 @@ auto ComputeConfig::toggle_cycle_demo() -> void {
 }
 
 auto ComputeConfig::select_demo(CameraConfig& camera, ParticleRenderer& renderer) -> void {
+    using enum NBodyConfig;
+
     select_demo();
 
     camera.reset(active_params.camera_origin);
 
     if (use_cpu) {
         if (fp64_enabled) {
-            nbody_cpu_fp64->_selectDemo(*this, renderer.colour());
+            nbody_cpu_fp64->_reset(*this, NBODY_CONFIG_SHELL, renderer.colour());
         } else {
-            nbody_cpu_fp32->_selectDemo(*this, renderer.colour());
+            nbody_cpu_fp32->_reset(*this, NBODY_CONFIG_SHELL, renderer.colour());
         }
     } else {
         if (fp64_enabled) {
-            nbody_cuda_fp64->_selectDemo(*this, renderer.colour());
+            nbody_cuda_fp64->_reset(*this, NBODY_CONFIG_SHELL, renderer.colour());
         } else {
-            nbody_cuda_fp32->_selectDemo(*this, renderer.colour());
+            nbody_cuda_fp32->_reset(*this, NBODY_CONFIG_SHELL, renderer.colour());
         }
     }
     demo_reset_time_ = Clock::now();
@@ -421,14 +423,6 @@ auto ComputeConfig::select_demo(CameraConfig& camera, ParticleRenderer& renderer
 auto ComputeConfig::update_simulation(CameraConfig& camera, ParticleRenderer& renderer) -> void {
     if (!paused) {
         const auto demo_time = MilliSeconds{Clock::now() - demo_reset_time_}.count();
-
-        /* auto demo_time = 0.f;
-
-        if (use_cpu) {
-            demo_time = fp64_enabled ? nbody_cpu_fp64->_get_demo_time() : nbody_cpu_fp32->_get_demo_time();
-        } else {
-            demo_time = fp64_enabled ? nbody_cuda_fp64->_get_demo_time() : nbody_cuda_fp32->_get_demo_time();
-        }*/
 
         if (cycle_demo && (demo_time > demoTime)) {
             next_demo(camera, renderer);

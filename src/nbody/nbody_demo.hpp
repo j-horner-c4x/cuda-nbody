@@ -25,8 +25,6 @@ template <typename BodySystem> class NBodyDemo {
 
     void _reset(const ComputeConfig& compute, NBodyConfig config, std::span<float> colour);
 
-    void _selectDemo(ComputeConfig& compute, std::span<float> colour);
-
     auto get_arrays(std::span<PrecisionType> pos, std::span<PrecisionType> vel) -> void;
     auto set_arrays(std::span<const PrecisionType> pos, std::span<const PrecisionType> vel) -> void;
 
