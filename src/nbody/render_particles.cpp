@@ -73,7 +73,7 @@ void ParticleRenderer::resetPBO() {
     glDeleteBuffers(1, reinterpret_cast<GLuint*>(&m_pbo));
 }
 
-void ParticleRenderer::setPositions(std::span<float> pos) {
+void ParticleRenderer::set_positions(std::span<const float> pos) {
     assert(pos.size() == colour_.size());
 
     m_bFp64Positions = false;
@@ -89,7 +89,7 @@ void ParticleRenderer::setPositions(std::span<float> pos) {
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     SDK_CHECK_ERROR_GL();
 }
-void ParticleRenderer::setPositions(std::span<double> pos) {
+void ParticleRenderer::set_positions(std::span<const double> pos) {
     assert(pos.size() == colour_.size());
 
     m_bFp64Positions = true;
