@@ -19,7 +19,7 @@ template <std::floating_point T> auto ComputeConfig::compare_results(BodySystemC
         auto nbodyCpu = BodySystemCPU<T>(*this);
 
         nbodyCpu.set_position(nbodyCuda.get_position());
-        nbodyCpu.set_velocity(nbodyCuda.get_position());
+        nbodyCpu.set_velocity(nbodyCuda.get_velocity());
 
         nbodyCpu.update(0.001f);
 
@@ -426,14 +426,18 @@ auto ComputeConfig::select_demo(CameraConfig& camera, ParticleRenderer& renderer
         if (use_cpu) {
             if (fp64_enabled) {
                 nbody_cpu_fp64->set_position(tipsy_data_fp64_.positions);
+                nbody_cpu_fp64->set_velocity(tipsy_data_fp64_.velocities);
             } else {
                 nbody_cpu_fp32->set_position(tipsy_data_fp32_.positions);
+                nbody_cpu_fp32->set_velocity(tipsy_data_fp32_.velocities);
             }
         } else {
             if (fp64_enabled) {
                 nbody_cuda_fp64->set_position(tipsy_data_fp64_.positions);
+                nbody_cuda_fp64->set_velocity(tipsy_data_fp64_.velocities);
             } else {
                 nbody_cuda_fp32->set_position(tipsy_data_fp32_.positions);
+                nbody_cuda_fp32->set_velocity(tipsy_data_fp32_.velocities);
             }
         }
     }
@@ -476,9 +480,9 @@ auto ComputeConfig::display_NBody_system(ParticleRenderer::DisplayMode display_m
     if (use_host_mem) {
         if (use_cpu) {
             if (fp64_enabled) {
-                renderer.setPositions(nbody_cpu_fp64->get_position());
+                renderer.set_positions(nbody_cpu_fp64->get_position());
             } else {
-                renderer.setPositions(nbody_cpu_fp32->get_position());
+                renderer.set_positions(nbody_cpu_fp32->get_position());
             }
         } else {
             // This event sync is required because we are rendering from the host memory that CUDA is writing.
@@ -486,9 +490,9 @@ auto ComputeConfig::display_NBody_system(ParticleRenderer::DisplayMode display_m
             cudaEventSynchronize(host_mem_sync_event);
 
             if (fp64_enabled) {
-                renderer.setPositions(nbody_cuda_fp64->get_position());
+                renderer.set_positions(nbody_cuda_fp64->get_position());
             } else {
-                renderer.setPositions(nbody_cuda_fp32->get_position());
+                renderer.set_positions(nbody_cuda_fp32->get_position());
             }
         }
     } else {
@@ -523,14 +527,18 @@ template <NBodyConfig InitialConfiguration> auto ComputeConfig::reset(ParticleRe
         if (use_cpu) {
             if (fp64_enabled) {
                 nbody_cpu_fp64->set_position(tipsy_data_fp64_.positions);
+                nbody_cpu_fp64->set_velocity(tipsy_data_fp64_.velocities);
             } else {
                 nbody_cpu_fp32->set_position(tipsy_data_fp32_.positions);
+                nbody_cpu_fp32->set_velocity(tipsy_data_fp32_.velocities);
             }
         } else {
             if (fp64_enabled) {
                 nbody_cuda_fp64->set_position(tipsy_data_fp64_.positions);
+                nbody_cuda_fp64->set_velocity(tipsy_data_fp64_.velocities);
             } else {
                 nbody_cuda_fp32->set_position(tipsy_data_fp32_.positions);
+                nbody_cuda_fp32->set_velocity(tipsy_data_fp32_.velocities);
             }
         }
     }
