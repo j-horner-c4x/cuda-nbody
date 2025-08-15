@@ -62,7 +62,7 @@ cudaError_t setSofteningSquared(float softeningSq);
 cudaError_t setSofteningSquared(double softeningSq);
 
 template <std::floating_point T>
-BodySystemCUDA<T>::BodySystemCUDA(ComputeConfig& compute, unsigned int numDevices, unsigned int blockSize, bool useP2P, int deviceId)
+BodySystemCUDA<T>::BodySystemCUDA(const ComputeConfig& compute, unsigned int numDevices, unsigned int blockSize, bool useP2P, int deviceId)
     : m_numBodies(compute.num_bodies), m_numDevices(numDevices), m_bUsePBO(!(compute.benchmark || compute.compare_to_cpu || compute.use_host_mem)), m_bUseSysMem(compute.use_host_mem), m_bUseP2P(useP2P),
       m_blockSize(blockSize), m_devID(deviceId), m_damping(compute.active_params.m_damping) {
     _initialize(compute.num_bodies);
@@ -73,7 +73,7 @@ BodySystemCUDA<T>::BodySystemCUDA(ComputeConfig& compute, unsigned int numDevice
 }
 
 template <std::floating_point T>
-BodySystemCUDA<T>::BodySystemCUDA(ComputeConfig& compute, unsigned int numDevices, unsigned int blockSize, bool useP2P, int deviceId, std::vector<T> positions, std::vector<T> velocities)
+BodySystemCUDA<T>::BodySystemCUDA(const ComputeConfig& compute, unsigned int numDevices, unsigned int blockSize, bool useP2P, int deviceId, std::vector<T> positions, std::vector<T> velocities)
     : m_numBodies(compute.num_bodies), m_numDevices(numDevices), m_bUsePBO(!(compute.benchmark || compute.compare_to_cpu || compute.use_host_mem)), m_bUseSysMem(compute.use_host_mem), m_bUseP2P(useP2P),
       m_blockSize(blockSize), m_devID(deviceId), m_hPos_vec(std::move(positions)), m_hVel_vec(std::move(velocities)), m_damping(compute.active_params.m_damping) {
     assert(m_hPos_vec.size() == m_numBodies);
@@ -87,7 +87,7 @@ BodySystemCUDA<T>::BodySystemCUDA(ComputeConfig& compute, unsigned int numDevice
     set_velocity(m_hVel_vec);
 }
 
-template <std::floating_point T> BodySystemCUDA<T>::~BodySystemCUDA() {
+template <std::floating_point T> BodySystemCUDA<T>::~BodySystemCUDA() noexcept {
     _finalize();
     m_numBodies = 0;
 }
@@ -98,7 +98,7 @@ template <std::floating_point T> auto BodySystemCUDA<T>::reset(const ComputeConf
     set_velocity(m_hVel_vec);
 }
 
-template <std::floating_point T> void BodySystemCUDA<T>::_initialize(int num_bodies) {
+template <std::floating_point T> auto BodySystemCUDA<T>::_initialize(int num_bodies) -> void {
     assert(!m_bInitialized);
 
     m_numBodies = num_bodies;
@@ -238,7 +238,7 @@ template <std::floating_point T> void BodySystemCUDA<T>::_initialize(int num_bod
     m_bInitialized = true;
 }
 
-template <std::floating_point T> void BodySystemCUDA<T>::_finalize() noexcept {
+template <std::floating_point T> auto BodySystemCUDA<T>::_finalize() noexcept -> void {
     assert(m_bInitialized);
 
     if (m_bUseSysMem) {
@@ -277,7 +277,7 @@ template <std::floating_point T> void BodySystemCUDA<T>::_finalize() noexcept {
     m_bInitialized = false;
 }
 
-template <std::floating_point T> void BodySystemCUDA<T>::setSoftening(T softening) {
+template <std::floating_point T> auto BodySystemCUDA<T>::setSoftening(T softening) -> void {
     T softeningSq = softening * softening;
 
     for (unsigned int i = 0; i < m_numDevices; i++) {
@@ -289,11 +289,7 @@ template <std::floating_point T> void BodySystemCUDA<T>::setSoftening(T softenin
     }
 }
 
-template <std::floating_point T> void BodySystemCUDA<T>::setDamping(T damping) {
-    m_damping = damping;
-}
-
-template <std::floating_point T> void BodySystemCUDA<T>::update(T deltaTime) {
+template <std::floating_point T> auto BodySystemCUDA<T>::update(T deltaTime) -> void {
     assert(m_bInitialized);
 
     integrateNbodySystem<T>(m_deviceData, m_pGRes, m_currentRead, (float)deltaTime, (float)m_damping, m_numBodies, m_numDevices, m_blockSize, m_bUsePBO);
@@ -303,10 +299,10 @@ template <std::floating_point T> void BodySystemCUDA<T>::update(T deltaTime) {
 
 template <std::floating_point T> auto BodySystemCUDA<T>::update_params(const NBodyParams& active_params) -> void {
     setSoftening(active_params.m_softening);
-    setDamping(active_params.m_damping);
+    m_damping = active_params.m_damping;
 }
 
-template <std::floating_point T> auto BodySystemCUDA<T>::get_position() -> std::span<T> {
+template <std::floating_point T> auto BodySystemCUDA<T>::get_position() const -> std::span<const T> {
     assert(m_bInitialized);
 
     T* hdata = 0;
@@ -340,7 +336,7 @@ template <std::floating_point T> auto BodySystemCUDA<T>::get_position() -> std::
 
     return {hdata, m_numBodies * 4};
 }
-template <std::floating_point T> auto BodySystemCUDA<T>::get_velocity() -> std::span<T> {
+template <std::floating_point T> auto BodySystemCUDA<T>::get_velocity() const -> std::span<const T> {
     assert(m_bInitialized);
 
     T* hdata = 0;

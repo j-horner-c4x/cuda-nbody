@@ -53,34 +53,29 @@ template <std::floating_point T> class BodySystemCUDA {
     using Type                    = T;
     constexpr static auto use_cpu = false;
 
-    BodySystemCUDA(ComputeConfig& compute, unsigned int numDevices, unsigned int blockSize, bool useP2P, int deviceId);
-    BodySystemCUDA(ComputeConfig& compute, unsigned int numDevices, unsigned int blockSize, bool useP2P, int deviceId, std::vector<T> positions, std::vector<T> velocities);
-    ~BodySystemCUDA();
+    BodySystemCUDA(const ComputeConfig& compute, unsigned int numDevices, unsigned int blockSize, bool useP2P, int deviceId);
+    BodySystemCUDA(const ComputeConfig& compute, unsigned int numDevices, unsigned int blockSize, bool useP2P, int deviceId, std::vector<T> positions, std::vector<T> velocities);
+    ~BodySystemCUDA() noexcept;
 
     auto reset(const ComputeConfig& compute, NBodyConfig config, std::span<float> colour) -> void;
 
-    void update(T deltaTime);
+    auto update(T deltaTime) -> void;
 
     auto update_params(const NBodyParams& active_params) -> void;
 
-    void setSoftening(T softening);
-    void setDamping(T damping);
-
-    auto get_position() -> std::span<T>;
-    auto get_velocity() -> std::span<T>;
+    auto get_position() const -> std::span<const T>;
+    auto get_velocity() const -> std::span<const T>;
 
     auto set_position(std::span<const T> data) -> void;
     auto set_velocity(std::span<const T> data) -> void;
 
-    unsigned int getCurrentReadBuffer() const { return m_pbo[m_currentRead]; }
-
-    unsigned int getNumBodies() const { return m_numBodies; }
+    auto getCurrentReadBuffer() const noexcept { return m_pbo[m_currentRead]; }
 
  private:    // methods
-    BodySystemCUDA() = default;
+    auto setSoftening(T softening) -> void;
 
-    void _initialize(int numBodies);
-    void _finalize() noexcept;
+    auto _initialize(int numBodies) -> void;
+    auto _finalize() noexcept -> void;
 
     unsigned int m_numBodies;
     unsigned int m_numDevices;

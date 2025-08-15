@@ -498,9 +498,9 @@ auto ComputeConfig::display_NBody_system(ParticleRenderer::DisplayMode display_m
     } else {
         assert(!use_cpu);
         if (fp64_enabled) {
-            renderer.setPBO(nbody_cuda_fp64->getCurrentReadBuffer(), nbody_cuda_fp64->getNumBodies(), fp64_enabled);
+            renderer.setPBO(nbody_cuda_fp64->getCurrentReadBuffer(), num_bodies, fp64_enabled);
         } else {
-            renderer.setPBO(nbody_cuda_fp32->getCurrentReadBuffer(), nbody_cuda_fp32->getNumBodies(), fp64_enabled);
+            renderer.setPBO(nbody_cuda_fp32->getCurrentReadBuffer(), num_bodies, fp64_enabled);
         }
     }
 
