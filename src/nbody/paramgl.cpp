@@ -21,7 +21,7 @@ auto ParamListGL::AddParam(std::unique_ptr<ParamBase> param) -> void {
     m_params.push_back(std::move(param));
     auto& p = m_params.back();
 
-    m_map[p->GetName()] = p.get();
+    m_map[p->name()] = p.get();
     m_current           = m_params.begin();
 }
 
@@ -35,7 +35,7 @@ auto ParamListGL::GetParam(std::string_view name) -> ParamBase& {
 
 auto ParamListGL::ResetAll() -> void {
     for (auto& p : m_params) {
-        p->Reset();
+        p->reset();
     }
 }
 
@@ -68,11 +68,11 @@ auto ParamListGL::Render(int x, int y, bool shadow) -> void {
         }
 
         if (shadow) {
-            glPrintShadowed(x + m_text_x, y + m_font_h, (*p)->GetName(), m_font, (p == m_current) ? &m_text_color_selected.r : &m_text_color_unselected.r);
-            glPrintShadowed(x + m_value_x, y + m_font_h, (*p)->GetValueString(), m_font, (p == m_current) ? &m_text_color_selected.r : &m_text_color_unselected.r);
+            glPrintShadowed(x + m_text_x, y + m_font_h, (*p)->name(), m_font, (p == m_current) ? &m_text_color_selected.r : &m_text_color_unselected.r);
+            glPrintShadowed(x + m_value_x, y + m_font_h, (*p)->string(), m_font, (p == m_current) ? &m_text_color_selected.r : &m_text_color_unselected.r);
         } else {
-            glPrint(x + m_text_x, y + m_font_h, (*p)->GetName(), m_font);
-            glPrint(x + m_value_x, y + m_font_h, (*p)->GetValueString(), m_font);
+            glPrint(x + m_text_x, y + m_font_h, (*p)->name(), m_font);
+            glPrint(x + m_value_x, y + m_font_h, (*p)->string(), m_font);
         }
 
         glColor3fv((GLfloat*)&m_bar_color_outer.r);
@@ -84,7 +84,7 @@ auto ParamListGL::Render(int x, int y, bool shadow) -> void {
         glEnd();
 
         glColor3fv((GLfloat*)&m_bar_color_inner.r);
-        glRectf((GLfloat)(x + m_bar_x), (GLfloat)(y + m_bar_offset + m_bar_h), (GLfloat)(x + m_bar_x + ((m_bar_w - 1) * (*p)->GetPercentage())), (GLfloat)(y + m_bar_offset + 1));
+        glRectf((GLfloat)(x + m_bar_x), (GLfloat)(y + m_bar_offset + m_bar_h), (GLfloat)(x + m_bar_x + ((m_bar_w - 1) * (*p)->percentage())), (GLfloat)(y + m_bar_offset + 1));
 
         y += m_separation;
     }
@@ -116,16 +116,16 @@ auto ParamListGL::Motion(int x, int y) -> bool {
     }
 
     if (x < m_bar_x) {
-        (*m_current)->SetPercentage(0.0);
+        (*m_current)->set_percentage(0.0);
         return true;
     }
 
     if (x > m_bar_x + m_bar_w) {
-        (*m_current)->SetPercentage(1.0);
+        (*m_current)->set_percentage(1.0);
         return true;
     }
 
-    (*m_current)->SetPercentage((x - m_bar_x) / (float)m_bar_w);
+    (*m_current)->set_percentage((x - m_bar_x) / (float)m_bar_w);
     return true;
 }
 
@@ -143,19 +143,19 @@ auto ParamListGL::Special(int key, [[maybe_unused]] int x, [[maybe_unused]] int 
             break;
 
         case GLUT_KEY_RIGHT:
-            GetCurrent().Increment();
+            GetCurrent().increment();
             break;
 
         case GLUT_KEY_LEFT:
-            GetCurrent().Decrement();
+            GetCurrent().decrement();
             break;
 
         case GLUT_KEY_HOME:
-            GetCurrent().Reset();
+            GetCurrent().reset();
             break;
 
         case GLUT_KEY_END:
-            GetCurrent().SetPercentage(1.0);
+            GetCurrent().set_percentage(1.0);
             break;
     }
 

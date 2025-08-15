@@ -2,8 +2,8 @@
 
 #include <format>
 
-template <typename T> auto Param<T>::GetValueString() const noexcept -> std::string {
-    return std::format("{:3f}", *m_ptr);
+template <Numerical T> auto Param<T>::string() const -> std::string {
+    return std::format("{:3f}", *ref_);
 }
 
-template auto Param<float>::GetValueString() const noexcept -> std::string;
+template auto Param<float>::string() const -> std::string;
