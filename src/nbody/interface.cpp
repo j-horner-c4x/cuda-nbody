@@ -23,7 +23,7 @@ auto InterfaceConfig::display(ComputeConfig& compute, Camera& camera, ParticleRe
         if (show_sliders) {
             glBlendFunc(GL_ONE_MINUS_DST_COLOR, GL_ZERO);    // invert color
             glEnable(GL_BLEND);
-            param_list->Render(0, 0);
+            param_list->render();
             glDisable(GL_BLEND);
         }
 

@@ -56,10 +56,10 @@ auto Controls::mouse(int button, int state, int x, int y, InterfaceConfig& inter
     glutPostRedisplay();
 }
 
-auto Controls::motion(int x, int y, InterfaceConfig& interface, Camera& camera, ComputeConfig& compute) -> void {
+auto Controls::motion(int x, int y, const InterfaceConfig& interface, Camera& camera, ComputeConfig& compute) -> void {
     if (interface.show_sliders) {
         // call parameter list motion function
-        if (interface.param_list->Motion(x, y)) {
+        if (interface.param_list->motion(x, y)) {
             // by definition of this function, a mouse function is pressed so we need to update the parameters
             compute.update_params();
             glutPostRedisplay();
@@ -144,6 +144,6 @@ auto Controls::keyboard(unsigned char key, [[maybe_unused]] int x, [[maybe_unuse
 }
 
 auto Controls::special(int key, int x, int y, InterfaceConfig& interface) -> void {
-    interface.param_list->Special(key, x, y);
+    interface.param_list->special(key, x, y);
     glutPostRedisplay();
 }

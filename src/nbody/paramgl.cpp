@@ -7,155 +7,154 @@
 
 namespace {
 
-auto glPrintShadowed(int x, int y, std::string_view s, void* font, const float* color) -> void {
-    glColor3f(0.0, 0.0, 0.0);
-    glPrint(x - 1, y - 1, s, font);
+// constexpr auto font_ = GLUT_BITMAP_9_BY_15;    // GLUT_BITMAP_8_BY_13;
 
-    glColor3fv(reinterpret_cast<const GLfloat*>(color));
-    glPrint(x, y, s, font);
-}
+constexpr static auto font_h_ = 15;    // font height
+
+constexpr static auto bar_x_      = 280;    // bar start x position
+constexpr static auto bar_w_      = 250;    // bar width
+constexpr static auto bar_h_      = 10;     // bar height
+constexpr static auto text_x_     = 5;      // text start x position
+constexpr static auto separation_ = 15;     // bar separation in y
+constexpr static auto value_x_    = 200;    // value text x position
+constexpr static auto bar_offset_ = 5;      // bar offset in y
+
+struct Colour {
+    float r, g, b;
+};
+
+constexpr static auto text_color_selected_   = Colour{1.f, 1.f, 1.f};
+constexpr static auto text_color_unselected_ = Colour{0.75f, 0.75f, 0.75f};
+constexpr static auto text_color_shadow_     = Colour{0.f, 0.f, 0.f};
+constexpr static auto bar_color_outer_       = Colour{0.25f, 0.25f, 0.25f};
+constexpr static auto bar_color_inner_       = Colour{0.8f, 0.8f, 0.f};
 
 }    // namespace
 
-auto ParamListGL::AddParam(std::unique_ptr<ParamBase> param) -> void {
-    m_params.push_back(std::move(param));
-    auto& p = m_params.back();
-
-    m_map[p->name()] = p.get();
-    m_current           = m_params.begin();
+auto ParamListGL::add_param(std::unique_ptr<ParamBase> param) -> void {
+    params_.push_back(std::move(param));
+    current_ = params_.begin();
 }
 
-auto ParamListGL::GetParam(std::string_view name) -> ParamBase& {
-    const auto p_itr = m_map.find(name);
-
-    assert(p_itr != m_map.end());
-
-    return *(p_itr->second);
-}
-
-auto ParamListGL::ResetAll() -> void {
-    for (auto& p : m_params) {
-        p->reset();
-    }
-}
-
-ParamListGL::ParamListGL()
-    : m_active(true), m_text_color_selected(1.0, 1.0, 1.0), m_text_color_unselected(0.75, 0.75, 0.75), m_text_color_shadow(0.0, 0.0, 0.0), m_bar_color_outer(0.25, 0.25, 0.25), m_bar_color_inner(1.0, 1.0, 1.0) {
-    m_font       = (void*)GLUT_BITMAP_9_BY_15;    // GLUT_BITMAP_8_BY_13;
-    m_font_h     = 15;
-    m_bar_x      = 260;
-    m_bar_w      = 250;
-    m_bar_h      = 10;
-    m_bar_offset = 5;
-    m_text_x     = 5;
-    m_separation = 15;
-    m_value_x    = 200;
-    m_start_x    = 0;
-    m_start_y    = 0;
-}
-
-auto ParamListGL::Render(int x, int y, bool shadow) -> void {
+auto ParamListGL::render() const -> void {
     const auto win_coords = WinCoords{};
 
-    m_start_x = x;
-    m_start_y = y;
+    constexpr auto set_colour = [](const Colour& colour) { glColor3fv(reinterpret_cast<const GLfloat*>(&colour.r)); };
 
-    for (auto p = m_params.begin(); p != m_params.end(); ++p) {
-        if (p == m_current) {
-            glColor3fv(&m_text_color_selected.r);
+    constexpr auto x = 0;
+    auto           y = 0;
+
+    constexpr auto x_begin = static_cast<GLfloat>(x + bar_x_);
+    constexpr auto x_end   = static_cast<GLfloat>(x + bar_x_ + bar_w_);
+
+    const auto current = current_->get();
+
+    for (const auto& p : params_) {
+        if (p.get() == current) {
+            set_colour(text_color_selected_);
         } else {
-            glColor3fv(&m_text_color_unselected.r);
+            set_colour(text_color_unselected_);
         }
 
-        if (shadow) {
-            glPrintShadowed(x + m_text_x, y + m_font_h, (*p)->name(), m_font, (p == m_current) ? &m_text_color_selected.r : &m_text_color_unselected.r);
-            glPrintShadowed(x + m_value_x, y + m_font_h, (*p)->string(), m_font, (p == m_current) ? &m_text_color_selected.r : &m_text_color_unselected.r);
-        } else {
-            glPrint(x + m_text_x, y + m_font_h, (*p)->name(), m_font);
-            glPrint(x + m_value_x, y + m_font_h, (*p)->string(), m_font);
-        }
+// can't make font constexpr aparently...
+#define FONT GLUT_BITMAP_9_BY_15
+        glPrint(x + text_x_, y + font_h_, p->name(), FONT);
+        glPrint(x + value_x_, y + font_h_, p->string(), FONT);
+#undef FONT
 
-        glColor3fv((GLfloat*)&m_bar_color_outer.r);
+        set_colour(bar_color_outer_);
+
+        const auto y_begin = static_cast<GLfloat>(y + bar_offset_);
+        const auto y_end   = static_cast<GLfloat>(y + bar_offset_ + bar_h_);
+
         glBegin(GL_LINE_LOOP);
-        glVertex2f((GLfloat)(x + m_bar_x), (GLfloat)(y + m_bar_offset));
-        glVertex2f((GLfloat)(x + m_bar_x + m_bar_w), (GLfloat)(y + m_bar_offset));
-        glVertex2f((GLfloat)(x + m_bar_x + m_bar_w), (GLfloat)(y + m_bar_offset + m_bar_h));
-        glVertex2f((GLfloat)(x + m_bar_x), (GLfloat)(y + m_bar_offset + m_bar_h));
+        glVertex2f(x_begin, y_begin);
+        glVertex2f(x_end, y_begin);
+        glVertex2f(x_end, y_end);
+        glVertex2f(x_begin, y_end);
         glEnd();
 
-        glColor3fv((GLfloat*)&m_bar_color_inner.r);
-        glRectf((GLfloat)(x + m_bar_x), (GLfloat)(y + m_bar_offset + m_bar_h), (GLfloat)(x + m_bar_x + ((m_bar_w - 1) * (*p)->percentage())), (GLfloat)(y + m_bar_offset + 1));
+        set_colour(bar_color_inner_);
+        glRectf(x_begin, y_end, static_cast<GLfloat>(x + bar_x_ + ((bar_w_ - 1) * p->percentage())), static_cast<GLfloat>(y + bar_offset_ + 1));
 
-        y += m_separation;
+        y += separation_;
     }
 }
 
 auto ParamListGL::is_mouse_over([[maybe_unused]] int x, int y) noexcept -> bool {
-    m_active = (y >= m_start_y) && (y <= static_cast<int>(m_start_y + (m_separation * m_params.size()) - 1));
+    active_ = (y >= 0) && (y <= static_cast<int>((separation_ * params_.size()) - 1));
 
-    return m_active;
+    return active_;
 }
 
 auto ParamListGL::modify_sliders(int x, int y, int button, int state) -> void {
-    assert(m_active);
+    assert(active_);
 
-    const auto i = (y - m_start_y) / m_separation;
+    const auto i = y / separation_;
 
     if ((button == GLUT_LEFT_BUTTON) && (state == GLUT_DOWN)) {
-        m_current = m_params.begin() + i;
+        current_ = params_.begin() + i;
 
-        if ((x > m_bar_x) && (x < m_bar_x + m_bar_w)) {
-            Motion(x, y);
+        if ((x > bar_x_) && (x < bar_x_ + bar_w_)) {
+            motion(x, y);
         }
     }
 }
 
-auto ParamListGL::Motion(int x, int y) -> bool {
-    if ((y < m_start_y) || (y > m_start_y + (m_separation * (int)m_params.size()) - 1)) {
+auto ParamListGL::motion(int x, int y) const -> bool {
+    if ((y < 0) || (y > (separation_ * params_.size()) - 1)) {
         return false;
     }
 
-    if (x < m_bar_x) {
-        (*m_current)->set_percentage(0.0);
+    if (x < bar_x_) {
+        (*current_)->set_percentage(0.0);
         return true;
     }
 
-    if (x > m_bar_x + m_bar_w) {
-        (*m_current)->set_percentage(1.0);
+    if (x > bar_x_ + bar_w_) {
+        (*current_)->set_percentage(1.0);
         return true;
     }
 
-    (*m_current)->set_percentage((x - m_bar_x) / (float)m_bar_w);
+    (*current_)->set_percentage((x - bar_x_) / static_cast<float>(bar_w_));
     return true;
 }
 
-auto ParamListGL::Special(int key, [[maybe_unused]] int x, [[maybe_unused]] int y) -> void {
-    if (!m_active)
+auto ParamListGL::special(int key, [[maybe_unused]] int x, [[maybe_unused]] int y) -> void {
+    if (!active_)
         return;
 
     switch (key) {
         case GLUT_KEY_DOWN:
-            Increment();
+            ++current_;
+
+            if (current_ == params_.end()) {
+                current_ = params_.begin();
+            }
             break;
 
         case GLUT_KEY_UP:
-            Decrement();
+            if (current_ == params_.begin()) {
+                current_ = params_.end() - 1;
+            } else {
+                --current_;
+            }
             break;
 
         case GLUT_KEY_RIGHT:
-            GetCurrent().increment();
+            (*current_)->increment();
             break;
 
         case GLUT_KEY_LEFT:
-            GetCurrent().decrement();
+            (*current_)->decrement();
             break;
 
         case GLUT_KEY_HOME:
-            GetCurrent().reset();
+            (*current_)->reset();
             break;
 
         case GLUT_KEY_END:
-            GetCurrent().set_percentage(1.0);
+            (*current_)->set_percentage(1.0);
             break;
     }
 

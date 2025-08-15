@@ -21,7 +21,7 @@ class Controls {
     ///  @brief     The motion callback for a window is called when the mouse moves within the window while one or more mouse buttons are pressed.
     ///             "passive_motion" would be the relevant function to use if no mouse button is pressed.
     ///
-    auto motion(int x, int y, InterfaceConfig& interface, Camera& camera, ComputeConfig& compute) -> void;
+    auto motion(int x, int y, const InterfaceConfig& interface, Camera& camera, ComputeConfig& compute) -> void;
 
     ///
     /// @brief  When a user types into the window, each key press generating an ASCII character will generate a keyboard callback.

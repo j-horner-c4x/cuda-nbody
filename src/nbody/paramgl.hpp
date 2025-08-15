@@ -35,103 +35,26 @@
 
 #include "param.hpp"
 
-#include <map>
 #include <memory>
-#include <string_view>
 #include <vector>
-
-#include <cassert>
 
 class ParamListGL {
  public:
-    ParamListGL();
+    auto add_param(std::unique_ptr<ParamBase> param) -> void;
 
-    auto AddParam(std::unique_ptr<ParamBase> param) -> void;
-
-    auto Render(int x, int y, bool shadow = false) -> void;
+    auto render() const -> void;
 
     auto is_mouse_over(int x, int y) noexcept -> bool;
+
     auto modify_sliders(int x, int y, int button, int state) -> void;
 
-    auto Motion(int x, int y) -> bool;
+    auto motion(int x, int y) const -> bool;
 
-    auto Special(int key, [[maybe_unused]] int x, [[maybe_unused]] int y) -> void;
-
-    auto SetFont(void* font, int height) -> void {
-        m_font   = font;
-        m_font_h = height;
-    }
-
-    void SetSelectedColor(float r, float g, float b) { m_text_color_selected = Color{r, g, b}; }
-    void SetUnSelectedColor(float r, float g, float b) { m_text_color_unselected = Color{r, g, b}; }
-    void SetBarColorInner(float r, float g, float b) { m_bar_color_inner = Color{r, g, b}; }
-    void SetBarColorOuter(float r, float g, float b) { m_bar_color_outer = Color{r, g, b}; }
-
-    void SetActive(bool b) { m_active = b; }
+    auto special(int key, [[maybe_unused]] int x, [[maybe_unused]] int y) -> void;
 
  private:
-    // look-up parameter based on name
-    auto GetParam(std::string_view name) -> ParamBase&;
+    std::vector<std::unique_ptr<ParamBase>>                 params_;
+    std::vector<std::unique_ptr<ParamBase>>::const_iterator current_;
 
-    auto& GetParam(std::size_t i) noexcept {
-        assert(i < m_params.size());
-        return *(m_params[i]);
-    }
-
-    auto& GetCurrent() noexcept {
-        assert(m_current != m_params.end());
-        return **(m_current);
-    }
-
-    auto GetSize() const noexcept { return m_params.size(); }
-
-    // functions to traverse list
-    auto Reset() noexcept -> void { m_current = m_params.begin(); }
-
-    auto Increment() noexcept {
-        ++m_current;
-
-        if (m_current == m_params.end()) {
-            m_current = m_params.begin();
-        }
-    }
-
-    auto Decrement() noexcept {
-        if (m_current == m_params.begin()) {
-            m_current = m_params.end() - 1;
-        } else {
-            m_current--;
-        }
-    }
-
-    auto ResetAll() -> void;
-
-    std::vector<std::unique_ptr<ParamBase>>                 m_params;
-    std::map<std::string, ParamBase*, std::less<>>          m_map;
-    std::vector<std::unique_ptr<ParamBase>>::const_iterator m_current;
-
-    void* m_font;
-    int   m_font_h;    // font height
-
-    int m_bar_x;         // bar start x position
-    int m_bar_w;         // bar width
-    int m_bar_h;         // bar height
-    int m_text_x;        // text start x position
-    int m_separation;    // bar separation in y
-    int m_value_x;       // value text x position
-    int m_bar_offset;    // bar offset in y
-
-    int m_start_x, m_start_y;
-
-    bool m_active;
-
-    struct Color {
-        float r, g, b;
-    };
-
-    Color m_text_color_selected;
-    Color m_text_color_unselected;
-    Color m_text_color_shadow;
-    Color m_bar_color_outer;
-    Color m_bar_color_inner;
+    bool active_ = true;
 };

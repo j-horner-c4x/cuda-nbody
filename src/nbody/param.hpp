@@ -43,12 +43,12 @@ class ParamBase {
 
     auto virtual string() const -> std::string = 0;
 
-    auto virtual reset() noexcept -> void = 0;
-    auto virtual increment() -> void      = 0;
-    auto virtual decrement() -> void      = 0;
+    auto virtual reset() const noexcept -> void = 0;
+    auto virtual increment() const -> void      = 0;
+    auto virtual decrement() const -> void      = 0;
 
-    auto virtual percentage() const noexcept -> float     = 0;
-    auto virtual set_percentage(float p) noexcept -> void = 0;
+    auto virtual percentage() const noexcept -> float           = 0;
+    auto virtual set_percentage(float p) const noexcept -> void = 0;
 
  protected:
     std::string name_;
@@ -72,11 +72,11 @@ template <Numerical T> class Param final : public ParamBase {
 
     auto percentage() const noexcept -> float override { return (*ref_ - min_) / static_cast<float>(max_ - min_); }
 
-    auto set_percentage(float p) noexcept -> void override { *ref_ = static_cast<T>(min_ + p * (max_ - min_)); }
+    auto set_percentage(float p) const noexcept -> void override { *ref_ = static_cast<T>(min_ + p * (max_ - min_)); }
 
-    auto reset() noexcept -> void override { *ref_ = default_; }
+    auto reset() const noexcept -> void override { *ref_ = default_; }
 
-    auto increment() noexcept -> void override {
+    auto increment() const noexcept -> void override {
         *ref_ += step_;
 
         if (*ref_ > max_) {
@@ -84,7 +84,7 @@ template <Numerical T> class Param final : public ParamBase {
         }
     }
 
-    auto decrement() noexcept -> void override {
+    auto decrement() const noexcept -> void override {
         *ref_ -= step_;
 
         if (*ref_ < min_) {
