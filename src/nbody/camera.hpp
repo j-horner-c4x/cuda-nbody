@@ -4,9 +4,6 @@
 
 class Camera {
  public:
-    constexpr Camera(const std::array<float, 3>& translation_lag, const std::array<float, 3>& translation, const std::array<float, 3>& rotation) noexcept
-        : translation_lag_(translation_lag), translation_(translation), rotation_(rotation) {}
-
     constexpr auto reset(const std::array<float, 3>& origin) noexcept -> void { translation_ = translation_lag_ = origin; }
 
     auto view_transform() noexcept -> void;
@@ -24,7 +21,7 @@ class Camera {
     }
 
  private:
-    std::array<float, 3> translation_lag_;
-    std::array<float, 3> translation_;
-    std::array<float, 3> rotation_;
+    std::array<float, 3> translation_lag_{0.f, -2.f, -150.f};
+    std::array<float, 3> translation_{0.f, -2.f, -150.f};
+    std::array<float, 3> rotation_{0.f, 0.f, 0.f};
 };

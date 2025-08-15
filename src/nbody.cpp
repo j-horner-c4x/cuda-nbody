@@ -251,9 +251,9 @@ int main(int argc, char** argv) {
             .fps_count            = 0,
             .fps_limit            = 5};
 
-        auto camera = Camera{{0.f, -2.f, -150.f}, {0.f, -2.f, -150.f}, {0.f, 0.f, 0.f}};
+        auto camera = Camera{};
 
-        auto controls = ControlsConfig{.button_state = 0, .old_x = 0, .old_y = 0};
+        auto controls = ControlsConfig{};
 
         execute_graphics_loop(compute, interface, camera, controls, renderer);
 

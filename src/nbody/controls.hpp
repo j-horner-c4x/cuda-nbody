@@ -6,10 +6,6 @@ struct ComputeConfig;
 class ParticleRenderer;
 
 struct ControlsConfig {
-    int button_state;
-    int old_x;
-    int old_y;
-
     auto set_state(int button, int state, int x, int y) noexcept -> void;
 
     auto move_camera(Camera& camera, int x, int y) -> void;
@@ -45,4 +41,9 @@ struct ControlsConfig {
 
     // The special keyboard callback is triggered when keyboard function or directional keys are pressed.
     static auto special(int key, int x, int y, InterfaceConfig& interface) -> void;
+
+ private:
+    int button_state = 0;
+    int old_x        = 0;
+    int old_y        = 0;
 };
