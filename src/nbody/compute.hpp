@@ -132,11 +132,13 @@ struct ComputeConfig {
  private:
     template <typename BodySystemNew, typename BodySystemOld> auto switch_precision(BodySystemNew& new_nbody, BodySystemOld& old_nbody, ParticleRenderer& renderer) -> void;
 
-    std::unique_ptr<NBodyDemo<BodySystemCPU<float>>>  nbody_cpu_fp32;
-    std::unique_ptr<NBodyDemo<BodySystemCUDA<float>>> nbody_cuda_fp32;
+    template <std::floating_point T> auto compare_results(BodySystemCUDA<T>& nbodyCuda) -> bool;
 
-    std::unique_ptr<NBodyDemo<BodySystemCPU<double>>>  nbody_cpu_fp64;
-    std::unique_ptr<NBodyDemo<BodySystemCUDA<double>>> nbody_cuda_fp64;
+    std::unique_ptr<BodySystemCPU<float>>  nbody_cpu_fp32;
+    std::unique_ptr<BodySystemCUDA<float>> nbody_cuda_fp32;
+
+    std::unique_ptr<BodySystemCPU<double>>  nbody_cpu_fp64;
+    std::unique_ptr<BodySystemCUDA<double>> nbody_cuda_fp64;
 
     template <std::floating_point T> struct TipsyData {
         std::vector<T> positions;

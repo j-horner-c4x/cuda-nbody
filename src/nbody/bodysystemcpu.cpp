@@ -29,7 +29,9 @@
 
 #include "bodysystemcpu.hpp"
 
+#include "compute.hpp"
 #include "helper_cuda.hpp"
+#include "randomise_bodies.hpp"
 #include "tipsy.hpp"
 #include "vec.hpp"
 
@@ -48,41 +50,30 @@
 
 using std::ranges::copy;
 
-template <std::floating_point T> BodySystemCPU<T>::BodySystemCPU(int num_bodies) : m_numBodies(num_bodies), m_force(0), m_softeningSquared(.00125f), m_damping(0.995f) {
-    _initialize(num_bodies);
+template <std::floating_point T>
+BodySystemCPU<T>::BodySystemCPU(ComputeConfig& compute) : m_numBodies(compute.num_bodies), m_pos(m_numBodies * 4, T{0}), m_vel(m_numBodies * 4, T{0}), m_damping(compute.active_params.m_damping) {
+    setSoftening(compute.active_params.m_softening);
+
+    reset(compute, NBodyConfig::NBODY_CONFIG_SHELL, {});
 }
 
-template <std::floating_point T> void BodySystemCPU<T>::_initialize(int num_bodies) {
-    assert(m_pos.empty());
-
-    m_numBodies = num_bodies;
-
-    m_pos.resize(m_numBodies * 4, T{0});
-    m_vel.resize(m_numBodies * 4, T{0});
-    m_force.resize(m_numBodies * 3, T{0});
+template <std::floating_point T>
+BodySystemCPU<T>::BodySystemCPU(ComputeConfig& compute, std::vector<T> positions, std::vector<T> velocities)
+    : m_numBodies(compute.num_bodies), m_pos(std::move(positions)), m_vel(std::move(velocities)), m_damping(compute.active_params.m_damping) {
+    setSoftening(compute.active_params.m_softening);
 }
 
-template <std::floating_point T> void BodySystemCPU<T>::loadTipsyFile(const std::filesystem::path& filename) {
-    if (!m_pos.empty()) {
-        m_pos.clear();
-        m_vel.clear();
-        m_force.clear();
-    }
-
-    const auto [positions, velocities] = read_tipsy_file<vec4<T>>(filename);
-
-    assert(positions.size() == velocities.size());
-
-    auto nBodies = static_cast<int>(positions.size());
-
-    _initialize(nBodies);
-
-    std::memcpy(m_pos.data(), &positions[0], sizeof(vec4<T>) * nBodies);
-    std::memcpy(m_vel.data(), &velocities[0], sizeof(vec4<T>) * nBodies);
+template <std::floating_point T> auto BodySystemCPU<T>::reset(const ComputeConfig& compute, NBodyConfig config, std::span<float> colour) -> void {
+    randomise_bodies<T>(config, m_pos, m_vel, colour, compute.active_params.m_clusterScale, compute.active_params.m_velocityScale);
 }
 
 template <std::floating_point T> void BodySystemCPU<T>::update(T deltaTime) {
     _integrateNBodySystem(deltaTime);
+}
+
+template <std::floating_point T> auto BodySystemCPU<T>::update_params(const NBodyParams& active_params) -> void {
+    setSoftening(active_params.m_softening);
+    setDamping(active_params.m_damping);
 }
 
 template <std::floating_point T> auto BodySystemCPU<T>::set_position(std::span<const T> data) -> void {

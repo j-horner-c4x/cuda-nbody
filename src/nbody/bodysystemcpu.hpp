@@ -27,9 +27,14 @@
 
 #pragma once
 
+#include "nbody_config.hpp"
+
 #include <filesystem>
 #include <span>
 #include <vector>
+
+struct ComputeConfig;
+struct NBodyParams;
 
 // CPU Body System
 template <std::floating_point T> class BodySystemCPU {
@@ -37,11 +42,15 @@ template <std::floating_point T> class BodySystemCPU {
     using Type                    = T;
     constexpr static auto use_cpu = true;
 
-    explicit BodySystemCPU(int numBodies);
+    explicit BodySystemCPU(ComputeConfig& compute);
 
-    void loadTipsyFile(const std::filesystem::path& filename);
+    BodySystemCPU(ComputeConfig& compute, std::vector<T> positions, std::vector<T> velocities);
+
+    auto reset(const ComputeConfig& compute, NBodyConfig config, std::span<float> colour) -> void;
 
     void update(T deltaTime);
+
+    auto update_params(const NBodyParams& active_params) -> void;
 
     void setSoftening(T softening) { m_softeningSquared = softening * softening; }
     void setDamping(T damping) { m_damping = damping; }
@@ -56,10 +65,7 @@ template <std::floating_point T> class BodySystemCPU {
 
     unsigned int getNumBodies() const { return m_numBodies; }
 
- private:    // methods
-    void _initialize(int numBodies);
-    void _finalize() noexcept {};
-
+ private:
     void _computeNBodyGravitation();
     void _integrateNBodySystem(T deltaTime);
 
@@ -67,10 +73,10 @@ template <std::floating_point T> class BodySystemCPU {
 
     std::vector<T> m_pos;
     std::vector<T> m_vel;
-    std::vector<T> m_force;
+    std::vector<T> m_force = std::vector(m_numBodies * 3, T{0.f});
 
-    T m_softeningSquared;
-    T m_damping;
+    T m_softeningSquared = 0.00125f;
+    T m_damping          = 0.995f;
 };
 
 extern template BodySystemCPU<float>;

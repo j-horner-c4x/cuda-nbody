@@ -27,11 +27,17 @@
 
 #pragma once
 
+#include "nbody_config.hpp"
+
 #include <cuda_runtime.h>
 
+#include <array>
 #include <filesystem>
 #include <span>
 #include <vector>
+
+struct ComputeConfig;
+struct NBodyParams;
 
 template <typename T> struct DeviceData {
     T*           dPos[2];    // mapped host pointers
@@ -47,12 +53,15 @@ template <std::floating_point T> class BodySystemCUDA {
     using Type                    = T;
     constexpr static auto use_cpu = false;
 
-    BodySystemCUDA(unsigned int numBodies, unsigned int numDevices, unsigned int blockSize, bool usePBO, bool useSysMem = false, bool useP2P = true, int deviceId = 0);
+    BodySystemCUDA(ComputeConfig& compute, unsigned int numDevices, unsigned int blockSize, bool useP2P, int deviceId);
+    BodySystemCUDA(ComputeConfig& compute, unsigned int numDevices, unsigned int blockSize, bool useP2P, int deviceId, std::vector<T> positions, std::vector<T> velocities);
     ~BodySystemCUDA();
 
-    void loadTipsyFile(const std::filesystem::path& filename);
+    auto reset(const ComputeConfig& compute, NBodyConfig config, std::span<float> colour) -> void;
 
     void update(T deltaTime);
+
+    auto update_params(const NBodyParams& active_params) -> void;
 
     void setSoftening(T softening);
     void setDamping(T damping);
@@ -75,26 +84,29 @@ template <std::floating_point T> class BodySystemCUDA {
 
     unsigned int m_numBodies;
     unsigned int m_numDevices;
-    bool         m_bInitialized;
+    bool         m_bInitialized = false;
     int          m_devID;
 
     // Host data
-    T* m_hPos[2];
-    T* m_hVel;
+    std::array<T*, 2> m_hPos{nullptr, nullptr};
+    T*                m_hVel = nullptr;
 
     std::vector<DeviceData<T>> m_deviceData;
+
+    std::vector<T> m_hPos_vec = std::vector(m_numBodies * 4, T{0});
+    std::vector<T> m_hVel_vec = std::vector(m_numBodies * 4, T{0});
 
     bool         m_bUsePBO;
     bool         m_bUseSysMem;
     bool         m_bUseP2P;
     unsigned int m_SMVersion;
 
-    T m_damping;
+    T m_damping = 0.995f;
 
     unsigned int          m_pbo[2];
     cudaGraphicsResource* m_pGRes[2];
-    unsigned int          m_currentRead;
-    unsigned int          m_currentWrite;
+    unsigned int          m_currentRead  = 0u;
+    unsigned int          m_currentWrite = 1u;
 
     unsigned int m_blockSize;
 };
