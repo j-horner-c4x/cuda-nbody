@@ -14,7 +14,7 @@
 
 #include <cassert>
 
-struct CameraConfig;
+class Camera;
 class ParticleRenderer;
 
 template <typename BodySystem> class NBodyDemo;
@@ -88,19 +88,19 @@ struct ComputeConfig {
 
     auto toggle_cycle_demo() -> void;
 
-    auto previous_demo(CameraConfig& camera, ParticleRenderer& renderer) -> void {
+    auto previous_demo(Camera& camera, ParticleRenderer& renderer) -> void {
         active_demo = (active_demo == 0) ? numDemos - 1 : (active_demo - 1) % numDemos;
         select_demo(camera, renderer);
     }
 
-    auto next_demo(CameraConfig& camera, ParticleRenderer& renderer) -> void {
+    auto next_demo(Camera& camera, ParticleRenderer& renderer) -> void {
         active_demo = (active_demo + 1) % numDemos;
         select_demo(camera, renderer);
     }
 
-    auto select_demo(CameraConfig& camera, ParticleRenderer& renderer) -> void;
+    auto select_demo(Camera& camera, ParticleRenderer& renderer) -> void;
 
-    auto update_simulation(CameraConfig& camera, ParticleRenderer& renderer) -> void;
+    auto update_simulation(Camera& camera, ParticleRenderer& renderer) -> void;
 
     auto display_NBody_system(ParticleRenderer::DisplayMode display_mode, ParticleRenderer& renderer) -> void;
 

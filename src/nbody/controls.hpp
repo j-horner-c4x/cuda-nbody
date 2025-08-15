@@ -1,6 +1,6 @@
 #pragma once
 
-struct CameraConfig;
+class Camera;
 struct InterfaceConfig;
 struct ComputeConfig;
 class ParticleRenderer;
@@ -12,7 +12,7 @@ struct ControlsConfig {
 
     auto set_state(int button, int state, int x, int y) noexcept -> void;
 
-    auto move_camera(CameraConfig& camera, int x, int y) -> void;
+    auto move_camera(Camera& camera, int x, int y) -> void;
 
     ///
     /// @brief When a user presses and releases mouse buttons in the window, each press and each release generates a mouse callback.
@@ -28,7 +28,7 @@ struct ControlsConfig {
     ///  @brief     The motion callback for a window is called when the mouse moves within the window while one or more mouse buttons are pressed.
     ///             "passive_motion" would be the relevant function to use if no mouse button is pressed.
     ///
-    auto motion(int x, int y, InterfaceConfig& interface, CameraConfig& camera, ComputeConfig& compute) -> void;
+    auto motion(int x, int y, InterfaceConfig& interface, Camera& camera, ComputeConfig& compute) -> void;
 
     ///
     /// @brief  When a user types into the window, each key press generating an ASCII character will generate a keyboard callback.
@@ -41,7 +41,7 @@ struct ControlsConfig {
     /// @param
     /// @param camera
     /// @return
-    static auto keyboard(unsigned char key, int x, int y, ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& camera, ParticleRenderer& renderer) -> void;
+    static auto keyboard(unsigned char key, int x, int y, ComputeConfig& compute, InterfaceConfig& interface, Camera& camera, ParticleRenderer& renderer) -> void;
 
     // The special keyboard callback is triggered when keyboard function or directional keys are pressed.
     static auto special(int key, int x, int y, InterfaceConfig& interface) -> void;

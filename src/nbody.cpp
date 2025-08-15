@@ -251,7 +251,7 @@ int main(int argc, char** argv) {
             .fps_count            = 0,
             .fps_limit            = 5};
 
-        auto camera = CameraConfig{.translation_lag = {0.f, -2.f, -150.f}, .translation = {0.f, -2.f, -150.f}, .rotation = {0.f, 0.f, 0.f}};
+        auto camera = Camera{{0.f, -2.f, -150.f}, {0.f, -2.f, -150.f}, {0.f, 0.f, 0.f}};
 
         auto controls = ControlsConfig{.button_state = 0, .old_x = 0, .old_y = 0};
 

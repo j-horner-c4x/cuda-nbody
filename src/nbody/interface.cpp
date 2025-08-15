@@ -9,7 +9,7 @@
 
 #include <format>
 
-auto InterfaceConfig::display(ComputeConfig& compute, CameraConfig& camera, ParticleRenderer& renderer) -> void {
+auto InterfaceConfig::display(ComputeConfig& compute, Camera& camera, ParticleRenderer& renderer) -> void {
     compute.update_simulation(camera, renderer);
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);

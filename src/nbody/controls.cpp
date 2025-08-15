@@ -26,21 +26,19 @@ auto ControlsConfig::set_state(int button, int state, int x, int y) noexcept -> 
     old_y = y;
 }
 
-auto ControlsConfig::move_camera(CameraConfig& camera, int x, int y) -> void {
+auto ControlsConfig::move_camera(Camera& camera, int x, int y) -> void {
     const auto dx = static_cast<float>(x - old_x);
     const auto dy = static_cast<float>(y - old_y);
 
     if (button_state == 3) {
         // left+middle = zoom
-        camera.translation[2] += (dy / 100.0f) * 0.5f * std::abs(camera.translation[2]);
+        camera.zoom(dy);
     } else if (button_state & 2) {
         // middle = translate
-        camera.translation[0] += dx / 100.0f;
-        camera.translation[1] -= dy / 100.0f;
+        camera.translate(dx, dy);
     } else if (button_state & 1) {
         // left = rotate
-        camera.rotation[0] += dy / 5.0f;
-        camera.rotation[1] += dx / 5.0f;
+        camera.rotate(dx, dy);
     }
 
     old_x = x;
@@ -59,7 +57,7 @@ auto ControlsConfig::mouse(int button, int state, int x, int y, InterfaceConfig&
     glutPostRedisplay();
 }
 
-auto ControlsConfig::motion(int x, int y, InterfaceConfig& interface, CameraConfig& camera, ComputeConfig& compute) -> void {
+auto ControlsConfig::motion(int x, int y, InterfaceConfig& interface, Camera& camera, ComputeConfig& compute) -> void {
     if (interface.show_sliders) {
         // call parameter list motion function
         if (interface.param_list->Motion(x, y)) {
@@ -75,7 +73,7 @@ auto ControlsConfig::motion(int x, int y, InterfaceConfig& interface, CameraConf
     glutPostRedisplay();
 }
 
-auto ControlsConfig::keyboard(unsigned char key, [[maybe_unused]] int x, [[maybe_unused]] int y, ComputeConfig& compute, InterfaceConfig& interface, CameraConfig& camera, ParticleRenderer& renderer) -> void {
+auto ControlsConfig::keyboard(unsigned char key, [[maybe_unused]] int x, [[maybe_unused]] int y, ComputeConfig& compute, InterfaceConfig& interface, Camera& camera, ParticleRenderer& renderer) -> void {
     using enum NBodyConfig;
 
     switch (key) {

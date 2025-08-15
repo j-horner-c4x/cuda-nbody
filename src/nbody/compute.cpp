@@ -401,7 +401,7 @@ auto ComputeConfig::toggle_cycle_demo() -> void {
     std::println("Cycle Demo Parameters: {}\n", cycle_demo ? "ON" : "OFF");
 }
 
-auto ComputeConfig::select_demo(CameraConfig& camera, ParticleRenderer& renderer) -> void {
+auto ComputeConfig::select_demo(Camera& camera, ParticleRenderer& renderer) -> void {
     using enum NBodyConfig;
 
     select_demo();
@@ -446,7 +446,7 @@ auto ComputeConfig::select_demo(CameraConfig& camera, ParticleRenderer& renderer
     renderer.reset(fp64_enabled, active_params.m_pointSize);
 }
 
-auto ComputeConfig::update_simulation(CameraConfig& camera, ParticleRenderer& renderer) -> void {
+auto ComputeConfig::update_simulation(Camera& camera, ParticleRenderer& renderer) -> void {
     if (!paused) {
         const auto demo_time = MilliSeconds{Clock::now() - demo_reset_time_}.count();
 
