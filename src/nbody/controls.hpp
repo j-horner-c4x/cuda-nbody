@@ -5,11 +5,8 @@ struct InterfaceConfig;
 struct ComputeConfig;
 class ParticleRenderer;
 
-struct ControlsConfig {
-    auto set_state(int button, int state, int x, int y) noexcept -> void;
-
-    auto move_camera(Camera& camera, int x, int y) -> void;
-
+class Controls {
+ public:
     ///
     /// @brief When a user presses and releases mouse buttons in the window, each press and each release generates a mouse callback.
     ///
@@ -43,6 +40,10 @@ struct ControlsConfig {
     static auto special(int key, int x, int y, InterfaceConfig& interface) -> void;
 
  private:
+    auto move_camera(Camera& camera, int x, int y) noexcept -> void;
+
+    auto set_state(int button, int state, int x, int y) noexcept -> void;
+
     int button_state = 0;
     int old_x        = 0;
     int old_y        = 0;

@@ -253,7 +253,7 @@ int main(int argc, char** argv) {
 
         auto camera = Camera{};
 
-        auto controls = ControlsConfig{};
+        auto controls = Controls{};
 
         execute_graphics_loop(compute, interface, camera, controls, renderer);
 

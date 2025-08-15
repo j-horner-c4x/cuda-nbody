@@ -3,7 +3,7 @@
 struct ComputeConfig;
 struct InterfaceConfig;
 class Camera;
-struct ControlsConfig;
+class Controls;
 class ParticleRenderer;
 
-auto execute_graphics_loop(ComputeConfig& compute, InterfaceConfig& interface, Camera& camera, ControlsConfig& controls, ParticleRenderer& renderer) -> void;
+auto execute_graphics_loop(ComputeConfig& compute, InterfaceConfig& interface, Camera& camera, Controls& controls, ParticleRenderer& renderer) -> void;

@@ -7,7 +7,7 @@
 
 #include <GL/freeglut.h>
 
-auto ControlsConfig::set_state(int button, int state, int x, int y) noexcept -> void {
+auto Controls::set_state(int button, int state, int x, int y) noexcept -> void {
     if (state == GLUT_DOWN) {
         button_state |= 1 << button;
     } else if (state == GLUT_UP) {
@@ -26,7 +26,7 @@ auto ControlsConfig::set_state(int button, int state, int x, int y) noexcept -> 
     old_y = y;
 }
 
-auto ControlsConfig::move_camera(Camera& camera, int x, int y) -> void {
+auto Controls::move_camera(Camera& camera, int x, int y) noexcept -> void {
     const auto dx = static_cast<float>(x - old_x);
     const auto dy = static_cast<float>(y - old_y);
 
@@ -45,7 +45,7 @@ auto ControlsConfig::move_camera(Camera& camera, int x, int y) -> void {
     old_y = y;
 }
 
-auto ControlsConfig::mouse(int button, int state, int x, int y, InterfaceConfig& interface, ComputeConfig& compute) -> void {
+auto Controls::mouse(int button, int state, int x, int y, InterfaceConfig& interface, ComputeConfig& compute) -> void {
     if (interface.show_sliders && interface.param_list->is_mouse_over(x, y)) {
         // call list mouse function
         interface.param_list->modify_sliders(x, y, button, state);
@@ -57,7 +57,7 @@ auto ControlsConfig::mouse(int button, int state, int x, int y, InterfaceConfig&
     glutPostRedisplay();
 }
 
-auto ControlsConfig::motion(int x, int y, InterfaceConfig& interface, Camera& camera, ComputeConfig& compute) -> void {
+auto Controls::motion(int x, int y, InterfaceConfig& interface, Camera& camera, ComputeConfig& compute) -> void {
     if (interface.show_sliders) {
         // call parameter list motion function
         if (interface.param_list->Motion(x, y)) {
@@ -73,7 +73,7 @@ auto ControlsConfig::motion(int x, int y, InterfaceConfig& interface, Camera& ca
     glutPostRedisplay();
 }
 
-auto ControlsConfig::keyboard(unsigned char key, [[maybe_unused]] int x, [[maybe_unused]] int y, ComputeConfig& compute, InterfaceConfig& interface, Camera& camera, ParticleRenderer& renderer) -> void {
+auto Controls::keyboard(unsigned char key, [[maybe_unused]] int x, [[maybe_unused]] int y, ComputeConfig& compute, InterfaceConfig& interface, Camera& camera, ParticleRenderer& renderer) -> void {
     using enum NBodyConfig;
 
     switch (key) {
@@ -144,7 +144,7 @@ auto ControlsConfig::keyboard(unsigned char key, [[maybe_unused]] int x, [[maybe
     glutPostRedisplay();
 }
 
-auto ControlsConfig::special(int key, int x, int y, InterfaceConfig& interface) -> void {
+auto Controls::special(int key, int x, int y, InterfaceConfig& interface) -> void {
     interface.param_list->Special(key, x, y);
     glutPostRedisplay();
 }
