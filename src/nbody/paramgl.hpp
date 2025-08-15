@@ -46,7 +46,7 @@ class ParamListGL {
 
     auto is_mouse_over(int x, int y) noexcept -> bool;
 
-    auto modify_sliders(int x, int y, int button, int state) -> void;
+    auto modify_sliders(int button, int state, int x, int y) -> void;
 
     auto motion(int x, int y) const -> bool;
 

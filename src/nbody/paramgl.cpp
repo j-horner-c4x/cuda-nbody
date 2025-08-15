@@ -87,7 +87,7 @@ auto ParamListGL::is_mouse_over([[maybe_unused]] int x, int y) noexcept -> bool 
     return active_;
 }
 
-auto ParamListGL::modify_sliders(int x, int y, int button, int state) -> void {
+auto ParamListGL::modify_sliders(int button, int state, int x, int y) -> void {
     assert(active_);
 
     const auto i = y / separation_;

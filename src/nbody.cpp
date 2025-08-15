@@ -241,15 +241,7 @@ int main(int argc, char** argv) {
 
         compute.reset<NBodyConfig::NBODY_CONFIG_SHELL>(renderer);
 
-        auto interface = InterfaceConfig{
-            .display_enabled      = true,
-            .show_sliders         = show_sliders,
-            .param_list           = compute.active_params.create_sliders(),
-            .full_screen          = full_screen,
-            .display_interactions = false,
-            .display_mode         = ParticleRenderer::PARTICLE_SPRITES_COLOR,
-            .fps_count            = 0,
-            .fps_limit            = 5};
+        auto interface = Interface{show_sliders, compute.active_params.create_sliders(), full_screen};
 
         auto camera = Camera{};
 

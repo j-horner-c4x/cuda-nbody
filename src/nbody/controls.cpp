@@ -44,10 +44,10 @@ auto Controls::move_camera(Camera& camera, int x, int y) noexcept -> void {
     old_y_ = y;
 }
 
-auto Controls::mouse(int button, int state, int x, int y, InterfaceConfig& interface, ComputeConfig& compute) -> void {
-    if (interface.show_sliders && interface.param_list->is_mouse_over(x, y)) {
+auto Controls::mouse(int button, int state, int x, int y, Interface& interface, ComputeConfig& compute) -> void {
+    if (interface.is_mouse_over_sliders(x, y)) {
         // call list mouse function
-        interface.param_list->modify_sliders(x, y, button, state);
+        interface.modify_sliders(button, state, x, y);
         compute.update_params();
     }
 
@@ -56,10 +56,10 @@ auto Controls::mouse(int button, int state, int x, int y, InterfaceConfig& inter
     glutPostRedisplay();
 }
 
-auto Controls::motion(int x, int y, const InterfaceConfig& interface, Camera& camera, ComputeConfig& compute) -> void {
-    if (interface.show_sliders) {
+auto Controls::motion(int x, int y, const Interface& interface, Camera& camera, ComputeConfig& compute) -> void {
+    if (interface.show_sliders()) {
         // call parameter list motion function
-        if (interface.param_list->motion(x, y)) {
+        if (interface.motion(x, y)) {
             // by definition of this function, a mouse function is pressed so we need to update the parameters
             compute.update_params();
             glutPostRedisplay();
@@ -72,7 +72,7 @@ auto Controls::motion(int x, int y, const InterfaceConfig& interface, Camera& ca
     glutPostRedisplay();
 }
 
-auto Controls::keyboard(unsigned char key, [[maybe_unused]] int x, [[maybe_unused]] int y, ComputeConfig& compute, InterfaceConfig& interface, Camera& camera, ParticleRenderer& renderer) -> void {
+auto Controls::keyboard(unsigned char key, [[maybe_unused]] int x, [[maybe_unused]] int y, ComputeConfig& compute, Interface& interface, Camera& camera, ParticleRenderer& renderer) -> void {
     using enum NBodyConfig;
 
     switch (key) {
@@ -140,10 +140,5 @@ auto Controls::keyboard(unsigned char key, [[maybe_unused]] int x, [[maybe_unuse
             break;
     }
 
-    glutPostRedisplay();
-}
-
-auto Controls::special(int key, int x, int y, InterfaceConfig& interface) -> void {
-    interface.param_list->special(key, x, y);
     glutPostRedisplay();
 }

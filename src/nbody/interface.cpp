@@ -9,7 +9,7 @@
 
 #include <format>
 
-auto InterfaceConfig::display(ComputeConfig& compute, Camera& camera, ParticleRenderer& renderer) -> void {
+auto Interface::display(ComputeConfig& compute, Camera& camera, ParticleRenderer& renderer) -> void {
     compute.update_simulation(camera, renderer);
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -20,10 +20,10 @@ auto InterfaceConfig::display(ComputeConfig& compute, Camera& camera, ParticleRe
         compute.display_NBody_system(display_mode, renderer);
 
         // display user interface
-        if (show_sliders) {
+        if (show_sliders_) {
             glBlendFunc(GL_ONE_MINUS_DST_COLOR, GL_ZERO);    // invert color
             glEnable(GL_BLEND);
-            param_list->render();
+            param_list.render();
             glDisable(GL_BLEND);
         }
 
@@ -78,4 +78,9 @@ auto InterfaceConfig::display(ComputeConfig& compute, Camera& camera, ParticleRe
     }
 
     glutReportErrors();
+}
+
+auto Interface::special(int key, int x, int y) -> void {
+    param_list.special(key, x, y);
+    glutPostRedisplay();
 }
