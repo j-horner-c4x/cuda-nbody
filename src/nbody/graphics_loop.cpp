@@ -91,6 +91,8 @@ auto execute_graphics_loop(ComputeConfig& compute, Interface& interface, Camera&
     register_callback<glutSpecialFuncUcall>(special_);
     register_callback<glutIdleFuncUcall>(idle_);
 
+    glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE, GLUT_ACTION_GLUTMAINLOOP_RETURNS);
+
     compute.restart_timer();
 
     glutMainLoop();
