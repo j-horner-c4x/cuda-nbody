@@ -47,15 +47,15 @@ class ParticleRenderer {
 
     auto reset(std::span<const float> colour, bool fp64, float point_size) -> void;
 
-    void setBaseColor(const std::array<float, 4>& colour) { m_baseColor = colour; }
+    void setBaseColor(const std::array<float, 4>& colour) { base_colour_ = colour; }
     void setColours(std::span<const float> colour);
 
     enum DisplayMode { PARTICLE_POINTS, PARTICLE_SPRITES, PARTICLE_SPRITES_COLOR, PARTICLE_NUM_MODES };
 
     void display(DisplayMode mode = PARTICLE_POINTS);
 
-    void setPointSize(float size) { m_pointSize = size; }
-    void setSpriteSize(float size) { m_spriteSize = size; }
+    void setPointSize(float size) { point_size_ = size; }
+    void setSpriteSize(float size) { sprite_size_ = size; }
 
  private:    // methods
     void resetPBO();
@@ -66,19 +66,19 @@ class ParticleRenderer {
 
     std::vector<float> colour_;
 
-    std::span<const float>  m_pos;
-    std::span<const double> m_pos_fp64;
+    std::span<const float>  pos_;
+    std::span<const double> pos_fp64_;
 
-    float m_pointSize  = 1.f;
-    float m_spriteSize = 2.f;
+    float point_size_  = 1.f;
+    float sprite_size_ = 2.f;
 
-    unsigned int m_programPoints  = 0;
-    unsigned int m_programSprites = 0;
-    unsigned int m_texture        = 0;
-    unsigned int m_pbo            = 0;
-    unsigned int m_vboColor       = 0;
+    unsigned int program_points_  = 0;
+    unsigned int program_sprites_ = 0;
+    unsigned int texture_         = 0;
+    unsigned int pbo_             = 0;
+    unsigned int vbo_colour_      = 0;
 
-    std::array<float, 4> m_baseColor;
+    std::array<float, 4> base_colour_;
 
-    bool m_bFp64Positions = false;
+    bool fp64_positions_ = false;
 };
