@@ -32,9 +32,9 @@ auto Interface::display(ComputeConfig& compute, Camera& camera, ParticleRenderer
 
             constexpr static auto msg0 = std::string_view{"some_temp_device_name"};
 
-            const auto msg1 = display_interactions ? std::format("{:.2} billion interactions per second", compute.interactions_per_second) : std::format("{:.2} GFLOP/s", compute.g_flops);
+            const auto msg1 = display_interactions ? std::format("{:.2} billion interactions per second", compute.interactions_per_second()) : std::format("{:.2} GFLOP/s", compute.gflops());
 
-            const auto msg2 = std::format("{:.2} FPS [{} | {} bodies]", compute.fps, compute.fp64_enabled ? "double precision" : "single precision", compute.num_bodies);
+            const auto msg2 = std::format("{:.2} FPS [{} | {} bodies]", compute.fps(), compute.fp64_enabled() ? "double precision" : "single precision", compute.nb_bodies());
 
             glBlendFunc(GL_ONE_MINUS_DST_COLOR, GL_ZERO);    // invert color
             glEnable(GL_BLEND);
@@ -58,20 +58,20 @@ auto Interface::display(ComputeConfig& compute, Camera& camera, ParticleRenderer
 
         const auto fps_str = std::format(
             "CUDA N-Body ({} bodies): {:.1f} fps | {:.1f} BIPS | {:.1f} GFLOP/s | {}",
-            compute.num_bodies,
-            compute.fps,
-            compute.interactions_per_second,
-            compute.g_flops,
-            compute.fp64_enabled ? "double precision" : "single precision");
+            compute.nb_bodies(),
+            compute.fps(),
+            compute.interactions_per_second(),
+            compute.gflops(),
+            compute.fp64_enabled() ? "double precision" : "single precision");
 
         glutSetWindowTitle(fps_str.c_str());
         fps_count = 0;
 
-        if (compute.paused) {
+        if (compute.paused()) {
             fps_limit = 0;
-        } else if (compute.fps > 1.f) {
+        } else if (compute.fps() > 1.f) {
             // setting the refresh limit (in number of frames) to be the FPS value obviously refreshes this message every second...
-            fps_limit = static_cast<int>(compute.fps);
+            fps_limit = static_cast<int>(compute.fps());
         } else {
             fps_limit = 1;
         }

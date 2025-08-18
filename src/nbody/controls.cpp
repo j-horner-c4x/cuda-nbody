@@ -124,7 +124,7 @@ auto Controls::keyboard(unsigned char key, [[maybe_unused]] int x, [[maybe_unuse
 
         case 'o':
         case 'O':
-            compute.active_params.print();
+            compute.active_params().print();
             break;
 
         case '1':

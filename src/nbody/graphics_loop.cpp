@@ -91,9 +91,7 @@ auto execute_graphics_loop(ComputeConfig& compute, Interface& interface, Camera&
     register_callback<glutSpecialFuncUcall>(special_);
     register_callback<glutIdleFuncUcall>(idle_);
 
-    if (!compute.use_cpu) {
-        checkCudaErrors(cudaEventRecord(compute.start_event, 0));
-    }
+    compute.restart_timer();
 
     glutMainLoop();
 }

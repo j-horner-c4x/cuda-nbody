@@ -223,25 +223,22 @@ int main(int argc, char** argv) {
             cmd_options.numbodies,
             tipsy_file);
 
-        if (compute.benchmark) {
+        if (compute.benchmark()) {
             compute.run_benchmark();
-            compute.finalize();
             return 0;
         }
 
-        if (compute.compare_to_cpu) {
+        if (compute.compare_to_cpu()) {
             const auto result = compute.compare_results();
-
-            compute.finalize();
 
             return static_cast<int>(!result);
         }
 
-        auto renderer = ParticleRenderer(compute.num_bodies, compute.active_params.m_pointSize, compute.fp64_enabled);
+        auto renderer = ParticleRenderer(compute.nb_bodies(), compute.active_params().m_pointSize, compute.fp64_enabled());
 
         compute.reset<NBodyConfig::NBODY_CONFIG_SHELL>(renderer);
 
-        auto interface = Interface{show_sliders, compute.active_params.create_sliders(), full_screen};
+        auto interface = Interface{show_sliders, compute.create_sliders(), full_screen};
 
         auto camera = Camera{};
 
