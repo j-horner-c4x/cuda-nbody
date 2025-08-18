@@ -43,7 +43,7 @@ class ParticleRenderer {
     void set_positions(std::span<const float> pos);
     void set_positions(std::span<const double> pos);
     // invoked by GPU impl
-    void setPBO(unsigned int pbo, int numParticles, bool fp64);
+    void setPBO(unsigned int pbo, bool fp64);
 
     auto reset(std::span<const float> colour, bool fp64, float point_size) -> void;
 
@@ -66,9 +66,8 @@ class ParticleRenderer {
 
     std::vector<float> colour_;
 
-    const float*  m_pos = nullptr;
-    const double* m_pos_fp64;
-    int           m_numParticles = 0;
+    std::span<const float>  m_pos;
+    std::span<const double> m_pos_fp64;
 
     float m_pointSize  = 1.f;
     float m_spriteSize = 2.f;

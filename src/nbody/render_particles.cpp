@@ -77,8 +77,7 @@ void ParticleRenderer::set_positions(std::span<const float> pos) {
     assert(pos.size() == colour_.size());
 
     m_bFp64Positions = false;
-    m_pos            = pos.data();
-    m_numParticles   = static_cast<int>(pos.size() / 4);
+    m_pos            = pos;
 
     if (!m_pbo) {
         glGenBuffers(1, reinterpret_cast<GLuint*>(&m_pbo));
@@ -93,8 +92,7 @@ void ParticleRenderer::set_positions(std::span<const double> pos) {
     assert(pos.size() == colour_.size());
 
     m_bFp64Positions = true;
-    m_pos_fp64       = pos.data();
-    m_numParticles   = static_cast<int>(pos.size() / 4);
+    m_pos_fp64       = pos;
 
     if (!m_pbo) {
         glGenBuffers(1, reinterpret_cast<GLuint*>(&m_pbo));
@@ -112,27 +110,24 @@ void ParticleRenderer::setColours(std::span<const float> colour) {
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
-void ParticleRenderer::setPBO(unsigned int pbo, int numParticles, bool fp64) {
+void ParticleRenderer::setPBO(unsigned int pbo, bool fp64) {
     m_pbo            = pbo;
-    m_numParticles   = numParticles;
     m_bFp64Positions = fp64;
 }
 
 void ParticleRenderer::_drawPoints(bool color) {
+    const auto nb_particles = colour_.size() / 4;
     if (!m_pbo) {
         glBegin(GL_POINTS);
         {
-            int k = 0;
-
-            for (int i = 0; i < m_numParticles; ++i) {
-                if (m_bFp64Positions) {
-                    glVertex3dv(&m_pos_fp64[k]);
-
-                } else {
-                    glVertex3fv(&m_pos[k]);
+            if (m_bFp64Positions) {
+                for (auto i = 0; i < m_pos_fp64.size(); i += 4) {
+                    glVertex3dv(&m_pos_fp64[i]);
                 }
-
-                k += 4;
+            } else {
+                for (auto i = 0; i < nb_particles; i += 4) {
+                    glVertex3fv(&m_pos[i]);
+                }
             }
         }
         glEnd();
@@ -155,7 +150,7 @@ void ParticleRenderer::_drawPoints(bool color) {
             glColorPointer(4, GL_FLOAT, 0, 0);
         }
 
-        glDrawArrays(GL_POINTS, 0, m_numParticles);
+        glDrawArrays(GL_POINTS, 0, static_cast<GLsizei>(nb_particles));
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glDisableClientState(GL_VERTEX_ARRAY);
         glDisableClientState(GL_COLOR_ARRAY);
@@ -296,7 +291,7 @@ void ParticleRenderer::_initGL() {
 
     glGenBuffers(1, reinterpret_cast<GLuint*>(&m_vboColor));
     glBindBuffer(GL_ARRAY_BUFFER, m_vboColor);
-    glBufferData(GL_ARRAY_BUFFER, m_numParticles * 4 * sizeof(float), 0, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, colour_.size() * sizeof(float), 0, GL_STATIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 

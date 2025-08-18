@@ -59,7 +59,7 @@ ComputeConfig::ComputeConfig(
     std::size_t                  block_size,
     std::size_t                  nb_bodies,
     const std::filesystem::path& tipsy_file)
-    : fp64_enabled_(enable_fp64), cycle_demo_(enable_cycle_demo), use_cpu_(enable_cpu), use_host_mem_(enable_host_memory), use_pbo_(!(enable_benchmark || enable_compare_to_cpu || enable_host_memory))
+    : fp64_enabled_(enable_fp64), cycle_demo_(enable_cycle_demo), use_cpu_(enable_cpu), use_host_mem_(enable_host_memory), use_pbo_(!(enable_benchmark || enable_compare_to_cpu || enable_host_memory || enable_cpu))
 
 {
     auto nb_devices_requested = 1;
@@ -518,9 +518,9 @@ auto ComputeConfig::display_NBody_system(ParticleRenderer::DisplayMode display_m
     if (use_pbo_) {
         assert(!use_cpu_);
         if (fp64_enabled_) {
-            renderer.setPBO(nbody_cuda_fp64_->getCurrentReadBuffer(), num_bodies_, fp64_enabled_);
+            renderer.setPBO(nbody_cuda_fp64_->getCurrentReadBuffer(), fp64_enabled_);
         } else {
-            renderer.setPBO(nbody_cuda_fp32_->getCurrentReadBuffer(), num_bodies_, fp64_enabled_);
+            renderer.setPBO(nbody_cuda_fp32_->getCurrentReadBuffer(), fp64_enabled_);
         }
     } else {
         if (use_cpu_) {
