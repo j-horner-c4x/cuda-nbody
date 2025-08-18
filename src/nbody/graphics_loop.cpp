@@ -93,7 +93,5 @@ auto execute_graphics_loop(ComputeConfig& compute, Interface& interface, Camera&
 
     glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE, GLUT_ACTION_GLUTMAINLOOP_RETURNS);
 
-    compute.restart_timer();
-
     glutMainLoop();
 }

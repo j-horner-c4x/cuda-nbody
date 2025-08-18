@@ -57,7 +57,7 @@ template <std::floating_point T> class BodySystemCUDA {
     BodySystemCUDA(const ComputeConfig& compute, unsigned int numDevices, unsigned int blockSize, bool useP2P, int deviceId, std::vector<T> positions, std::vector<T> velocities);
     ~BodySystemCUDA() noexcept;
 
-    auto reset(const ComputeConfig& compute, NBodyConfig config, std::span<float> colour) -> void;
+    auto reset(const NBodyParams& params, NBodyConfig config, std::span<float> colour) -> void;
 
     auto update(T deltaTime) -> void;
 

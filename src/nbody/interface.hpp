@@ -37,6 +37,6 @@ class Interface {
     bool                          full_screen;
     bool                          display_interactions = false;
     ParticleRenderer::DisplayMode display_mode         = ParticleRenderer::PARTICLE_SPRITES_COLOR;
-    int                           fps_count            = 0;
+    int                           frame_count            = 0;
     int                           fps_limit            = 5;
 };

@@ -42,11 +42,11 @@ template <std::floating_point T> class BodySystemCPU {
     using Type                    = T;
     constexpr static auto use_cpu = true;
 
-    explicit BodySystemCPU(const ComputeConfig& compute);
+    BodySystemCPU(int nb_bodies, const NBodyParams& params);
 
-    BodySystemCPU(const ComputeConfig& compute, std::vector<T> positions, std::vector<T> velocities);
+    BodySystemCPU(int nb_bodies, const NBodyParams& params, std::vector<T> positions, std::vector<T> velocities);
 
-    auto reset(const ComputeConfig& compute, NBodyConfig config, std::span<float> colour) -> void;
+    auto reset(const NBodyParams& params, NBodyConfig config, std::span<float> colour) -> void;
 
     auto update(T deltaTime) noexcept -> void;
 

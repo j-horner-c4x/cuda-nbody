@@ -50,11 +50,11 @@ auto Interface::display(ComputeConfig& compute, Camera& camera, ParticleRenderer
         glutSwapBuffers();
     }
 
-    ++fps_count;
+    ++frame_count;
 
     // this displays the frame rate updated every second (independent of frame rate)
-    if (fps_count >= fps_limit) {
-        compute.calculate_fps(fps_count);
+    if (frame_count >= fps_limit) {
+        compute.calculate_fps(frame_count);
 
         const auto fps_str = std::format(
             "CUDA N-Body ({} bodies): {:.1f} fps | {:.1f} BIPS | {:.1f} GFLOP/s | {}",
@@ -65,7 +65,7 @@ auto Interface::display(ComputeConfig& compute, Camera& camera, ParticleRenderer
             compute.fp64_enabled() ? "double precision" : "single precision");
 
         glutSetWindowTitle(fps_str.c_str());
-        fps_count = 0;
+        frame_count = 0;
 
         if (compute.paused()) {
             fps_limit = 0;

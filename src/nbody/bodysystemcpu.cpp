@@ -50,24 +50,23 @@
 
 using std::ranges::copy;
 
-template <std::floating_point T>
-BodySystemCPU<T>::BodySystemCPU(const ComputeConfig& compute) : m_numBodies(compute.nb_bodies()), m_pos(m_numBodies * 4, T{0}), m_vel(m_numBodies * 4, T{0}), m_damping(compute.active_params().m_damping) {
-    setSoftening(compute.active_params().m_softening);
+template <std::floating_point T> BodySystemCPU<T>::BodySystemCPU(int nb_bodies, const NBodyParams& params) : m_numBodies(nb_bodies), m_pos(m_numBodies * 4, T{0}), m_vel(m_numBodies * 4, T{0}), m_damping(params.m_damping) {
+    setSoftening(params.m_softening);
 
-    reset(compute, NBodyConfig::NBODY_CONFIG_SHELL, {});
+    reset(params, NBodyConfig::NBODY_CONFIG_SHELL, {});
 }
 
 template <std::floating_point T>
-BodySystemCPU<T>::BodySystemCPU(const ComputeConfig& compute, std::vector<T> positions, std::vector<T> velocities)
-    : m_numBodies(compute.nb_bodies()), m_pos(std::move(positions)), m_vel(std::move(velocities)), m_damping(compute.active_params().m_damping) {
+BodySystemCPU<T>::BodySystemCPU(int nb_bodies, const NBodyParams& params, std::vector<T> positions, std::vector<T> velocities)
+    : m_numBodies(nb_bodies), m_pos(std::move(positions)), m_vel(std::move(velocities)), m_damping(params.m_damping) {
     assert(m_pos.size() == m_numBodies * 4);
     assert(m_vel.size() == m_pos.size());
 
-    setSoftening(compute.active_params().m_softening);
+    setSoftening(params.m_softening);
 }
 
-template <std::floating_point T> auto BodySystemCPU<T>::reset(const ComputeConfig& compute, NBodyConfig config, std::span<float> colour) -> void {
-    randomise_bodies<T>(config, m_pos, m_vel, colour, compute.active_params().m_clusterScale, compute.active_params().m_velocityScale);
+template <std::floating_point T> auto BodySystemCPU<T>::reset(const NBodyParams& params, NBodyConfig config, std::span<float> colour) -> void {
+    randomise_bodies<T>(config, m_pos, m_vel, colour, params.m_clusterScale, params.m_velocityScale);
 }
 
 template <std::floating_point T> auto BodySystemCPU<T>::update_params(const NBodyParams& active_params) noexcept -> void {

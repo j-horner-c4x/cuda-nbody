@@ -209,26 +209,28 @@ int main(int argc, char** argv) {
             initGL(&argc, argv, full_screen);
         }
 
+        const auto compare_to_cpu = (cmd_options.compare || cmd_options.qatest) && (!cmd_options.cpu);
+
         auto compute = ComputeConfig(
             cmd_options.fp64,
             cycle_demo,
             cmd_options.cpu,
-            cmd_options.compare || cmd_options.qatest,
+            compare_to_cpu,
             cmd_options.benchmark,
             cmd_options.hostmem,
             cmd_options.device,
             cmd_options.numdevices,
-            cmd_options.i,
             cmd_options.block_size,
             cmd_options.numbodies,
             tipsy_file);
 
-        if (compute.benchmark()) {
-            compute.run_benchmark();
+        if (cmd_options.benchmark) {
+            const auto nb_iterations = cmd_options.i == 0 ? 10 : static_cast<int>(cmd_options.i);
+            compute.run_benchmark(nb_iterations);
             return 0;
         }
 
-        if (compute.compare_to_cpu()) {
+        if (compare_to_cpu) {
             const auto result = compute.compare_results();
 
             return static_cast<int>(!result);
