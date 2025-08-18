@@ -96,7 +96,7 @@ ComputeConfig::ComputeConfig(
 
             if (!all_gpus_support_p2p) {
                 use_host_mem_ = true;
-                use_p2p      = false;
+                use_p2p       = false;
             }
         }
     }
@@ -195,7 +195,7 @@ ComputeConfig::ComputeConfig(
         }
     }
 
-    nb_iterations_  = iterations == 0 ? 10 : static_cast<int>(iterations);
+    nb_iterations_ = iterations == 0 ? 10 : static_cast<int>(iterations);
     auto blockSize = static_cast<int>(block_size);
 
     // default number of bodies is #SMs * 4 * CTA size
@@ -298,7 +298,11 @@ ComputeConfig::ComputeConfig(
 }
 
 ComputeConfig ::~ComputeConfig() noexcept {
-    finalize();
+    if (!use_cpu_) {
+        checkCudaErrors(cudaEventDestroy(start_event_));
+        checkCudaErrors(cudaEventDestroy(stop_event_));
+        checkCudaErrors(cudaEventDestroy(host_mem_sync_event_));
+    }
 }
 
 template <typename BodySystemNew, typename BodySystemOld> auto ComputeConfig::switch_precision(BodySystemNew& new_nbody, BodySystemOld& old_nbody, ParticleRenderer& renderer) -> void {
@@ -508,19 +512,19 @@ auto ComputeConfig::display_NBody_system(ParticleRenderer::DisplayMode display_m
     renderer.display(display_mode);
 }
 
-template <NBodyConfig InitialConfiguration> auto ComputeConfig::reset(ParticleRenderer& renderer) -> void {
+auto ComputeConfig::reset(NBodyConfig initial_configuration, ParticleRenderer& renderer) -> void {
     if (tipsy_data_fp32_.positions.empty()) {
         if (use_cpu_) {
             if (fp64_enabled_) {
-                nbody_cpu_fp64_->reset(*this, InitialConfiguration, renderer.colour());
+                nbody_cpu_fp64_->reset(*this, initial_configuration, renderer.colour());
             } else {
-                nbody_cpu_fp32_->reset(*this, InitialConfiguration, renderer.colour());
+                nbody_cpu_fp32_->reset(*this, initial_configuration, renderer.colour());
             }
         } else {
             if (fp64_enabled_) {
-                nbody_cuda_fp64_->reset(*this, InitialConfiguration, renderer.colour());
+                nbody_cuda_fp64_->reset(*this, initial_configuration, renderer.colour());
             } else {
-                nbody_cuda_fp32_->reset(*this, InitialConfiguration, renderer.colour());
+                nbody_cuda_fp32_->reset(*this, initial_configuration, renderer.colour());
             }
         }
     } else {
@@ -562,14 +566,6 @@ auto ComputeConfig::update_params() -> void {
     }
 }
 
-auto ComputeConfig::finalize() noexcept -> void {
-    if (!use_cpu_) {
-        checkCudaErrors(cudaEventDestroy(start_event_));
-        checkCudaErrors(cudaEventDestroy(stop_event_));
-        checkCudaErrors(cudaEventDestroy(host_mem_sync_event_));
-    }
-}
-
 auto ComputeConfig::get_milliseconds_passed() -> float {
     // stop timer
     if (use_cpu_) {
@@ -602,9 +598,9 @@ auto ComputeConfig::calculate_fps(int fps_count) -> void {
     restart_timer();
 
     const auto frequency = (1000.f / milliseconds_passed);
-    fps_                  = static_cast<float>(fps_count) * frequency;
+    fps_                 = static_cast<float>(fps_count) * frequency;
 
-    compute_perf_stats();
+    compute_perf_stats(fps_);
 }
 
 auto ComputeConfig::run_benchmark() -> void {
@@ -626,10 +622,6 @@ auto ComputeConfig::run_benchmark() -> void {
 auto ComputeConfig::compare_results() -> bool {
     return fp64_enabled_ ? compare_results(*nbody_cuda_fp64_) : compare_results(*nbody_cuda_fp32_);
 }
-
-template auto ComputeConfig::reset<NBodyConfig::NBODY_CONFIG_EXPAND>(ParticleRenderer& renderer) -> void;
-template auto ComputeConfig::reset<NBodyConfig::NBODY_CONFIG_RANDOM>(ParticleRenderer& renderer) -> void;
-template auto ComputeConfig::reset<NBodyConfig::NBODY_CONFIG_SHELL>(ParticleRenderer& renderer) -> void;
 
 template auto ComputeConfig::run_benchmark<BodySystemCPU<float>>(BodySystemCPU<float>& nbody) -> void;
 template auto ComputeConfig::run_benchmark<BodySystemCPU<double>>(BodySystemCPU<double>& nbody) -> void;

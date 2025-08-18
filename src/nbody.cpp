@@ -236,7 +236,7 @@ int main(int argc, char** argv) {
 
         auto renderer = ParticleRenderer(compute.nb_bodies(), compute.active_params().m_pointSize, compute.fp64_enabled());
 
-        compute.reset<NBodyConfig::NBODY_CONFIG_SHELL>(renderer);
+        compute.reset(NBodyConfig::NBODY_CONFIG_SHELL, renderer);
 
         auto interface = Interface{show_sliders, compute.create_sliders(), full_screen};
 
@@ -247,8 +247,6 @@ int main(int argc, char** argv) {
         execute_graphics_loop(compute, interface, camera, controls, renderer);
 
         std::println("Stopped graphics loop");
-
-        compute.finalize();
 
         return 0;
     } catch (const std::invalid_argument& e) {

@@ -35,19 +35,9 @@ struct ComputeConfig {
                   std::size_t                  nb_bodies,
                   const std::filesystem::path& tipsy_file);
 
-    template <typename BodySystem> auto run_benchmark(BodySystem& nbody) -> void;
-
     auto run_benchmark() -> void;
 
     auto compare_results() -> bool;
-
-    auto select_demo() -> void {
-        assert(active_demo_ < numDemos);
-
-        active_params_ = demoParams[active_demo_];
-    }
-
-    auto finalize() noexcept -> void;
 
     auto pause() noexcept -> void { paused_ = !paused_; }
 
@@ -65,30 +55,13 @@ struct ComputeConfig {
         select_demo(camera, renderer);
     }
 
-    auto select_demo(Camera& camera, ParticleRenderer& renderer) -> void;
-
     auto update_simulation(Camera& camera, ParticleRenderer& renderer) -> void;
 
     auto display_NBody_system(ParticleRenderer::DisplayMode display_mode, ParticleRenderer& renderer) -> void;
 
-    template <NBodyConfig InitialConfiguration> auto reset(ParticleRenderer& renderer) -> void;
+    auto reset(NBodyConfig initial_configuration, ParticleRenderer& renderer) -> void;
 
     auto update_params() -> void;
-
-    constexpr auto compute_perf_stats(float frequency) -> void {
-        // double precision uses intrinsic operation followed by refinement, resulting in higher operation count per interaction.
-        // Note: Astrophysicists use 38 flops per interaction no matter what, based on "historical precedent", but they are using FLOP/s as a measure of "science throughput".
-        // We are using it as a measure of hardware throughput.  They should really use interactions/s...
-        interactions_per_second_ = (static_cast<float>(num_bodies_ * num_bodies_) * 1e-9f) * frequency;
-
-        g_flops_ = interactions_per_second_ * static_cast<float>(flops_per_interaction_);
-    }
-
-    constexpr auto compute_perf_stats() -> void { compute_perf_stats(fps_); }
-
-    constexpr auto compute_perf_stats(float milliseconds, int iterations) -> void { compute_perf_stats(iterations * (1000.0f / milliseconds)); }
-
-    auto get_milliseconds_passed() -> float;
 
     auto restart_timer() -> void;
 
@@ -123,9 +96,32 @@ struct ComputeConfig {
     auto create_sliders() -> ParamListGL { return active_params_.create_sliders(); }
 
  private:
+    template <typename BodySystem> auto run_benchmark(BodySystem& nbody) -> void;
+
     template <typename BodySystemNew, typename BodySystemOld> auto switch_precision(BodySystemNew& new_nbody, BodySystemOld& old_nbody, ParticleRenderer& renderer) -> void;
 
     template <std::floating_point T> auto compare_results(BodySystemCUDA<T>& nbodyCuda) -> bool;
+
+    auto select_demo() -> void {
+        assert(active_demo_ < numDemos);
+
+        active_params_ = demoParams[active_demo_];
+    }
+
+    auto select_demo(Camera& camera, ParticleRenderer& renderer) -> void;
+
+    constexpr auto compute_perf_stats(float frequency) -> void {
+        // double precision uses intrinsic operation followed by refinement, resulting in higher operation count per interaction.
+        // Note: Astrophysicists use 38 flops per interaction no matter what, based on "historical precedent", but they are using FLOP/s as a measure of "science throughput".
+        // We are using it as a measure of hardware throughput.  They should really use interactions/s...
+        interactions_per_second_ = (static_cast<float>(num_bodies_ * num_bodies_) * 1e-9f) * frequency;
+
+        g_flops_ = interactions_per_second_ * static_cast<float>(flops_per_interaction_);
+    }
+
+    constexpr auto compute_perf_stats(float milliseconds, int iterations) -> void { compute_perf_stats(iterations * (1000.0f / milliseconds)); }
+
+    auto get_milliseconds_passed() -> float;
 
     constexpr static auto demoParams = std::array{
         NBodyParams{0.016f, 1.54f, 8.0f, 0.1f, 1.0f, 1.0f, 0, -2, -100},
@@ -182,10 +178,6 @@ struct ComputeConfig {
 
     TimePoint reset_time_;
 };
-
-extern template auto ComputeConfig::reset<NBodyConfig::NBODY_CONFIG_EXPAND>(ParticleRenderer& renderer) -> void;
-extern template auto ComputeConfig::reset<NBodyConfig::NBODY_CONFIG_RANDOM>(ParticleRenderer& renderer) -> void;
-extern template auto ComputeConfig::reset<NBodyConfig::NBODY_CONFIG_SHELL>(ParticleRenderer& renderer) -> void;
 
 template <std::floating_point> class BodySystemCPU;
 template <std::floating_point> class BodySystemCUDA;
