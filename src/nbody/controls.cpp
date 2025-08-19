@@ -72,7 +72,7 @@ auto Controls::motion(int x, int y, const Interface& interface, Camera& camera, 
     glutPostRedisplay();
 }
 
-auto Controls::keyboard(unsigned char key, [[maybe_unused]] int x, [[maybe_unused]] int y, ComputeConfig& compute, Interface& interface, Camera& camera, ParticleRenderer& renderer) -> void {
+auto Controls::keyboard(unsigned char key, [[maybe_unused]] int x, [[maybe_unused]] int y, ComputeConfig& compute, Interface& interface, Camera& camera) -> void {
     using enum NBodyConfig;
 
     switch (key) {
@@ -87,7 +87,7 @@ auto Controls::keyboard(unsigned char key, [[maybe_unused]] int x, [[maybe_unuse
             break;
 
         case 13:    // return
-            compute.switch_precision(renderer);
+            compute.switch_precision();
             break;
 
         case '`':
@@ -110,11 +110,11 @@ auto Controls::keyboard(unsigned char key, [[maybe_unused]] int x, [[maybe_unuse
             break;
 
         case '[':
-            compute.previous_demo(camera, renderer);
+            compute.previous_demo(camera);
             break;
 
         case ']':
-            compute.next_demo(camera, renderer);
+            compute.next_demo(camera);
             break;
 
         case 'd':
@@ -128,15 +128,15 @@ auto Controls::keyboard(unsigned char key, [[maybe_unused]] int x, [[maybe_unuse
             break;
 
         case '1':
-            compute.reset(NBODY_CONFIG_SHELL, renderer);
+            compute.reset(NBODY_CONFIG_SHELL);
             break;
 
         case '2':
-            compute.reset(NBODY_CONFIG_RANDOM, renderer);
+            compute.reset(NBODY_CONFIG_RANDOM);
             break;
 
         case '3':
-            compute.reset(NBODY_CONFIG_EXPAND, renderer);
+            compute.reset(NBODY_CONFIG_EXPAND);
             break;
     }
 

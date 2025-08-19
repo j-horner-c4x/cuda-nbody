@@ -46,25 +46,17 @@ constexpr static auto fp64_colour = std::array{0.4f, 0.8f, 0.1f, 1.0f};
 constexpr static auto fp32_colour = std::array{1.0f, 0.6f, 0.3f, 1.0f};
 }    // namespace
 
-ParticleRenderer::ParticleRenderer(std::size_t nb_bodies, float point_size, bool fp64) : colour_(nb_bodies * 4, 1.0f), sprite_size_(point_size), fp64_positions_(fp64) {
+ParticleRenderer::ParticleRenderer(std::size_t nb_bodies, bool fp64) : colour_(nb_bodies * 4, 1.0f), fp64_positions_(fp64) {
+    auto v = std::size_t{0};
+
+    for (auto i = 0; i < nb_bodies; ++i) {
+        colour_[v++] = static_cast<float>(std::max((i % 3) - 1, 0));
+        colour_[v++] = static_cast<float>(std::max(((i + 1) % 3) - 1, 0));
+        colour_[v++] = static_cast<float>(std::max(((i + 2) % 3) - 1, 0));
+        colour_[v++] = 1.0f;
+    }
+
     _initGL();
-    reset(fp64, point_size);
-}
-
-auto ParticleRenderer::reset(bool fp64, float point_size) -> void {
-    const auto& base_colour = fp64 ? fp64_colour : fp32_colour;
-
-    setBaseColor(base_colour);
-    setColours(colour_);
-    setSpriteSize(point_size);
-}
-
-auto ParticleRenderer::reset(std::span<const float> colour, bool fp64, float point_size) -> void {
-    const auto& base_colour = fp64 ? fp64_colour : fp32_colour;
-
-    setBaseColor(base_colour);
-    setColours(colour);
-    setSpriteSize(point_size);
 }
 
 void ParticleRenderer::resetPBO() {
@@ -104,19 +96,12 @@ void ParticleRenderer::set_positions(std::span<const double> pos) {
     SDK_CHECK_ERROR_GL();
 }
 
-void ParticleRenderer::setColours(std::span<const float> colour) {
-    glBindBuffer(GL_ARRAY_BUFFER, vbo_colour_);
-    glBufferData(GL_ARRAY_BUFFER, colour.size() * sizeof(float), colour.data(), GL_STATIC_DRAW);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-}
-
-void ParticleRenderer::setPBO(unsigned int pbo, bool fp64) {
+void ParticleRenderer::set_pbo(unsigned int pbo, bool fp64) {
     pbo_            = pbo;
     fp64_positions_ = fp64;
 }
 
 void ParticleRenderer::_drawPoints(bool color) {
-    const auto nb_particles = colour_.size() / 4;
     if (!pbo_) {
         glBegin(GL_POINTS);
         {
@@ -125,7 +110,7 @@ void ParticleRenderer::_drawPoints(bool color) {
                     glVertex3dv(&pos_fp64_[i]);
                 }
             } else {
-                for (auto i = 0; i < nb_particles; i += 4) {
+                for (auto i = 0; i < pos_.size(); i += 4) {
                     glVertex3fv(&pos_[i]);
                 }
             }
@@ -150,6 +135,8 @@ void ParticleRenderer::_drawPoints(bool color) {
             glColorPointer(4, GL_FLOAT, 0, 0);
         }
 
+        const auto nb_particles = colour_.size() / 4;
+
         glDrawArrays(GL_POINTS, 0, static_cast<GLsizei>(nb_particles));
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glDisableClientState(GL_VERTEX_ARRAY);
@@ -157,14 +144,20 @@ void ParticleRenderer::_drawPoints(bool color) {
     }
 }
 
-void ParticleRenderer::display(DisplayMode mode /* = PARTICLE_POINTS */) {
+void ParticleRenderer::display(DisplayMode mode, float sprite_size) {
+    const auto& base_colour_ = fp64_positions_ ? fp64_colour : fp32_colour;
+
     switch (mode) {
         case PARTICLE_POINTS:
-            glColor3f(1, 1, 1);
-            glPointSize(point_size_);
-            glUseProgram(program_points_);
-            _drawPoints(false);
-            glUseProgram(0);
+            {
+                constexpr static auto point_size_ = 1.f;
+
+                glColor3f(1, 1, 1);
+                glPointSize(point_size_);
+                glUseProgram(program_points_);
+                _drawPoints(false);
+                glUseProgram(0);
+            }
             break;
 
         case PARTICLE_SPRITES:
@@ -174,7 +167,7 @@ void ParticleRenderer::display(DisplayMode mode /* = PARTICLE_POINTS */) {
                 glEnable(GL_POINT_SPRITE_ARB);
                 glTexEnvi(GL_POINT_SPRITE_ARB, GL_COORD_REPLACE_ARB, GL_TRUE);
                 glEnable(GL_VERTEX_PROGRAM_POINT_SIZE_NV);
-                glPointSize(sprite_size_);
+                glPointSize(sprite_size);
                 glBlendFunc(GL_SRC_ALPHA, GL_ONE);
                 glEnable(GL_BLEND);
                 glDepthMask(GL_FALSE);
@@ -206,7 +199,7 @@ void ParticleRenderer::display(DisplayMode mode /* = PARTICLE_POINTS */) {
                 glEnable(GL_POINT_SPRITE_ARB);
                 glTexEnvi(GL_POINT_SPRITE_ARB, GL_COORD_REPLACE_ARB, GL_TRUE);
                 glEnable(GL_VERTEX_PROGRAM_POINT_SIZE_NV);
-                glPointSize(sprite_size_);
+                glPointSize(sprite_size);
                 glBlendFunc(GL_SRC_ALPHA, GL_ONE);
                 glEnable(GL_BLEND);
                 glDepthMask(GL_FALSE);
@@ -291,7 +284,7 @@ void ParticleRenderer::_initGL() {
 
     glGenBuffers(1, reinterpret_cast<GLuint*>(&vbo_colour_));
     glBindBuffer(GL_ARRAY_BUFFER, vbo_colour_);
-    glBufferData(GL_ARRAY_BUFFER, colour_.size() * sizeof(float), 0, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, colour_.size() * sizeof(float), colour_.data(), GL_STATIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
@@ -299,10 +292,10 @@ void ParticleRenderer::_initGL() {
 // Function           : EvalHermite
 // Description      :
 //------------------------------------------------------------------------------
-/**
- * EvalHermite(float pA, float pB, float vA, float vB, float u)
- * @brief Evaluates Hermite basis functions for the specified coefficients.
- */
+///
+/// EvalHermite(float pA, float pB, float vA, float vB, float u)
+/// @brief Evaluates Hermite basis functions for the specified coefficients.
+///
 constexpr auto evalHermite(float u) -> float {
     const auto u2 = u * u;
     const auto u3 = u2 * u;

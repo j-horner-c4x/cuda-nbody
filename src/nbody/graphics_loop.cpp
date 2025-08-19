@@ -74,7 +74,7 @@ auto execute_graphics_loop(ComputeConfig& compute, Interface& interface, Camera&
 
     auto mouse_    = [&](int button, int state, int x, int y) { controls.mouse(button, state, x, y, interface, compute); };
     auto motion_   = [&](int x, int y) { controls.motion(x, y, interface, camera, compute); };
-    auto keyboard_ = [&](unsigned char k, int x, int y) { Controls::keyboard(k, x, y, compute, interface, camera, renderer); };
+    auto keyboard_ = [&](unsigned char k, int x, int y) { Controls::keyboard(k, x, y, compute, interface, camera); };
 
     // The special keyboard callback is triggered when keyboard function or directional keys are pressed.
     auto special_ = [&](int key, int x, int y) { interface.special(key, x, y); };

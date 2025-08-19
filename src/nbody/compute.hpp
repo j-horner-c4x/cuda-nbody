@@ -60,19 +60,19 @@ struct ComputeConfig {
 
     auto pause() noexcept -> void { paused_ = !paused_; }
 
-    auto switch_precision(ParticleRenderer& renderer) -> void;
+    auto switch_precision() -> void;
 
     auto toggle_cycle_demo() -> void;
 
-    auto previous_demo(Camera& camera, ParticleRenderer& renderer) -> void;
+    auto previous_demo(Camera& camera) -> void;
 
-    auto next_demo(Camera& camera, ParticleRenderer& renderer) -> void;
+    auto next_demo(Camera& camera) -> void;
 
-    auto update_simulation(Camera& camera, ParticleRenderer& renderer) -> void;
+    auto update_simulation(Camera& camera) -> void;
 
     auto display_NBody_system(ParticleRenderer::DisplayMode display_mode, ParticleRenderer& renderer) -> void;
 
-    auto reset(NBodyConfig initial_configuration, ParticleRenderer& renderer) -> void;
+    auto reset(NBodyConfig initial_configuration) -> void;
 
     auto update_params() -> void;
 
@@ -83,11 +83,11 @@ struct ComputeConfig {
  private:
     template <typename BodySystem> auto run_benchmark(int nb_iterations, BodySystem& nbody) -> void;
 
-    template <typename BodySystemNew, typename BodySystemOld> auto switch_precision(BodySystemNew& new_nbody, BodySystemOld& old_nbody, ParticleRenderer& renderer) -> void;
+    template <typename BodySystemNew, typename BodySystemOld> auto switch_precision(BodySystemNew& new_nbody, BodySystemOld& old_nbody) -> void;
 
     template <std::floating_point T> auto compare_results(BodySystemCUDA<T>& nbodyCuda) const -> bool;
 
-    auto select_demo(Camera& camera, ParticleRenderer& renderer) -> void;
+    auto select_demo(Camera& camera) -> void;
 
     constexpr auto compute_perf_stats(float frequency) -> void;
 

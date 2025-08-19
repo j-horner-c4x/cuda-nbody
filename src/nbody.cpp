@@ -236,9 +236,7 @@ int main(int argc, char** argv) {
             return static_cast<int>(!result);
         }
 
-        auto renderer = ParticleRenderer(compute.nb_bodies(), compute.active_params().m_pointSize, compute.fp64_enabled());
-
-        compute.reset(NBodyConfig::NBODY_CONFIG_SHELL, renderer);
+        auto renderer = ParticleRenderer(compute.nb_bodies(), compute.fp64_enabled());
 
         auto interface = Interface{show_sliders, compute.create_sliders(), full_screen};
 

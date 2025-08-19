@@ -3,7 +3,6 @@
 class Camera;
 class Interface;
 struct ComputeConfig;
-class ParticleRenderer;
 
 class Controls {
  public:
@@ -34,7 +33,7 @@ class Controls {
     /// @param
     /// @param camera
     /// @return
-    static auto keyboard(unsigned char key, int x, int y, ComputeConfig& compute, Interface& interface, Camera& camera, ParticleRenderer& renderer) -> void;
+    static auto keyboard(unsigned char key, int x, int y, ComputeConfig& compute, Interface& interface, Camera& camera) -> void;
 
  private:
     auto move_camera(Camera& camera, int x, int y) noexcept -> void;

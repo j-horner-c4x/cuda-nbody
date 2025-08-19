@@ -10,7 +10,7 @@
 #include <format>
 
 auto Interface::display(ComputeConfig& compute, Camera& camera, ParticleRenderer& renderer) -> void {
-    compute.update_simulation(camera, renderer);
+    compute.update_simulation(camera);
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 

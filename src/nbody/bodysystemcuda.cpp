@@ -69,7 +69,7 @@ BodySystemCUDA<T>::BodySystemCUDA(const ComputeConfig& compute, unsigned int num
 
     setSoftening(compute.active_params().m_softening);
 
-    reset(compute.active_params(), NBodyConfig::NBODY_CONFIG_SHELL, {});
+    reset(compute.active_params(), NBodyConfig::NBODY_CONFIG_SHELL);
 }
 
 template <std::floating_point T>
@@ -92,8 +92,8 @@ template <std::floating_point T> BodySystemCUDA<T>::~BodySystemCUDA() noexcept {
     m_numBodies = 0;
 }
 
-template <std::floating_point T> auto BodySystemCUDA<T>::reset(const NBodyParams& params, NBodyConfig config, std::span<float> colour) -> void {
-    randomise_bodies<T>(config, m_hPos_vec, m_hVel_vec, colour, params.m_clusterScale, params.m_velocityScale);
+template <std::floating_point T> auto BodySystemCUDA<T>::reset(const NBodyParams& params, NBodyConfig config) -> void {
+    randomise_bodies<T>(config, m_hPos_vec, m_hVel_vec, params.m_clusterScale, params.m_velocityScale);
     set_position(m_hPos_vec);
     set_velocity(m_hVel_vec);
 }

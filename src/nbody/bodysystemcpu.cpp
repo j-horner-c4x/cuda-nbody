@@ -53,7 +53,7 @@ using std::ranges::copy;
 template <std::floating_point T> BodySystemCPU<T>::BodySystemCPU(int nb_bodies, const NBodyParams& params) : m_numBodies(nb_bodies), m_pos(m_numBodies * 4, T{0}), m_vel(m_numBodies * 4, T{0}), m_damping(params.m_damping) {
     setSoftening(params.m_softening);
 
-    reset(params, NBodyConfig::NBODY_CONFIG_SHELL, {});
+    reset(params, NBodyConfig::NBODY_CONFIG_SHELL);
 }
 
 template <std::floating_point T>
@@ -65,8 +65,8 @@ BodySystemCPU<T>::BodySystemCPU(int nb_bodies, const NBodyParams& params, std::v
     setSoftening(params.m_softening);
 }
 
-template <std::floating_point T> auto BodySystemCPU<T>::reset(const NBodyParams& params, NBodyConfig config, std::span<float> colour) -> void {
-    randomise_bodies<T>(config, m_pos, m_vel, colour, params.m_clusterScale, params.m_velocityScale);
+template <std::floating_point T> auto BodySystemCPU<T>::reset(const NBodyParams& params, NBodyConfig config) -> void {
+    randomise_bodies<T>(config, m_pos, m_vel, params.m_clusterScale, params.m_velocityScale);
 }
 
 template <std::floating_point T> auto BodySystemCPU<T>::update_params(const NBodyParams& active_params) noexcept -> void {

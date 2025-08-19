@@ -33,29 +33,19 @@
 
 class ParticleRenderer {
  public:
-    ParticleRenderer(std::size_t nb_bodies, float point_size, bool fp64);
+    ParticleRenderer(std::size_t nb_bodies, bool fp64);
 
     auto colour() noexcept -> std::span<float> { return colour_; }
 
-    auto reset(bool fp64, float point_size) -> void;
-
-    // invoked by CPU impl
+    // invoked by CPU impl or GPU impl using host memory
     void set_positions(std::span<const float> pos);
     void set_positions(std::span<const double> pos);
     // invoked by GPU impl
-    void setPBO(unsigned int pbo, bool fp64);
-
-    auto reset(std::span<const float> colour, bool fp64, float point_size) -> void;
-
-    void setBaseColor(const std::array<float, 4>& colour) { base_colour_ = colour; }
-    void setColours(std::span<const float> colour);
+    void set_pbo(unsigned int pbo, bool fp64);
 
     enum DisplayMode { PARTICLE_POINTS, PARTICLE_SPRITES, PARTICLE_SPRITES_COLOR, PARTICLE_NUM_MODES };
 
-    void display(DisplayMode mode = PARTICLE_POINTS);
-
-    void setPointSize(float size) { point_size_ = size; }
-    void setSpriteSize(float size) { sprite_size_ = size; }
+    void display(DisplayMode mode, float sprite_size);
 
  private:    // methods
     void resetPBO();
@@ -69,16 +59,11 @@ class ParticleRenderer {
     std::span<const float>  pos_;
     std::span<const double> pos_fp64_;
 
-    float point_size_  = 1.f;
-    float sprite_size_ = 2.f;
-
     unsigned int program_points_  = 0;
     unsigned int program_sprites_ = 0;
     unsigned int texture_         = 0;
     unsigned int pbo_             = 0;
     unsigned int vbo_colour_      = 0;
-
-    std::array<float, 4> base_colour_;
 
     bool fp64_positions_ = false;
 };
