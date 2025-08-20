@@ -33,26 +33,25 @@
 
 class ParticleRenderer {
  public:
-    ParticleRenderer(std::size_t nb_bodies, bool fp64);
+    explicit ParticleRenderer(std::size_t nb_bodies);
 
     auto colour() noexcept -> std::span<float> { return colour_; }
 
-    // invoked by CPU impl or GPU impl using host memory
-    void set_positions(std::span<const float> pos);
-    void set_positions(std::span<const double> pos);
-    // invoked by GPU impl
-    void set_pbo(unsigned int pbo, bool fp64);
-
     enum DisplayMode { PARTICLE_POINTS, PARTICLE_SPRITES, PARTICLE_SPRITES_COLOR, PARTICLE_NUM_MODES };
 
-    void display(DisplayMode mode, float sprite_size);
+    // invoked by CPU impl or GPU impl using host memory
+    template <std::floating_point T> auto display(DisplayMode mode, float sprite_size, std::span<const T> pos) -> void;
+
+    // invoked by GPU impl using OpenGL interop
+    template <std::floating_point T> auto display(DisplayMode mode, float sprite_size, unsigned int pbo) -> void;
 
  private:    // methods
     void resetPBO();
 
     void _initGL();
     void _createTexture();
-    void _drawPoints(bool color);
+
+    template <std::floating_point T> auto draw_points(bool color, unsigned int pbo) -> void;
 
     std::vector<float> colour_;
 
@@ -64,6 +63,9 @@ class ParticleRenderer {
     unsigned int texture_         = 0;
     unsigned int pbo_             = 0;
     unsigned int vbo_colour_      = 0;
-
-    bool fp64_positions_ = false;
 };
+
+extern template auto ParticleRenderer::display<float>(DisplayMode mode, float sprite_size, std::span<const float> pos) -> void;
+extern template auto ParticleRenderer::display<double>(DisplayMode mode, float sprite_size, std::span<const double> pos) -> void;
+extern template auto ParticleRenderer::display<float>(DisplayMode mode, float sprite_size, unsigned int pbo) -> void;
+extern template auto ParticleRenderer::display<double>(DisplayMode mode, float sprite_size, unsigned int pbo) -> void;

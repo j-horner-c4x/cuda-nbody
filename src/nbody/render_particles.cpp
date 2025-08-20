@@ -44,9 +44,29 @@
 namespace {
 constexpr static auto fp64_colour = std::array{0.4f, 0.8f, 0.1f, 1.0f};
 constexpr static auto fp32_colour = std::array{1.0f, 0.6f, 0.3f, 1.0f};
+
+//
+//  used if PBO = 0?
+//
+// template <std::floating_point T> auto draw_points(std::span<const T> positions) -> void {
+//     glBegin(GL_POINTS);
+//     {
+//         if constexpr (std::is_same_v<T, double>) {
+//             for (auto i = 0; i < positions.size(); i += 4) {
+//                 glVertex3dv(&positions[i]);
+//             }
+//         } else {
+//             for (auto i = 0; i < positions.size(); i += 4) {
+//                 glVertex3fv(&positions[i]);
+//             }
+//         }
+//     }
+//     glEnd();
+// }
+
 }    // namespace
 
-ParticleRenderer::ParticleRenderer(std::size_t nb_bodies, bool fp64) : colour_(nb_bodies * 4, 1.0f), fp64_positions_(fp64) {
+ParticleRenderer::ParticleRenderer(std::size_t nb_bodies) : colour_(nb_bodies * 4, 1.0f) {
     auto v = std::size_t{0};
 
     for (auto i = 0; i < nb_bodies; ++i) {
@@ -65,87 +85,39 @@ void ParticleRenderer::resetPBO() {
     glDeleteBuffers(1, reinterpret_cast<GLuint*>(&pbo_));
 }
 
-void ParticleRenderer::set_positions(std::span<const float> pos) {
-    assert(pos.size() == colour_.size());
+template <std::floating_point T> auto ParticleRenderer::draw_points(bool color, unsigned int pbo) -> void {
+    assert(pbo != 0);
 
-    fp64_positions_ = false;
-    pos_            = pos;
+    glEnableClientState(GL_VERTEX_ARRAY);
 
-    if (!pbo_) {
-        glGenBuffers(1, reinterpret_cast<GLuint*>(&pbo_));
-    }
+    glBindBuffer(GL_ARRAY_BUFFER, pbo);
 
-    glBindBuffer(GL_ARRAY_BUFFER, pbo_);
-    glBufferData(GL_ARRAY_BUFFER, pos.size() * sizeof(float), pos.data(), GL_STATIC_DRAW);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    SDK_CHECK_ERROR_GL();
-}
-void ParticleRenderer::set_positions(std::span<const double> pos) {
-    assert(pos.size() == colour_.size());
-
-    fp64_positions_ = true;
-    pos_fp64_       = pos;
-
-    if (!pbo_) {
-        glGenBuffers(1, reinterpret_cast<GLuint*>(&pbo_));
-    }
-
-    glBindBuffer(GL_ARRAY_BUFFER, pbo_);
-    glBufferData(GL_ARRAY_BUFFER, pos.size() * sizeof(double), pos.data(), GL_STATIC_DRAW);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    SDK_CHECK_ERROR_GL();
-}
-
-void ParticleRenderer::set_pbo(unsigned int pbo, bool fp64) {
-    pbo_            = pbo;
-    fp64_positions_ = fp64;
-}
-
-void ParticleRenderer::_drawPoints(bool color) {
-    if (!pbo_) {
-        glBegin(GL_POINTS);
-        {
-            if (fp64_positions_) {
-                for (auto i = 0; i < pos_fp64_.size(); i += 4) {
-                    glVertex3dv(&pos_fp64_[i]);
-                }
-            } else {
-                for (auto i = 0; i < pos_.size(); i += 4) {
-                    glVertex3fv(&pos_[i]);
-                }
-            }
-        }
-        glEnd();
+    if constexpr (std::is_same_v<T, double>) {
+        glVertexPointer(4, GL_DOUBLE, 0, 0);
     } else {
-        glEnableClientState(GL_VERTEX_ARRAY);
-
-        glBindBuffer(GL_ARRAY_BUFFER, pbo_);
-
-        if (fp64_positions_) {
-            glVertexPointer(4, GL_DOUBLE, 0, 0);
-        } else {
-            glVertexPointer(4, GL_FLOAT, 0, 0);
-        }
-
-        if (color) {
-            glEnableClientState(GL_COLOR_ARRAY);
-            glBindBuffer(GL_ARRAY_BUFFER, vbo_colour_);
-            // glActiveTexture(GL_TEXTURE1);
-            // glTexCoordPointer(4, GL_FLOAT, 0, 0);
-            glColorPointer(4, GL_FLOAT, 0, 0);
-        }
-
-        const auto nb_particles = colour_.size() / 4;
-
-        glDrawArrays(GL_POINTS, 0, static_cast<GLsizei>(nb_particles));
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-        glDisableClientState(GL_VERTEX_ARRAY);
-        glDisableClientState(GL_COLOR_ARRAY);
+        glVertexPointer(4, GL_FLOAT, 0, 0);
     }
+
+    if (color) {
+        glEnableClientState(GL_COLOR_ARRAY);
+        glBindBuffer(GL_ARRAY_BUFFER, vbo_colour_);
+        // glActiveTexture(GL_TEXTURE1);
+        // glTexCoordPointer(4, GL_FLOAT, 0, 0);
+        glColorPointer(4, GL_FLOAT, 0, 0);
+    }
+
+    const auto nb_particles = colour_.size() / 4;
+
+    glDrawArrays(GL_POINTS, 0, static_cast<GLsizei>(nb_particles));
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glDisableClientState(GL_VERTEX_ARRAY);
+    glDisableClientState(GL_COLOR_ARRAY);
 }
 
-void ParticleRenderer::display(DisplayMode mode, float sprite_size) {
-    const auto& base_colour_ = fp64_positions_ ? fp64_colour : fp32_colour;
+template <std::floating_point T> auto ParticleRenderer::display(DisplayMode mode, float sprite_size, unsigned int pbo) -> void {
+    assert(pbo != 0u);
+
+    constexpr auto& base_colour_ = std::is_same_v<T, double> ? fp64_colour : fp32_colour;
 
     switch (mode) {
         case PARTICLE_POINTS:
@@ -155,7 +127,7 @@ void ParticleRenderer::display(DisplayMode mode, float sprite_size) {
                 glColor3f(1, 1, 1);
                 glPointSize(point_size_);
                 glUseProgram(program_points_);
-                _drawPoints(false);
+                draw_points<T>(false, pbo);
                 glUseProgram(0);
             }
             break;
@@ -182,7 +154,7 @@ void ParticleRenderer::display(DisplayMode mode, float sprite_size) {
                 glColor3f(1, 1, 1);
                 glSecondaryColor3fv(base_colour_.data());
 
-                _drawPoints(false);
+                draw_points<T>(false, pbo);
 
                 glUseProgram(0);
 
@@ -214,7 +186,7 @@ void ParticleRenderer::display(DisplayMode mode, float sprite_size) {
                 glColor3f(1, 1, 1);
                 glSecondaryColor3fv(base_colour_.data());
 
-                _drawPoints(true);
+                draw_points<T>(true, pbo);
 
                 glUseProgram(0);
 
@@ -227,6 +199,23 @@ void ParticleRenderer::display(DisplayMode mode, float sprite_size) {
     }
 
     SDK_CHECK_ERROR_GL();
+}
+
+template <std::floating_point T> auto ParticleRenderer::display(DisplayMode mode, float sprite_size, std::span<const T> pos) -> void {
+    assert(pos.size() == colour_.size());
+
+    if (!pbo_) {
+        glGenBuffers(1, reinterpret_cast<GLuint*>(&pbo_));
+    }
+
+    assert(pbo_ != 0u);
+
+    glBindBuffer(GL_ARRAY_BUFFER, pbo_);
+    glBufferData(GL_ARRAY_BUFFER, pos.size() * sizeof(T), pos.data(), GL_STATIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    SDK_CHECK_ERROR_GL();
+
+    display<T>(mode, sprite_size, pbo_);
 }
 
 void ParticleRenderer::_initGL() {
@@ -339,3 +328,8 @@ void ParticleRenderer::_createTexture() {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, resolution, resolution, 0, GL_RGBA, GL_UNSIGNED_BYTE, data.data());
 }
+
+template auto ParticleRenderer::display<float>(DisplayMode mode, float sprite_size, std::span<const float> pos) -> void;
+template auto ParticleRenderer::display<double>(DisplayMode mode, float sprite_size, std::span<const double> pos) -> void;
+template auto ParticleRenderer::display<float>(DisplayMode mode, float sprite_size, unsigned int pbo) -> void;
+template auto ParticleRenderer::display<double>(DisplayMode mode, float sprite_size, unsigned int pbo) -> void;

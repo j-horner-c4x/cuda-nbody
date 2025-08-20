@@ -514,16 +514,16 @@ auto ComputeConfig::display_NBody_system(ParticleRenderer::DisplayMode display_m
     if (use_pbo_) {
         assert(!use_cpu_);
         if (fp64_enabled_) {
-            renderer.set_pbo(nbody_cuda_fp64_->getCurrentReadBuffer(), fp64_enabled_);
+            renderer.display<double>(display_mode, active_params_.m_pointSize, nbody_cuda_fp64_->getCurrentReadBuffer());
         } else {
-            renderer.set_pbo(nbody_cuda_fp32_->getCurrentReadBuffer(), fp64_enabled_);
+            renderer.display<float>(display_mode, active_params_.m_pointSize, nbody_cuda_fp32_->getCurrentReadBuffer());
         }
     } else {
         if (use_cpu_) {
             if (fp64_enabled_) {
-                renderer.set_positions(nbody_cpu_fp64_->get_position());
+                renderer.display(display_mode, active_params_.m_pointSize, nbody_cpu_fp64_->get_position());
             } else {
-                renderer.set_positions(nbody_cpu_fp32_->get_position());
+                renderer.display(display_mode, active_params_.m_pointSize, nbody_cpu_fp32_->get_position());
             }
         } else {
             // This event sync is required because we are rendering from the host memory that CUDA is writing.
@@ -531,15 +531,12 @@ auto ComputeConfig::display_NBody_system(ParticleRenderer::DisplayMode display_m
             cudaEventSynchronize(host_mem_sync_event_);
 
             if (fp64_enabled_) {
-                renderer.set_positions(nbody_cuda_fp64_->get_position());
+                renderer.display(display_mode, active_params_.m_pointSize, nbody_cuda_fp64_->get_position());
             } else {
-                renderer.set_positions(nbody_cuda_fp32_->get_position());
+                renderer.display(display_mode, active_params_.m_pointSize, nbody_cuda_fp32_->get_position());
             }
         }
     }
-
-    // display particles
-    renderer.display(display_mode, active_params_.m_pointSize);
 }
 
 auto ComputeConfig::reset(NBodyConfig initial_configuration) -> void {
