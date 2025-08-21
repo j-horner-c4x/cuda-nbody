@@ -3,8 +3,8 @@
 #include "camera.hpp"
 #include "compute.hpp"
 #include "controls.hpp"
+#include "gl_includes.hpp"
 #include "helper_cuda.hpp"
-#include "helper_gl.hpp"
 #include "interface.hpp"
 #include "render_particles.hpp"
 

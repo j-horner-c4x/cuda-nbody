@@ -26,21 +26,20 @@
  */
 
 #include "git_commit_id.hpp"
-#include "nbody/helper_gl.hpp"
-#if defined(WIN32) || defined(_WIN32) || defined(WIN64) || defined(_WIN64)
-#define NOMINMAX
-#include <GL/wglew.h>
-#endif
-
 #include "nbody/camera.hpp"
 #include "nbody/compute.hpp"
 #include "nbody/controls.hpp"
+#include "nbody/gl_includes.hpp"
 #include "nbody/graphics_loop.hpp"
 #include "nbody/interface.hpp"
 #include "nbody/render_particles.hpp"
 
 #include <CLI/CLI.hpp>
 #include <GL/freeglut.h>
+#if defined(WIN32) || defined(_WIN32) || defined(WIN64) || defined(_WIN64)
+#define NOMINMAX
+#include <GL/wglew.h>    // for wglSwapIntervalEXT()
+#endif
 
 #include <filesystem>
 #include <limits>
@@ -124,7 +123,7 @@ auto initGL(int* argc, char** argv, bool full_screen) -> void {
         glutFullScreen();
     }
 
-    else if (!isGLVersionSupported(2, 0) || !areGLExtensionsSupported("GL_ARB_multitexture GL_ARB_vertex_buffer_object")) {
+    if (!isGLVersionSupported(2, 0) || !areGLExtensionsSupported("GL_ARB_multitexture GL_ARB_vertex_buffer_object")) {
         throw std::runtime_error("Required OpenGL extensions missing.");
     } else {
 #if defined(WIN32)

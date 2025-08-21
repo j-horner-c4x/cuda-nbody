@@ -29,10 +29,7 @@
 
 #define HELPERGL_EXTERN_GL_FUNC_IMPLEMENTATION
 
-// includes for OpenGL
-#include "helper_gl.hpp"
-
-// includes
+#include "gl_includes.hpp"
 #include "helper_cuda.hpp"
 
 #include <cuda_gl_interop.h>

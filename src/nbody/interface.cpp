@@ -2,10 +2,13 @@
 
 #include "camera.hpp"
 #include "compute.hpp"
-#include "helper_gl.hpp"
+#include "gl_includes.hpp"
+#include "gl_print.hpp"
 #include "paramgl.hpp"
 #include "render_particles.hpp"
 #include "win_coords.hpp"
+
+#include <GL/freeglut.h>
 
 #include <format>
 

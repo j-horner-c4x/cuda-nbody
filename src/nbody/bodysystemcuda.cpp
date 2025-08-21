@@ -30,8 +30,8 @@
 #include "bodysystemcuda.hpp"
 
 #include "compute.hpp"
+#include "gl_includes.hpp"
 #include "helper_cuda.hpp"
-#include "helper_gl.hpp"
 #include "randomise_bodies.hpp"
 #include "tipsy.hpp"
 #include "vec.hpp"
