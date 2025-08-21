@@ -38,6 +38,9 @@
 #include <cuda_gl_interop.h>
 #include <cuda_runtime.h>
 
+#include <print>
+#include <source_location>
+
 #include <cassert>
 #include <cmath>
 
@@ -79,17 +82,48 @@ auto initialise_colours(std::size_t nb_bodies) -> std::vector<float> {
     return colours;
 }
 
-auto current_buffer() noexcept {
-    if (false == sdkCheckErrorGL(__FILE__, __LINE__)) {
-        exit(EXIT_FAILURE);
+constexpr auto glErrorToString(GLenum err) -> const char* {
+    switch (err) {
+        case GL_NO_ERROR:
+            return "GL_NO_ERROR";
+        case GL_INVALID_ENUM:
+            return "GL_INVALID_ENUM";
+        case GL_INVALID_VALUE:
+            return "GL_INVALID_VALUE";
+        case GL_INVALID_OPERATION:
+            return "GL_INVALID_OPERATION";
+        case GL_OUT_OF_MEMORY:
+            return "GL_OUT_OF_MEMORY";
+        case GL_STACK_UNDERFLOW:
+            return "GL_STACK_UNDERFLOW";
+        case GL_STACK_OVERFLOW:
+            return "GL_STACK_OVERFLOW";
+        case GL_INVALID_FRAMEBUFFER_OPERATION:
+            return "GL_INVALID_FRAMEBUFFER_OPERATION";
+        default:
+            assert(false);
+            return "*UNKNOWN*";
     }
+}
+
+auto inline check_OpenGL_error(const std::source_location& location = std::source_location::current()) -> void {
+    // check for error
+    const auto gl_error = glGetError();
+
+    if (gl_error != GL_NO_ERROR) {
+        std::println(stderr, "\n{}({}) : GL Error: `{}` {}\n", location.file_name(), location.line(), location.function_name(), glErrorToString(gl_error));
+        std::exit(EXIT_FAILURE);
+    }
+}
+
+auto current_buffer() noexcept {
+    check_OpenGL_error();
 
     auto buffer = GLint{-1};
 
     glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &buffer);
-    if (false == sdkCheckErrorGL(__FILE__, __LINE__)) {
-        exit(EXIT_FAILURE);
-    }
+
+    check_OpenGL_error();
 
     return static_cast<GLuint>(buffer);
 }
@@ -98,7 +132,7 @@ auto current_buffer() noexcept {
 
 ParticleRenderer::BufferObject::BufferObject() noexcept {
     glGenBuffers(1, reinterpret_cast<GLuint*>(&buffer_));
-    SDK_CHECK_ERROR_GL();
+    check_OpenGL_error();
     assert(buffer_ != 0u);
 }
 
@@ -142,7 +176,7 @@ template <std::invocable F> auto ParticleRenderer::BufferObject::use(F&& func) n
 template <std::floating_point T> auto ParticleRenderer::BufferObject::bind_data(std::span<const T> data) noexcept -> void {
     use([&]() noexcept {
         glBufferData(GL_ARRAY_BUFFER, data.size() * sizeof(T), data.data(), GL_STATIC_DRAW);
-        SDK_CHECK_ERROR_GL();
+        check_OpenGL_error();
     });
 }
 
@@ -160,8 +194,7 @@ template <std::floating_point T> auto ParticleRenderer::draw_points(bool color, 
     assert(pbo != 0);
 
     glBindBuffer(GL_ARRAY_BUFFER, pbo);
-    SDK_CHECK_ERROR_GL();
-
+    check_OpenGL_error();
     glEnableClientState(GL_VERTEX_ARRAY);
 
     if constexpr (std::is_same_v<T, double>) {
@@ -188,10 +221,9 @@ template <std::floating_point T> auto ParticleRenderer::draw_points(bool color, 
         glDrawArrays(GL_POINTS, 0, static_cast<GLsizei>(nb_particles));
     }
     glDisableClientState(GL_VERTEX_ARRAY);
-    SDK_CHECK_ERROR_GL();
-
+    check_OpenGL_error();
     glBindBuffer(GL_ARRAY_BUFFER, 0);
-    SDK_CHECK_ERROR_GL();
+    check_OpenGL_error();
 }
 
 template <std::floating_point T> auto ParticleRenderer::display(DisplayMode mode, float sprite_size, unsigned int pbo) -> void {
@@ -278,7 +310,7 @@ template <std::floating_point T> auto ParticleRenderer::display(DisplayMode mode
             break;
     }
 
-    SDK_CHECK_ERROR_GL();
+    check_OpenGL_error();
 }
 
 template <std::floating_point T> auto ParticleRenderer::display(DisplayMode mode, float sprite_size, std::span<const T> pos) -> void {

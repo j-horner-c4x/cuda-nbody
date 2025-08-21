@@ -51,6 +51,67 @@
 
 #include <cstddef>
 
+auto split_string(std::string_view to_split, char delimiter) -> std::vector<std::string_view> {
+    if (to_split.empty()) {
+        return {};
+    }
+
+    auto delim_pos = to_split.find_first_of(delimiter);
+
+    auto the_split = std::vector<std::string_view>{};
+
+    if (delim_pos != 0u) {
+        the_split.push_back(to_split.substr(0, delim_pos));
+    }
+
+    while (delim_pos != std::string_view::npos) {
+        const auto substr_start = delim_pos + 1u;
+
+        if (substr_start >= to_split.size()) {
+            break;
+        }
+
+        assert(substr_start != std::string_view::npos);
+
+        delim_pos = to_split.find_first_of(delimiter, substr_start);
+
+        if (delim_pos != substr_start) {
+            the_split.push_back(to_split.substr(substr_start, delim_pos - substr_start));
+        }
+    }
+
+    return the_split;
+}
+
+auto areGLExtensionsSupported(std::string_view extensions) -> bool {
+    const auto all_extensions_str = std::string{reinterpret_cast<const char*>(glGetString(GL_EXTENSIONS))};
+
+    const auto all_extensions = split_string(all_extensions_str, ' ');
+
+    const auto requested_extensions = split_string(extensions, ' ');
+
+    return std::ranges::includes(all_extensions, requested_extensions);
+}
+
+auto isGLVersionSupported(unsigned reqMajor, unsigned reqMinor) -> bool {
+#if defined(WIN32) || defined(_WIN32) || defined(WIN64) || defined(_WIN64)
+    if (glewInit() != GLEW_OK) {
+        std::println(stderr, "glewInit() failed!");
+        return 0;
+    }
+#endif
+    auto stream = std::stringstream(std::string{reinterpret_cast<const char*>(glGetString(GL_VERSION))});
+
+    auto major = 0u;
+    auto minor = 0u;
+    auto dot   = '.';
+
+    stream >> major >> dot >> minor;
+
+    assert(dot == '.');
+    return major > reqMajor || (major == reqMajor && minor >= reqMinor);
+}
+
 auto initGL(int* argc, char** argv, bool full_screen) -> void {
     // First initialize OpenGL context, so we can properly set the GL for CUDA.
     // This is necessary in order to achieve optimal performance with OpenGL/CUDA interop.
@@ -63,9 +124,7 @@ auto initGL(int* argc, char** argv, bool full_screen) -> void {
         glutFullScreen();
     }
 
-    else if (!isGLVersionSupported(2, 0)
-             || !areGLExtensionsSupported("GL_ARB_multitexture "
-                                          "GL_ARB_vertex_buffer_object")) {
+    else if (!isGLVersionSupported(2, 0) || !areGLExtensionsSupported("GL_ARB_multitexture GL_ARB_vertex_buffer_object")) {
         throw std::runtime_error("Required OpenGL extensions missing.");
     } else {
 #if defined(WIN32)
