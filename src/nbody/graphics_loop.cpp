@@ -3,8 +3,8 @@
 #include "camera.hpp"
 #include "compute.hpp"
 #include "controls.hpp"
+#include "gl_includes.hpp"
 #include "helper_cuda.hpp"
-#include "helper_gl.hpp"
 #include "interface.hpp"
 #include "render_particles.hpp"
 
@@ -74,7 +74,7 @@ auto execute_graphics_loop(ComputeConfig& compute, Interface& interface, Camera&
 
     auto mouse_    = [&](int button, int state, int x, int y) { controls.mouse(button, state, x, y, interface, compute); };
     auto motion_   = [&](int x, int y) { controls.motion(x, y, interface, camera, compute); };
-    auto keyboard_ = [&](unsigned char k, int x, int y) { Controls::keyboard(k, x, y, compute, interface, camera, renderer); };
+    auto keyboard_ = [&](unsigned char k, int x, int y) { Controls::keyboard(k, x, y, compute, interface, camera); };
 
     // The special keyboard callback is triggered when keyboard function or directional keys are pressed.
     auto special_ = [&](int key, int x, int y) { interface.special(key, x, y); };
@@ -91,9 +91,11 @@ auto execute_graphics_loop(ComputeConfig& compute, Interface& interface, Camera&
     register_callback<glutSpecialFuncUcall>(special_);
     register_callback<glutIdleFuncUcall>(idle_);
 
-    if (!compute.use_cpu) {
-        checkCudaErrors(cudaEventRecord(compute.start_event, 0));
-    }
+    glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE, GLUT_ACTION_GLUTMAINLOOP_RETURNS);
 
     glutMainLoop();
+    // TODO: something is triggering an error once the main loop exits
+    // if (false == sdkCheckErrorGL(__FILE__, __LINE__)) {
+    //     std::exit(EXIT_FAILURE);
+    // }
 }

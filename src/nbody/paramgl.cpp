@@ -1,6 +1,7 @@
 #include "paramgl.hpp"
 
-#include "helper_gl.hpp"
+#include "gl_includes.hpp"
+#include "gl_print.hpp"
 #include "win_coords.hpp"
 
 #include <GL/freeglut.h>

@@ -33,53 +33,62 @@
 
 class ParticleRenderer {
  public:
-    ParticleRenderer(std::size_t nb_bodies, float point_size, bool fp64);
+    explicit ParticleRenderer(std::size_t nb_bodies);
 
     auto colour() noexcept -> std::span<float> { return colour_; }
 
-    auto reset(bool fp64, float point_size) -> void;
-
-    // invoked by CPU impl
-    void set_positions(std::span<const float> pos);
-    void set_positions(std::span<const double> pos);
-    // invoked by GPU impl
-    void setPBO(unsigned int pbo, int numParticles, bool fp64);
-
-    auto reset(std::span<const float> colour, bool fp64, float point_size) -> void;
-
-    void setBaseColor(const std::array<float, 4>& colour) { m_baseColor = colour; }
-    void setColours(std::span<const float> colour);
-
     enum DisplayMode { PARTICLE_POINTS, PARTICLE_SPRITES, PARTICLE_SPRITES_COLOR, PARTICLE_NUM_MODES };
 
-    void display(DisplayMode mode = PARTICLE_POINTS);
+    // invoked by CPU impl or GPU impl using host memory
+    template <std::floating_point T> auto display(DisplayMode mode, float sprite_size, std::span<const T> pos) -> void;
 
-    void setPointSize(float size) { m_pointSize = size; }
-    void setSpriteSize(float size) { m_spriteSize = size; }
+    // invoked by GPU impl using OpenGL interop
+    template <std::floating_point T> auto display(DisplayMode mode, float sprite_size, unsigned int pbo) -> void;
 
  private:    // methods
     void resetPBO();
 
     void _initGL();
     void _createTexture();
-    void _drawPoints(bool color);
+
+    template <std::floating_point T> auto draw_points(bool color, unsigned int pbo) -> void;
 
     std::vector<float> colour_;
 
-    const float*  m_pos = nullptr;
-    const double* m_pos_fp64;
-    int           m_numParticles = 0;
+    std::span<const float>  pos_;
+    std::span<const double> pos_fp64_;
 
-    float m_pointSize  = 1.f;
-    float m_spriteSize = 2.f;
+    class BufferObject {
+     public:
+        BufferObject() noexcept;
+        template <std::floating_point T> BufferObject(std::span<const T> data) noexcept;
 
-    unsigned int m_programPoints  = 0;
-    unsigned int m_programSprites = 0;
-    unsigned int m_texture        = 0;
-    unsigned int m_pbo            = 0;
-    unsigned int m_vboColor       = 0;
+        BufferObject(const BufferObject&) = delete;
+        BufferObject(BufferObject&&) noexcept;
 
-    std::array<float, 4> m_baseColor;
+        auto operator=(const BufferObject&) -> BufferObject& = delete;
+        auto operator=(BufferObject&&) noexcept -> BufferObject&;
 
-    bool m_bFp64Positions = false;
+        template <std::floating_point T> auto bind_data(std::span<const T> data) noexcept -> void;
+
+        template <std::invocable F> auto use(F&& func) noexcept -> void;
+
+        ~BufferObject() noexcept;
+
+        auto buffer() const noexcept { return buffer_; }
+
+     private:
+        unsigned int buffer_;
+    };
+
+    unsigned int program_points_  = 0;
+    unsigned int program_sprites_ = 0;
+    unsigned int texture_         = 0;
+    BufferObject pbo_;
+    BufferObject vbo_colour_;
 };
+
+extern template auto ParticleRenderer::display<float>(DisplayMode mode, float sprite_size, std::span<const float> pos) -> void;
+extern template auto ParticleRenderer::display<double>(DisplayMode mode, float sprite_size, std::span<const double> pos) -> void;
+extern template auto ParticleRenderer::display<float>(DisplayMode mode, float sprite_size, unsigned int pbo) -> void;
+extern template auto ParticleRenderer::display<double>(DisplayMode mode, float sprite_size, unsigned int pbo) -> void;

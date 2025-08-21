@@ -26,21 +26,20 @@
  */
 
 #include "git_commit_id.hpp"
-#include "nbody/helper_gl.hpp"
-#if defined(WIN32) || defined(_WIN32) || defined(WIN64) || defined(_WIN64)
-#define NOMINMAX
-#include <GL/wglew.h>
-#endif
-
 #include "nbody/camera.hpp"
 #include "nbody/compute.hpp"
 #include "nbody/controls.hpp"
+#include "nbody/gl_includes.hpp"
 #include "nbody/graphics_loop.hpp"
 #include "nbody/interface.hpp"
 #include "nbody/render_particles.hpp"
 
 #include <CLI/CLI.hpp>
 #include <GL/freeglut.h>
+#if defined(WIN32) || defined(_WIN32) || defined(WIN64) || defined(_WIN64)
+#define NOMINMAX
+#include <GL/wglew.h>    // for wglSwapIntervalEXT()
+#endif
 
 #include <filesystem>
 #include <limits>
@@ -50,6 +49,67 @@
 #include <utility>
 
 #include <cstddef>
+
+auto split_string(std::string_view to_split, char delimiter) -> std::vector<std::string_view> {
+    if (to_split.empty()) {
+        return {};
+    }
+
+    auto delim_pos = to_split.find_first_of(delimiter);
+
+    auto the_split = std::vector<std::string_view>{};
+
+    if (delim_pos != 0u) {
+        the_split.push_back(to_split.substr(0, delim_pos));
+    }
+
+    while (delim_pos != std::string_view::npos) {
+        const auto substr_start = delim_pos + 1u;
+
+        if (substr_start >= to_split.size()) {
+            break;
+        }
+
+        assert(substr_start != std::string_view::npos);
+
+        delim_pos = to_split.find_first_of(delimiter, substr_start);
+
+        if (delim_pos != substr_start) {
+            the_split.push_back(to_split.substr(substr_start, delim_pos - substr_start));
+        }
+    }
+
+    return the_split;
+}
+
+auto areGLExtensionsSupported(std::string_view extensions) -> bool {
+    const auto all_extensions_str = std::string{reinterpret_cast<const char*>(glGetString(GL_EXTENSIONS))};
+
+    const auto all_extensions = split_string(all_extensions_str, ' ');
+
+    const auto requested_extensions = split_string(extensions, ' ');
+
+    return std::ranges::includes(all_extensions, requested_extensions);
+}
+
+auto isGLVersionSupported(unsigned reqMajor, unsigned reqMinor) -> bool {
+#if defined(WIN32) || defined(_WIN32) || defined(WIN64) || defined(_WIN64)
+    if (glewInit() != GLEW_OK) {
+        std::println(stderr, "glewInit() failed!");
+        return 0;
+    }
+#endif
+    auto stream = std::stringstream(std::string{reinterpret_cast<const char*>(glGetString(GL_VERSION))});
+
+    auto major = 0u;
+    auto minor = 0u;
+    auto dot   = '.';
+
+    stream >> major >> dot >> minor;
+
+    assert(dot == '.');
+    return major > reqMajor || (major == reqMajor && minor >= reqMinor);
+}
 
 auto initGL(int* argc, char** argv, bool full_screen) -> void {
     // First initialize OpenGL context, so we can properly set the GL for CUDA.
@@ -63,9 +123,7 @@ auto initGL(int* argc, char** argv, bool full_screen) -> void {
         glutFullScreen();
     }
 
-    else if (!isGLVersionSupported(2, 0)
-             || !areGLExtensionsSupported("GL_ARB_multitexture "
-                                          "GL_ARB_vertex_buffer_object")) {
+    if (!isGLVersionSupported(2, 0) || !areGLExtensionsSupported("GL_ARB_multitexture GL_ARB_vertex_buffer_object")) {
         throw std::runtime_error("Required OpenGL extensions missing.");
     } else {
 #if defined(WIN32)
@@ -209,39 +267,36 @@ int main(int argc, char** argv) {
             initGL(&argc, argv, full_screen);
         }
 
+        const auto compare_to_cpu = (cmd_options.compare || cmd_options.qatest) && (!cmd_options.cpu);
+
         auto compute = ComputeConfig(
             cmd_options.fp64,
             cycle_demo,
             cmd_options.cpu,
-            cmd_options.compare || cmd_options.qatest,
+            compare_to_cpu,
             cmd_options.benchmark,
             cmd_options.hostmem,
             cmd_options.device,
             cmd_options.numdevices,
-            cmd_options.i,
             cmd_options.block_size,
             cmd_options.numbodies,
             tipsy_file);
 
-        if (compute.benchmark) {
-            compute.run_benchmark();
-            compute.finalize();
+        if (cmd_options.benchmark) {
+            const auto nb_iterations = cmd_options.i == 0 ? 10 : static_cast<int>(cmd_options.i);
+            compute.run_benchmark(nb_iterations);
             return 0;
         }
 
-        if (compute.compare_to_cpu) {
+        if (compare_to_cpu) {
             const auto result = compute.compare_results();
-
-            compute.finalize();
 
             return static_cast<int>(!result);
         }
 
-        auto renderer = ParticleRenderer(compute.num_bodies, compute.active_params.m_pointSize, compute.fp64_enabled);
+        auto renderer = ParticleRenderer(compute.nb_bodies());
 
-        compute.reset<NBodyConfig::NBODY_CONFIG_SHELL>(renderer);
-
-        auto interface = Interface{show_sliders, compute.active_params.create_sliders(), full_screen};
+        auto interface = Interface{show_sliders, compute.create_sliders(), full_screen};
 
         auto camera = Camera{};
 
@@ -250,8 +305,6 @@ int main(int argc, char** argv) {
         execute_graphics_loop(compute, interface, camera, controls, renderer);
 
         std::println("Stopped graphics loop");
-
-        compute.finalize();
 
         return 0;
     } catch (const std::invalid_argument& e) {

@@ -25,53 +25,19 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+// These are helper functions for the SDK samples (OpenGL)
 #pragma once
 
-#include "nbody_config.hpp"
+#if defined(WIN32) || defined(_WIN32) || defined(WIN64) || defined(_WIN64)
+#define NOMINMAX
+#include <GL/glew.h>
+#endif
 
-#include <filesystem>
-#include <span>
-#include <vector>
-
-struct ComputeConfig;
-struct NBodyParams;
-
-// CPU Body System
-template <std::floating_point T> class BodySystemCPU {
- public:
-    using Type                    = T;
-    constexpr static auto use_cpu = true;
-
-    BodySystemCPU(int nb_bodies, const NBodyParams& params);
-
-    BodySystemCPU(int nb_bodies, const NBodyParams& params, std::vector<T> positions, std::vector<T> velocities);
-
-    auto reset(const NBodyParams& params, NBodyConfig config) -> void;
-
-    auto update(T deltaTime) noexcept -> void;
-
-    auto update_params(const NBodyParams& active_params) noexcept -> void;
-
-    auto get_position() const noexcept -> std::span<const T> { return m_pos; }
-    auto get_velocity() const noexcept -> std::span<const T> { return m_vel; }
-
-    auto set_position(std::span<const T> data) noexcept -> void;
-    auto set_velocity(std::span<const T> data) noexcept -> void;
-
- private:
-    auto setSoftening(T softening) noexcept -> void { m_softeningSquared = softening * softening; }
-
-    auto _computeNBodyGravitation() noexcept -> void;
-
-    int m_numBodies;
-
-    std::vector<T> m_pos;
-    std::vector<T> m_vel;
-    std::vector<T> m_force = std::vector(m_numBodies * 3, T{0.f});
-
-    T m_softeningSquared = 0.00125f;
-    T m_damping          = 0.995f;
-};
-
-extern template BodySystemCPU<float>;
-extern template BodySystemCPU<double>;
+#if defined(__APPLE__) || defined(MACOSX)
+#include <OpenGL/gl.h>
+#else
+#include <GL/gl.h>
+#ifdef __linux__
+#include <GL/glx.h>
+#endif
+#endif

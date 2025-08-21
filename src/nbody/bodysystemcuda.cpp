@@ -30,8 +30,8 @@
 #include "bodysystemcuda.hpp"
 
 #include "compute.hpp"
+#include "gl_includes.hpp"
 #include "helper_cuda.hpp"
-#include "helper_gl.hpp"
 #include "randomise_bodies.hpp"
 #include "tipsy.hpp"
 #include "vec.hpp"
@@ -63,25 +63,25 @@ cudaError_t setSofteningSquared(double softeningSq);
 
 template <std::floating_point T>
 BodySystemCUDA<T>::BodySystemCUDA(const ComputeConfig& compute, unsigned int numDevices, unsigned int blockSize, bool useP2P, int deviceId)
-    : m_numBodies(compute.num_bodies), m_numDevices(numDevices), m_bUsePBO(!(compute.benchmark || compute.compare_to_cpu || compute.use_host_mem)), m_bUseSysMem(compute.use_host_mem), m_bUseP2P(useP2P),
-      m_blockSize(blockSize), m_devID(deviceId), m_damping(compute.active_params.m_damping) {
-    _initialize(compute.num_bodies);
+    : m_numBodies(compute.nb_bodies()), m_numDevices(numDevices), m_bUsePBO(compute.use_pbo()), m_bUseSysMem(compute.use_host_mem()), m_bUseP2P(useP2P), m_blockSize(blockSize), m_devID(deviceId),
+      m_damping(compute.active_params().m_damping) {
+    _initialize(m_numBodies);
 
-    setSoftening(compute.active_params.m_softening);
+    setSoftening(compute.active_params().m_softening);
 
-    reset(compute, NBodyConfig::NBODY_CONFIG_SHELL, {});
+    reset(compute.active_params(), NBodyConfig::NBODY_CONFIG_SHELL);
 }
 
 template <std::floating_point T>
 BodySystemCUDA<T>::BodySystemCUDA(const ComputeConfig& compute, unsigned int numDevices, unsigned int blockSize, bool useP2P, int deviceId, std::vector<T> positions, std::vector<T> velocities)
-    : m_numBodies(compute.num_bodies), m_numDevices(numDevices), m_bUsePBO(!(compute.benchmark || compute.compare_to_cpu || compute.use_host_mem)), m_bUseSysMem(compute.use_host_mem), m_bUseP2P(useP2P),
-      m_blockSize(blockSize), m_devID(deviceId), m_hPos_vec(std::move(positions)), m_hVel_vec(std::move(velocities)), m_damping(compute.active_params.m_damping) {
+    : m_numBodies(compute.nb_bodies()), m_numDevices(numDevices), m_bUsePBO(compute.use_pbo()), m_bUseSysMem(compute.use_host_mem()), m_bUseP2P(useP2P), m_blockSize(blockSize), m_devID(deviceId),
+      m_hPos_vec(std::move(positions)), m_hVel_vec(std::move(velocities)), m_damping(compute.active_params().m_damping) {
     assert(m_hPos_vec.size() == m_numBodies);
     assert(m_hVel_vec.size() == m_numBodies);
 
-    _initialize(compute.num_bodies);
+    _initialize(m_numBodies);
 
-    setSoftening(compute.active_params.m_softening);
+    setSoftening(compute.active_params().m_softening);
 
     set_position(m_hPos_vec);
     set_velocity(m_hVel_vec);
@@ -92,8 +92,8 @@ template <std::floating_point T> BodySystemCUDA<T>::~BodySystemCUDA() noexcept {
     m_numBodies = 0;
 }
 
-template <std::floating_point T> auto BodySystemCUDA<T>::reset(const ComputeConfig& compute, NBodyConfig config, std::span<float> colour) -> void {
-    randomise_bodies<T>(config, m_hPos_vec, m_hVel_vec, colour, compute.active_params.m_clusterScale, compute.active_params.m_velocityScale);
+template <std::floating_point T> auto BodySystemCUDA<T>::reset(const NBodyParams& params, NBodyConfig config) -> void {
+    randomise_bodies<T>(config, m_hPos_vec, m_hVel_vec, params.m_clusterScale, params.m_velocityScale);
     set_position(m_hPos_vec);
     set_velocity(m_hVel_vec);
 }
