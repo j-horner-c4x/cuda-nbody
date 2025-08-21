@@ -64,18 +64,89 @@ constexpr static auto fp32_colour = std::array{1.0f, 0.6f, 0.3f, 1.0f};
 //     glEnd();
 // }
 
-}    // namespace
+auto initialise_colours(std::size_t nb_bodies) -> std::vector<float> {
+    auto colours = std::vector(nb_bodies * 4, 0.f);
 
-ParticleRenderer::ParticleRenderer(std::size_t nb_bodies) : colour_(nb_bodies * 4, 1.0f) {
     auto v = std::size_t{0};
 
     for (auto i = 0; i < nb_bodies; ++i) {
-        colour_[v++] = static_cast<float>(std::max((i % 3) - 1, 0));
-        colour_[v++] = static_cast<float>(std::max(((i + 1) % 3) - 1, 0));
-        colour_[v++] = static_cast<float>(std::max(((i + 2) % 3) - 1, 0));
-        colour_[v++] = 1.0f;
+        colours[v++] = static_cast<float>(std::max((i % 3) - 1, 0));
+        colours[v++] = static_cast<float>(std::max(((i + 1) % 3) - 1, 0));
+        colours[v++] = static_cast<float>(std::max(((i + 2) % 3) - 1, 0));
+        colours[v++] = 1.0f;
     }
 
+    return colours;
+}
+
+auto current_buffer() noexcept {
+    if (false == sdkCheckErrorGL(__FILE__, __LINE__)) {
+        exit(EXIT_FAILURE);
+    }
+
+    auto buffer = GLint{-1};
+
+    glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &buffer);
+    if (false == sdkCheckErrorGL(__FILE__, __LINE__)) {
+        exit(EXIT_FAILURE);
+    }
+
+    return static_cast<GLuint>(buffer);
+}
+
+}    // namespace
+
+ParticleRenderer::BufferObject::BufferObject() noexcept {
+    glGenBuffers(1, reinterpret_cast<GLuint*>(&buffer_));
+    SDK_CHECK_ERROR_GL();
+    assert(buffer_ != 0u);
+}
+
+ParticleRenderer::BufferObject::BufferObject(BufferObject&& other) noexcept {
+    *this = std::move(other);
+}
+
+template <std::floating_point T> ParticleRenderer::BufferObject::BufferObject(std::span<const T> data) noexcept : BufferObject() {
+    bind_data(data);
+}
+
+auto ParticleRenderer::BufferObject::operator=(BufferObject&& other) noexcept -> BufferObject& {
+    if (&other != this) {
+        buffer_       = other.buffer_;
+        other.buffer_ = 0u;
+    }
+    return *this;
+}
+
+ParticleRenderer::BufferObject::~BufferObject() noexcept {
+    if (buffer_ != 0u) {
+        [[maybe_unused]] const auto previous_buffer = current_buffer();
+        assert(previous_buffer != buffer_);
+
+        glDeleteBuffers(1, reinterpret_cast<GLuint*>(&buffer_));
+    }
+}
+
+template <std::invocable F> auto ParticleRenderer::BufferObject::use(F&& func) noexcept -> void {
+    static_assert(std::is_nothrow_invocable_v<F>);
+
+    const auto previous_buffer = current_buffer();
+
+    glBindBuffer(GL_ARRAY_BUFFER, buffer_);
+
+    func();
+
+    glBindBuffer(GL_ARRAY_BUFFER, previous_buffer);
+}
+
+template <std::floating_point T> auto ParticleRenderer::BufferObject::bind_data(std::span<const T> data) noexcept -> void {
+    use([&]() noexcept {
+        glBufferData(GL_ARRAY_BUFFER, data.size() * sizeof(T), data.data(), GL_STATIC_DRAW);
+        SDK_CHECK_ERROR_GL();
+    });
+}
+
+ParticleRenderer::ParticleRenderer(std::size_t nb_bodies) : colour_(initialise_colours(nb_bodies)), vbo_colour_(std::span<const float>{colour_}) {
     _initGL();
 }
 
@@ -88,30 +159,39 @@ void ParticleRenderer::resetPBO() {
 template <std::floating_point T> auto ParticleRenderer::draw_points(bool color, unsigned int pbo) -> void {
     assert(pbo != 0);
 
-    glEnableClientState(GL_VERTEX_ARRAY);
-
     glBindBuffer(GL_ARRAY_BUFFER, pbo);
+    SDK_CHECK_ERROR_GL();
+
+    glEnableClientState(GL_VERTEX_ARRAY);
 
     if constexpr (std::is_same_v<T, double>) {
         glVertexPointer(4, GL_DOUBLE, 0, 0);
+
     } else {
         glVertexPointer(4, GL_FLOAT, 0, 0);
     }
 
-    if (color) {
-        glEnableClientState(GL_COLOR_ARRAY);
-        glBindBuffer(GL_ARRAY_BUFFER, vbo_colour_);
-        // glActiveTexture(GL_TEXTURE1);
-        // glTexCoordPointer(4, GL_FLOAT, 0, 0);
-        glColorPointer(4, GL_FLOAT, 0, 0);
-    }
-
     const auto nb_particles = colour_.size() / 4;
 
-    glDrawArrays(GL_POINTS, 0, static_cast<GLsizei>(nb_particles));
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    if (color) {
+        vbo_colour_.use([&]() noexcept {
+            glEnableClientState(GL_COLOR_ARRAY);
+            // glActiveTexture(GL_TEXTURE1);
+            // glTexCoordPointer(4, GL_FLOAT, 0, 0);
+            glColorPointer(4, GL_FLOAT, 0, 0);
+
+            glDrawArrays(GL_POINTS, 0, static_cast<GLsizei>(nb_particles));
+
+            glDisableClientState(GL_COLOR_ARRAY);
+        });
+    } else {
+        glDrawArrays(GL_POINTS, 0, static_cast<GLsizei>(nb_particles));
+    }
     glDisableClientState(GL_VERTEX_ARRAY);
-    glDisableClientState(GL_COLOR_ARRAY);
+    SDK_CHECK_ERROR_GL();
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    SDK_CHECK_ERROR_GL();
 }
 
 template <std::floating_point T> auto ParticleRenderer::display(DisplayMode mode, float sprite_size, unsigned int pbo) -> void {
@@ -204,18 +284,9 @@ template <std::floating_point T> auto ParticleRenderer::display(DisplayMode mode
 template <std::floating_point T> auto ParticleRenderer::display(DisplayMode mode, float sprite_size, std::span<const T> pos) -> void {
     assert(pos.size() == colour_.size());
 
-    if (!pbo_) {
-        glGenBuffers(1, reinterpret_cast<GLuint*>(&pbo_));
-    }
+    pbo_.bind_data(pos);
 
-    assert(pbo_ != 0u);
-
-    glBindBuffer(GL_ARRAY_BUFFER, pbo_);
-    glBufferData(GL_ARRAY_BUFFER, pos.size() * sizeof(T), pos.data(), GL_STATIC_DRAW);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    SDK_CHECK_ERROR_GL();
-
-    display<T>(mode, sprite_size, pbo_);
+    display<T>(mode, sprite_size, pbo_.buffer());
 }
 
 void ParticleRenderer::_initGL() {
@@ -270,11 +341,6 @@ void ParticleRenderer::_initGL() {
     glLinkProgram(program_points_);
 
     _createTexture();
-
-    glGenBuffers(1, reinterpret_cast<GLuint*>(&vbo_colour_));
-    glBindBuffer(GL_ARRAY_BUFFER, vbo_colour_);
-    glBufferData(GL_ARRAY_BUFFER, colour_.size() * sizeof(float), colour_.data(), GL_STATIC_DRAW);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
 //------------------------------------------------------------------------------

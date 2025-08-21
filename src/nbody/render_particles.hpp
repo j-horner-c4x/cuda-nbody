@@ -58,11 +58,34 @@ class ParticleRenderer {
     std::span<const float>  pos_;
     std::span<const double> pos_fp64_;
 
+    class BufferObject {
+     public:
+        BufferObject() noexcept;
+        template <std::floating_point T> BufferObject(std::span<const T> data) noexcept;
+
+        BufferObject(const BufferObject&) = delete;
+        BufferObject(BufferObject&&) noexcept;
+
+        auto operator=(const BufferObject&) -> BufferObject& = delete;
+        auto operator=(BufferObject&&) noexcept -> BufferObject&;
+
+        template <std::floating_point T> auto bind_data(std::span<const T> data) noexcept -> void;
+
+        template <std::invocable F> auto use(F&& func) noexcept -> void;
+
+        ~BufferObject() noexcept;
+
+        auto buffer() const noexcept { return buffer_; }
+
+     private:
+        unsigned int buffer_;
+    };
+
     unsigned int program_points_  = 0;
     unsigned int program_sprites_ = 0;
     unsigned int texture_         = 0;
-    unsigned int pbo_             = 0;
-    unsigned int vbo_colour_      = 0;
+    BufferObject pbo_;
+    BufferObject vbo_colour_;
 };
 
 extern template auto ParticleRenderer::display<float>(DisplayMode mode, float sprite_size, std::span<const float> pos) -> void;
