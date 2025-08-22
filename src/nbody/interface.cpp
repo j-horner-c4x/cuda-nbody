@@ -35,9 +35,9 @@ auto Interface::display(ComputeConfig& compute, Camera& camera, ParticleRenderer
 
             constexpr static auto msg0 = std::string_view{"some_temp_device_name"};
 
-            const auto msg1 = display_interactions ? std::format("{:.2} billion interactions per second", compute.interactions_per_second()) : std::format("{:.2} GFLOP/s", compute.gflops());
+            const auto msg1 = display_interactions ? std::format("{:.2f} billion interactions per second", compute.interactions_per_second()) : std::format("{:.2f} GFLOP/s", compute.gflops());
 
-            const auto msg2 = std::format("{:.2} FPS [{} | {} bodies]", compute.fps(), compute.fp64_enabled() ? "double precision" : "single precision", compute.nb_bodies());
+            const auto msg2 = std::format("{:.2f} FPS [{} | {} bodies]", compute.fps(), compute.fp64_enabled() ? "double precision" : "single precision", compute.nb_bodies());
 
             glBlendFunc(GL_ONE_MINUS_DST_COLOR, GL_ZERO);    // invert color
             glEnable(GL_BLEND);
