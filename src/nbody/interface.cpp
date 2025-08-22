@@ -4,6 +4,7 @@
 #include "compute.hpp"
 #include "gl_includes.hpp"
 #include "gl_print.hpp"
+#include "helper_cuda.hpp"
 #include "paramgl.hpp"
 #include "render_particles.hpp"
 #include "win_coords.hpp"
@@ -31,9 +32,14 @@ auto Interface::display(ComputeConfig& compute, Camera& camera, ParticleRenderer
         }
 
         if (full_screen) {
-            const auto win_coords = WinCoords{};
+            auto dev_id = -1;
 
-            constexpr static auto msg0 = std::string_view{"some_temp_device_name"};
+            checkCudaErrors(cudaGetDevice(&dev_id));
+
+            auto properties = cudaDeviceProp{};
+            checkCudaErrors(cudaGetDeviceProperties(&properties, dev_id));
+
+            const auto win_coords = WinCoords{};
 
             const auto msg1 = display_interactions ? std::format("{:.2f} billion interactions per second", compute.interactions_per_second()) : std::format("{:.2f} GFLOP/s", compute.gflops());
 
@@ -42,7 +48,7 @@ auto Interface::display(ComputeConfig& compute, Camera& camera, ParticleRenderer
             glBlendFunc(GL_ONE_MINUS_DST_COLOR, GL_ZERO);    // invert color
             glEnable(GL_BLEND);
             glColor3f(0.46f, 0.73f, 0.0f);
-            glPrint(80, glutGet(GLUT_WINDOW_HEIGHT) - 122, msg0, GLUT_BITMAP_TIMES_ROMAN_24);
+            glPrint(80, glutGet(GLUT_WINDOW_HEIGHT) - 122, properties.name, GLUT_BITMAP_TIMES_ROMAN_24);
             glColor3f(1.0f, 1.0f, 1.0f);
             glPrint(80, glutGet(GLUT_WINDOW_HEIGHT) - 96, msg2, GLUT_BITMAP_TIMES_ROMAN_24);
             glColor3f(1.0f, 1.0f, 1.0f);
