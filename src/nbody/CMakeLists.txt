@@ -46,6 +46,7 @@ target_link_libraries(${PROJECT_NAME}_interface
                         PUBLIC
                             ${PROJECT_NAME}_paramgl
                         PRIVATE
+                            CUDA::cudart_static    
                             GLEW::GLEW
                             OpenGL::GL
                             GLUT::GLUT
